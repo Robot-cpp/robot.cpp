@@ -1,0 +1,15 @@
+build/
+build-*/
+cmake-build-*/
+artifacts/
+ckpts/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.gguf
+*.npy
+__pycache__/
+.pytest_cache/
