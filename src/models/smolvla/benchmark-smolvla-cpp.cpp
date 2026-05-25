@@ -4,6 +4,7 @@
 // and then measures repeated predict()/predict_bytes() calls in-process.
 
 #include "smolvla_engine.h"
+#include "llama.h"
 
 #include <algorithm>
 #include <chrono>
@@ -20,6 +21,24 @@
 #include <vector>
 
 namespace {
+
+static bool env_flag_enabled(const char * name) {
+    const char * value = std::getenv(name);
+    if (!value || value[0] == '\0') {
+        return false;
+    }
+    return std::strcmp(value, "0") != 0 &&
+           std::strcmp(value, "false") != 0 &&
+           std::strcmp(value, "False") != 0 &&
+           std::strcmp(value, "FALSE") != 0;
+}
+
+static void quiet_llama_log_callback(ggml_log_level level, const char * text, void * user_data) {
+    (void) user_data;
+    if (level == GGML_LOG_LEVEL_ERROR) {
+        std::fputs(text, stderr);
+    }
+}
 
 struct bench_args {
     std::string vlm_path;
@@ -265,6 +284,10 @@ static void append_result_tsv(
 } // namespace
 
 int main(int argc, char ** argv) {
+    if (!env_flag_enabled("SMOLVLA_LLAMA_LOG")) {
+        llama_log_set(quiet_llama_log_callback, nullptr);
+    }
+
     bench_args args;
     if (!parse_args(argc, argv, args)) {
         print_usage(argv[0]);
