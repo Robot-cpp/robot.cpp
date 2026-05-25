@@ -446,7 +446,7 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
 
     const int n_tensors = gguf_get_n_tensors(gguf_ctx);
     if (verbosity >= 1) {
-        LOG_INF("%s: loaded action expert GGUF: %d tensors, %d kv pairs\n",
+        LOG_INF("%s: loaded action expert GGUF: %d tensors, %lld kv pairs\n",
                 __func__, n_tensors, gguf_get_n_kv(gguf_ctx));
     }
 
