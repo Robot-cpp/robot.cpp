@@ -13,3 +13,4 @@ ckpts/
 *.npy
 __pycache__/
 .pytest_cache/
+debug/artifacts/
