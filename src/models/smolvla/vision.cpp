@@ -258,7 +258,9 @@ static bool smolvla_vision_init_backends(
 
     for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
         ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        if (ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_CPU) {
+        const enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
+        // Newer ggml exposes the BLAS/Accelerate backend as ACCEL instead of CPU.
+        if (type == GGML_BACKEND_DEVICE_TYPE_CPU || type == GGML_BACKEND_DEVICE_TYPE_ACCEL) {
             ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
             if (backend) {
                 ctx->backends.push_back(backend);
