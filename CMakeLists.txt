@@ -3,6 +3,7 @@ project(vlacpp VERSION 0.1.0 LANGUAGES C CXX)
 
 option(VLACPP_BUILD_EXAMPLES "Build vlacpp examples" ON)
 option(VLACPP_BUILD_TESTS "Build vlacpp tests" ON)
+option(VLACPP_BUILD_SMOLVLA "Build SmolVLA migration targets" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +53,47 @@ if(NOT TARGET ggml OR NOT TARGET llama OR NOT TARGET mtmd)
 endif()
 target_link_libraries(vlacpp PRIVATE ggml llama mtmd)
 target_compile_definitions(vlacpp PRIVATE VLACPP_HAVE_GGML=1 VLACPP_HAVE_MTMD=1)
+
+if(VLACPP_BUILD_SMOLVLA)
+    set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
+    add_library(smolvla OBJECT
+        ${SMOLVLA_DIR}/smolvla_engine.cpp
+        ${SMOLVLA_DIR}/smolvla_engine.h
+        ${SMOLVLA_DIR}/state_proj.cpp
+        ${SMOLVLA_DIR}/state_proj.h
+        ${SMOLVLA_DIR}/vision.cpp
+        ${SMOLVLA_DIR}/vision.h
+        ${SMOLVLA_DIR}/action_expert.cpp
+        ${SMOLVLA_DIR}/action_expert.h
+    )
+    target_include_directories(smolvla
+        PUBLIC
+            ${SMOLVLA_DIR}
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/vendor/stb
+    )
+    target_link_libraries(smolvla PRIVATE ggml llama)
+    target_compile_features(smolvla PRIVATE cxx_std_17)
+    if(NOT MSVC)
+        target_compile_options(smolvla PRIVATE -Wno-cast-qual)
+    endif()
+
+    add_library(smolvla_static STATIC $<TARGET_OBJECTS:smolvla>)
+    target_link_libraries(smolvla_static PUBLIC ggml llama)
+    target_include_directories(smolvla_static PUBLIC ${SMOLVLA_DIR})
+
+    add_executable(smolvla-cli ${SMOLVLA_DIR}/smolvla-cli.cpp)
+    set_target_properties(smolvla-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(smolvla-cli PRIVATE smolvla_static ggml llama)
+    target_compile_features(smolvla-cli PRIVATE cxx_std_17)
+
+    add_executable(benchmark-smolvla-cpp ${SMOLVLA_DIR}/benchmark-smolvla-cpp.cpp)
+    set_target_properties(benchmark-smolvla-cpp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(benchmark-smolvla-cpp PRIVATE smolvla_static ggml llama)
+    target_compile_features(benchmark-smolvla-cpp PRIVATE cxx_std_17)
+endif()
 
 if(VLACPP_BUILD_EXAMPLES)
     add_executable(vlacpp-pi0 examples/pi0-cli/main.cpp)
