@@ -71,6 +71,11 @@ struct smolvla_action_expert {
     ggml_backend_t backend_cpu = nullptr;
     ggml_backend_sched_t sched = nullptr;
     std::vector<ggml_backend_t> backends;
+    struct buft_policy_t {
+        ggml_backend_buffer_type_t model_buft = nullptr;
+        ggml_backend_buffer_type_t runtime_buft = nullptr;
+        ggml_backend_buffer_type_t host_buft = nullptr;
+    } buft_policy;
     std::vector<struct ggml_context *> ctxs;
     std::vector<ggml_backend_buffer_t> bufs;
 

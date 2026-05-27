@@ -14,13 +14,6 @@
 #include "ggml-backend.h"
 #include "smolvla_compat.h"
 
-#ifdef GGML_USE_CUDA
-#include "ggml-cuda.h"
-#endif
-#ifdef GGML_USE_METAL
-#include "ggml-metal.h"
-#endif
-
 #include <vector>
 #include <cstdlib>
 #include <cstring>
@@ -30,7 +23,6 @@
 #include <string>
 #include <stdexcept>
 #include <climits>
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -100,50 +92,12 @@ static bool smolvla_env_flag_enabled(const char * name) {
     return true;
 }
 
-static ggml_backend_t smolvla_action_expert_primary_backend(const smolvla_action_expert * ctx) {
-    if (!ctx) {
-        return nullptr;
-    }
-
-    for (ggml_backend_t backend : ctx->backends) {
-        if (backend && !ggml_backend_is_cpu(backend)) {
-            return backend;
-        }
-    }
-
-    if (ctx->backend_cpu) {
-        return ctx->backend_cpu;
-    }
-
-    return ctx->backends.empty() ? nullptr : ctx->backends.front();
+static bool smolvla_action_expert_use_accel_backend() {
+    return smolvla_env_flag_enabled("SMOLVLA_ACTION_USE_ACCEL_BACKEND");
 }
 
-static ggml_backend_buffer_type_t smolvla_action_expert_default_host_buffer_type(ggml_backend_t backend) {
-    ggml_backend_buffer_type_t buft = nullptr;
-
-    ggml_backend_dev_t dev = backend ? ggml_backend_get_device(backend) : nullptr;
-    if (dev) {
-        buft = ggml_backend_dev_host_buffer_type(dev);
-    }
-
-    if (!buft) {
-        buft = ggml_backend_cpu_buffer_type();
-    }
-
-    return buft;
-}
-
-static ggml_backend_buffer_type_t smolvla_action_expert_default_model_buffer_type(ggml_backend_t backend) {
-    if (!backend || ggml_backend_is_cpu(backend)) {
-        return smolvla_action_expert_default_host_buffer_type(backend);
-    }
-
-    ggml_backend_buffer_type_t buft = ggml_backend_get_default_buffer_type(backend);
-    return buft ? buft : smolvla_action_expert_default_host_buffer_type(backend);
-}
-
-static ggml_backend_buffer_type_t smolvla_action_expert_default_runtime_buffer_type(ggml_backend_t backend) {
-    return smolvla_action_expert_default_model_buffer_type(backend);
+static const char * smolvla_buft_name(ggml_backend_buffer_type_t buft) {
+    return buft ? ggml_backend_buft_name(buft) : "(null)";
 }
 
 static void smolvla_free_model_buffers(std::vector<ggml_backend_buffer_t> & bufs) {
@@ -241,74 +195,122 @@ static void smolvla_free_scheduler_backends(std::vector<ggml_backend_t> & backen
     backends.clear();
 }
 
-static bool smolvla_action_expert_init_scheduler(smolvla_action_expert * ctx, ggml_backend_t primary_backend) {
-    if (!ctx || !primary_backend) {
+//TODO: test support other backends
+static bool smolvla_action_expert_init_backends(smolvla_action_expert * ctx) {
+    if (!ctx) {
         return false;
     }
 
-    const bool disable_blas_backend = smolvla_env_flag_enabled("SMOLVLA_ACTION_EXPERT_DISABLE_BLAS");
-    const bool primary_is_cpu = ggml_backend_is_cpu(primary_backend);
-    const bool allow_mixed_cpu_backends = smolvla_env_flag_enabled("SMOLVLA_ACTION_EXPERT_ENABLE_MIXED_CPU_BACKENDS");
-
-    ctx->backend_cpu = nullptr;
-    ctx->backends.clear();
-    if (!primary_is_cpu) {
-        ctx->backends.push_back(primary_backend);
-    }
-
-    if (!disable_blas_backend && (!primary_is_cpu || allow_mixed_cpu_backends)) {
-        for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-            ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-            if (ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_CPU) {
-                ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
-                if (backend) {
-                    ctx->backends.push_back(backend);
-                }
-            }
-        }
-    }
-
-    ctx->backend_cpu = primary_is_cpu ? primary_backend : ggml_backend_cpu_init();
+    ctx->backend_cpu = ggml_backend_cpu_init();
     if (!ctx->backend_cpu) {
-        smolvla_free_scheduler_backends(ctx->backends);
         return false;
+    }
+
+    const bool use_accel_backend = smolvla_action_expert_use_accel_backend();
+    ctx->backends.clear();
+    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        const enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
+        if (type == GGML_BACKEND_DEVICE_TYPE_CPU) {
+            continue;
+        }
+        if (type == GGML_BACKEND_DEVICE_TYPE_ACCEL && !use_accel_backend) {
+            continue;
+        }
+        if (type != GGML_BACKEND_DEVICE_TYPE_ACCEL) {
+            continue;
+        }
+
+        ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
+        if (backend) {
+            ctx->backends.push_back(backend);
+        }
     }
     ctx->backends.push_back(ctx->backend_cpu);
 
-    std::vector<ggml_backend_buffer_type_t> backend_buft;
-    backend_buft.reserve(ctx->backends.size());
-    const ggml_backend_buffer_type_t host_buft = smolvla_action_expert_default_host_buffer_type(primary_backend);
+    return true;
+}
+
+static ggml_backend_buffer_type_t smolvla_action_expert_find_host_buft(const smolvla_action_expert * ctx) {
+    if (!ctx) {
+        return nullptr;
+    }
+
     for (ggml_backend_t backend : ctx->backends) {
-        backend_buft.push_back(
-            ggml_backend_is_cpu(backend)
-                ? host_buft
+        if (!backend || ggml_backend_is_cpu(backend)) {
+            continue;
+        }
+
+        ggml_backend_dev_t dev = ggml_backend_get_device(backend);
+        ggml_backend_buffer_type_t host_buft = dev ? ggml_backend_dev_host_buffer_type(dev) : nullptr;
+        if (host_buft) {
+            return host_buft;
+        }
+    }
+
+    return nullptr;
+}
+
+static bool smolvla_action_expert_init_buft_policy(smolvla_action_expert * ctx) {
+    if (!ctx || !ctx->backend_cpu) {
+        return false;
+    }
+
+    ggml_backend_buffer_type_t cpu_buft = ggml_backend_get_default_buffer_type(ctx->backend_cpu);
+    if (!cpu_buft) {
+        return false;
+    }
+
+    //TODO: we now only support pure cpu
+    ctx->buft_policy.model_buft = cpu_buft;
+    ctx->buft_policy.runtime_buft = cpu_buft;
+    ctx->buft_policy.host_buft = smolvla_action_expert_find_host_buft(ctx);
+    if (!ctx->buft_policy.host_buft) {
+        ctx->buft_policy.host_buft = cpu_buft;
+    }
+
+    if (ctx->verbosity >= 1) {
+        LOG_INF("%s: model_buft=%s runtime_buft=%s host_buft=%s\n",
+                __func__,
+                smolvla_buft_name(ctx->buft_policy.model_buft),
+                smolvla_buft_name(ctx->buft_policy.runtime_buft),
+                smolvla_buft_name(ctx->buft_policy.host_buft));
+    }
+
+    return true;
+}
+
+static bool smolvla_action_expert_init_scheduler(smolvla_action_expert * ctx) {
+    if (!ctx || !ctx->backend_cpu) {
+        return false;
+    }
+
+    std::vector<ggml_backend_t> sched_backends = ctx->backends;
+    std::vector<ggml_backend_buffer_type_t> sched_bufts;
+    sched_bufts.reserve(sched_backends.size());
+    for (ggml_backend_t backend : sched_backends) {
+        sched_bufts.push_back(
+            ggml_backend_is_cpu(backend) && ctx->buft_policy.host_buft
+                ? ctx->buft_policy.host_buft
                 : ggml_backend_get_default_buffer_type(backend));
     }
 
     ctx->sched = ggml_backend_sched_new(
-        ctx->backends.data(),
-        backend_buft.data(),
-        ctx->backends.size(),
+        sched_backends.data(),
+        sched_bufts.data(),
+        sched_backends.size(),
         4096,
         false,
-        false);
+        true);
 
     if (!ctx->sched) {
-        smolvla_free_scheduler_backends(ctx->backends);
-        ctx->backend_cpu = nullptr;
         return false;
     }
 
     if (ctx->verbosity >= 1) {
-        const char * suffix = disable_blas_backend
-            ? " (BLAS backend disabled)"
-            : (primary_is_cpu && !allow_mixed_cpu_backends)
-            ? " (mixed CPU backends disabled by default)"
-            : "";
-        LOG_INF("%s: enabled scheduler with %zu backend(s)%s\n",
+        LOG_INF("%s: enabled scheduler with %zu backend(s)\n",
                 __func__,
-                ctx->backends.size(),
-            suffix);
+                sched_backends.size());
     }
 
     return true;
@@ -336,11 +338,6 @@ static void smolvla_action_expert_set_backend_threads(smolvla_action_expert * ct
             set_n_threads_fn(backend, n_threads);
         }
     };
-
-    if (ctx->backends.empty()) {
-        apply_n_threads(ctx->backend_cpu);
-        return;
-    }
 
     for (ggml_backend_t backend : ctx->backends) {
         apply_n_threads(backend);
@@ -413,9 +410,8 @@ static bool ensure_prefix_kv_runtime(
         ggml_format_name(ctx->prefix_kv_runtime.v_layers[layer_idx], "prefix_v_%d", layer_idx);
     }
 
-    ggml_backend_buffer_type_t runtime_buft = smolvla_action_expert_default_runtime_buffer_type(
-        smolvla_action_expert_primary_backend(ctx));
-    ctx->prefix_kv_runtime.buffer = ggml_backend_alloc_ctx_tensors_from_buft(ctx->prefix_kv_runtime.ctx_data, runtime_buft);
+    ctx->prefix_kv_runtime.buffer = ggml_backend_alloc_ctx_tensors_from_buft(
+        ctx->prefix_kv_runtime.ctx_data, ctx->buft_policy.runtime_buft);
     if (!ctx->prefix_kv_runtime.buffer) {
         LOG_ERR("%s: failed to allocate prefix KV backend buffer\n", __func__);
         clear_prefix_kv_runtime(ctx);
@@ -527,21 +523,10 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
         LOG_INF("%s: model size = %.2f MB\n", __func__, model_size / (1024.0 * 1024.0));
     }
 
-    // Init backend
-    ggml_backend_t primary_backend = nullptr;
-#ifdef GGML_USE_CUDA
-    primary_backend = ggml_backend_cuda_init(0);
-    if (primary_backend && verbosity >= 1) LOG_INF("%s: using CUDA backend\n", __func__);
-#elif defined(GGML_USE_METAL)
-    primary_backend = ggml_backend_metal_init();
-    if (primary_backend && verbosity >= 1) LOG_INF("%s: using Metal backend\n", __func__);
-#endif
-    if (!primary_backend) {
-        primary_backend = ggml_backend_cpu_init();
-        if (verbosity >= 1) LOG_INF("%s: using CPU backend\n", __func__);
-    }
     ctx->sched = nullptr;
-    if (!primary_backend || !smolvla_action_expert_init_scheduler(ctx, primary_backend)) {
+    if (!smolvla_action_expert_init_backends(ctx) ||
+        !smolvla_action_expert_init_buft_policy(ctx) ||
+        !smolvla_action_expert_init_scheduler(ctx)) {
         LOG_ERR("%s: failed to initialize action scheduler\n", __func__);
         smolvla_action_expert_free(ctx);
         return nullptr;
@@ -579,9 +564,8 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     }
 
     std::vector<uint8_t> read_buf;
-    ggml_backend_buffer_type_t model_buft = smolvla_action_expert_default_model_buffer_type(
-        smolvla_action_expert_primary_backend(ctx));
-    ggml_backend_buffer_t model_buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx->ctx_data, model_buft);
+    ggml_backend_buffer_t model_buf = ggml_backend_alloc_ctx_tensors_from_buft(
+        ctx->ctx_data, ctx->buft_policy.model_buft);
     if (!model_buf) {
         LOG_ERR("%s: failed to allocate model buffer\n", __func__);
         smolvla_action_expert_free(ctx);
@@ -1473,6 +1457,7 @@ bool smolvla_action_expert_eval_transformer_project_velocity(
     ggml_backend_tensor_set(graph_state.inp_cross_mask, ctx->cached_cross_attention_mask_f32.data(), 0, ctx->cached_cross_attention_mask_f32.size() * sizeof(float));
 
     smolvla_action_expert_set_backend_threads(ctx, ctx->graph_n_threads);
+
     const auto t_compute_start = std::chrono::high_resolution_clock::now();
     ggml_backend_sched_graph_compute(ctx->sched, graph_state.graph);
     const auto t_compute_end = std::chrono::high_resolution_clock::now();
@@ -1525,13 +1510,8 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(
     }
 
     struct ggml_cgraph * gf = ggml_new_graph_custom(ctx0, graph_nodes, false);
-    ggml_backend_t primary_backend = smolvla_action_expert_primary_backend(ctx);
-    ggml_gallocr_t alloc = ggml_gallocr_new(ggml_backend_get_default_buffer_type(primary_backend));
-    if (!gf || !alloc) {
+    if (!gf || !ctx->sched) {
         LOG_ERR("%s: failed to create backend-prefix graph state\n", __func__);
-        if (alloc) {
-            ggml_gallocr_free(alloc);
-        }
         ggml_free(ctx0);
         return false;
     }
@@ -1585,11 +1565,10 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(
         ggml_build_forward_expand(gf, ggml_cpy(ctx0, v_src, dst_v));
     }
 
-    if (ok && !ggml_gallocr_reserve(alloc, gf)) {
-        LOG_ERR("%s: failed to reserve backend-prefix graph\n", __func__);
-        ok = false;
+    if (ok) {
+        ggml_backend_sched_reset(ctx->sched);
     }
-    if (ok && !ggml_gallocr_alloc_graph(alloc, gf)) {
+    if (ok && !ggml_backend_sched_alloc_graph(ctx->sched, gf)) {
         LOG_ERR("%s: failed to allocate backend-prefix graph\n", __func__);
         ok = false;
     }
@@ -1597,7 +1576,7 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(
     if (ok) {
         smolvla_action_expert_set_backend_threads(ctx, ctx->graph_n_threads);
         const auto t_compute_start = std::chrono::high_resolution_clock::now();
-        ggml_backend_graph_compute(primary_backend, gf);
+        ggml_backend_sched_graph_compute(ctx->sched, gf);
         const auto t_compute_end = std::chrono::high_resolution_clock::now();
         if (ctx->verbosity >= 1) {
             LOG_INF("%s: graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
@@ -1605,7 +1584,6 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(
                     std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
         }
     }
-    ggml_gallocr_free(alloc);
     ggml_free(ctx0);
     return ok;
 }
