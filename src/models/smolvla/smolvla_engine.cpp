@@ -828,6 +828,7 @@ static struct smolvla_result smolvla_predict_impl(
     // Step 1.3: Run state_proj (normalize + Linear)
     if (ctx->state_proj && state && state_dim > 0) {
         const auto t_state0 = smolvla_clock::now();
+        //TODO: fix thread = 4, multi-threading seems to cause some slowdown here, need to investigate
         bool success = smolvla_state_proj_encode(ctx->state_proj, 4, state, state_dim, ctx->state_emb.data());
         ctx->last_timings.state_proj_ms = smolvla_elapsed_ms(t_state0, smolvla_clock::now());
         if (success) {
