@@ -1,5 +1,6 @@
 build/
 build-*/
+build_*/
 cmake-build-*/
 artifacts/
 ckpts/
