@@ -170,10 +170,6 @@ struct smolvla_transformer_graph_state {
     struct ggml_cgraph * graph = nullptr;
 
     struct ggml_tensor * inp_hidden = nullptr;
-    struct ggml_tensor * inp_self_pos = nullptr;
-    struct ggml_tensor * inp_cross_pos = nullptr;
-    struct ggml_tensor * inp_self_mask = nullptr;
-    struct ggml_tensor * inp_cross_mask = nullptr;
     std::vector<struct ggml_tensor *> inp_prefix_k;
     std::vector<struct ggml_tensor *> inp_prefix_v;
     struct ggml_tensor * out = nullptr;
@@ -357,6 +353,22 @@ static void clear_prefix_kv_runtime(smolvla_action_expert * ctx) {
     }
     ctx->prefix_kv_runtime = smolvla_action_expert::prefix_kv_runtime_t();
 }
+
+static void clear_attention_runtime(smolvla_action_expert * ctx) {
+    if (!ctx) {
+        return;
+    }
+
+    if (ctx->attention_runtime.buffer) {
+        ggml_backend_buffer_free(ctx->attention_runtime.buffer);
+    }
+    if (ctx->attention_runtime.ctx_data) {
+        ggml_free(ctx->attention_runtime.ctx_data);
+    }
+    ctx->attention_runtime = smolvla_action_expert::attention_runtime_t();
+}
+
+static bool init_attention_runtime(smolvla_action_expert * ctx);
 
 static bool ensure_prefix_kv_runtime(
     smolvla_action_expert * ctx,
@@ -649,6 +661,13 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     ctx->action_std  = read_f32_from_backend(ctx->ctx_data, "smolvla.unnorm.action_std");
     ctx->action_dim  = (int) ctx->action_mean.size();
     precompute_time_embedding_cache(ctx);
+    
+    // init attention runtime ( position ids and masks)
+    if (!init_attention_runtime(ctx)) {
+        LOG_ERR("%s: failed to init attention runtime\n", __func__);
+        smolvla_action_expert_free(ctx);
+        return nullptr;
+    }
 
     if (verbosity >= 1) {
         LOG_INF("%s: head_dim=%d, n_q_heads=%d, n_kv_heads=%d, vlm_kv_dim=%d\n",
@@ -922,26 +941,6 @@ bool smolvla_action_expert_embed_suffix(
 
     return true;
 }
-//TODO: 为啥感觉这个效率也很低=-=
-// 生成ggml接受的mask，ie，0换成-inf（看不见），1换成0（看得见）
-static void mask_u8_to_f16_padded(
-    const uint8_t * mask_u8,
-    int q_len,
-    int kv_len,
-    std::vector<ggml_fp16_t> & mask_f16) {
-    const int q_pad = GGML_PAD(q_len, GGML_KQ_MASK_PAD); // pad to multiple of 32 for better SIMD processing in ggml backend
-    mask_f16.assign((size_t) kv_len * q_pad, ggml_fp32_to_fp16(-INFINITY));
-    const ggml_fp16_t zero = ggml_fp32_to_fp16(0.0f);
-    const ggml_fp16_t neg_inf = ggml_fp32_to_fp16(-INFINITY);
-    for (int q = 0; q < q_len; ++q) {
-        const uint8_t * src_row = mask_u8 + (size_t) q * kv_len;
-        ggml_fp16_t * dst_col = mask_f16.data() + (size_t) q * kv_len;
-        for (int kv = 0; kv < kv_len; ++kv) {
-            dst_col[kv] = src_row[kv] ? zero : neg_inf;
-        }
-    }
-}
-
 static void mask_u8_to_f32_padded(
     const uint8_t * mask_u8,
     int q_len,
@@ -958,59 +957,154 @@ static void mask_u8_to_f32_padded(
     }
 }
 
+static bool attention_runtime_is_ready(
+    const smolvla_action_expert * ctx) {
+    return ctx &&
+        ctx->attention_runtime.prepared;
+}
 
-static bool ensure_attention_cache(
-    smolvla_action_expert * ctx,
-    const uint8_t * prefix_valid_mask,
-    int prefix_seq_len) {
-    if (!ctx || prefix_seq_len < 0) {
+static bool init_attention_runtime(
+    smolvla_action_expert * ctx) {
+    if (!ctx) {
+        LOG_ERR("%s: invalid arguments\n", __func__);
         return false;
     }
 
-    std::vector<uint8_t> normalized_prefix_valid_mask((size_t) prefix_seq_len, 1);
-    if (prefix_valid_mask) {
-        memcpy(
-            normalized_prefix_valid_mask.data(),
-            prefix_valid_mask,
-            (size_t) prefix_seq_len * sizeof(uint8_t));
-    }
-
-    if (ctx->cached_prefix_seq_len == prefix_seq_len &&
-        ctx->cached_prefix_valid_mask == normalized_prefix_valid_mask) {
+    if (ctx->attention_runtime.ctx_data) {
         return true;
     }
 
-    ctx->cached_prefix_seq_len = prefix_seq_len;
-    ctx->cached_prefix_valid_mask = std::move(normalized_prefix_valid_mask);
-    ctx->cached_self_position_ids.resize(ctx->chunk_size);
-    ctx->cached_cross_position_ids.resize(ctx->chunk_size);
+    clear_attention_runtime(ctx);
+
+    const size_t tensor_count = 4 + 1;
+    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    struct ggml_init_params params = {
+        /*.mem_size   =*/ ctx_size,
+        /*.mem_buffer =*/ nullptr,
+        /*.no_alloc   =*/ true,
+    };
+
+    ctx->attention_runtime.ctx_data = ggml_init(params);
+    if (!ctx->attention_runtime.ctx_data) {
+        LOG_ERR("%s: failed to init attention runtime ctx\n", __func__);
+        clear_attention_runtime(ctx);
+        return false;
+    }
+
+    ctx->attention_runtime.prepared = false;
+    return true;
+}
+
+static bool create_attention_runtime_tensors(
+    smolvla_action_expert * ctx,
+    int prefix_seq_len) {
+    if (!ctx || prefix_seq_len <= 0 || !ctx->attention_runtime.ctx_data) {
+        LOG_ERR("%s: invalid arguments\n", __func__);
+        return false;
+    }
+
+    const int q_pad = GGML_PAD(ctx->chunk_size, GGML_KQ_MASK_PAD);
+    ctx->attention_runtime.self_pos = ggml_new_tensor_1d(
+        ctx->attention_runtime.ctx_data, GGML_TYPE_I32, ctx->chunk_size);
+    ctx->attention_runtime.cross_pos = ggml_new_tensor_1d(
+        ctx->attention_runtime.ctx_data, GGML_TYPE_I32, ctx->chunk_size);
+    ctx->attention_runtime.self_mask = ggml_new_tensor_2d(
+        ctx->attention_runtime.ctx_data, GGML_TYPE_F32, prefix_seq_len + ctx->chunk_size, q_pad);
+    ctx->attention_runtime.cross_mask = ggml_new_tensor_2d(
+        ctx->attention_runtime.ctx_data, GGML_TYPE_F32, prefix_seq_len, q_pad);
+    if (!ctx->attention_runtime.self_pos ||
+        !ctx->attention_runtime.cross_pos ||
+        !ctx->attention_runtime.self_mask ||
+        !ctx->attention_runtime.cross_mask) {
+        LOG_ERR("%s: failed to create attention runtime tensors\n", __func__);
+        clear_attention_runtime(ctx);
+        return false;
+    }
+
+    ggml_set_name(ctx->attention_runtime.self_pos, "attention_self_pos");
+    ggml_set_name(ctx->attention_runtime.cross_pos, "attention_cross_pos");
+    ggml_set_name(ctx->attention_runtime.self_mask, "attention_self_mask");
+    ggml_set_name(ctx->attention_runtime.cross_mask, "attention_cross_mask");
+
+    ctx->attention_runtime.buffer = ggml_backend_alloc_ctx_tensors_from_buft(
+        ctx->attention_runtime.ctx_data, ctx->buft_policy.runtime_buft);
+    if (!ctx->attention_runtime.buffer) {
+        LOG_ERR("%s: failed to allocate attention runtime buffer\n", __func__);
+        clear_attention_runtime(ctx);
+        return false;
+    }
+
+    ctx->attention_runtime.prefix_seq_len = prefix_seq_len;
+    ctx->attention_runtime.prepared = false;
+    return true;
+}
+
+bool smolvla_action_expert_prepare_attention_cache(
+    smolvla_action_expert * ctx,
+    const uint8_t * prefix_valid_mask,
+    int prefix_seq_len) {
+    if (!ctx || !prefix_valid_mask || prefix_seq_len <= 0) {
+        LOG_ERR("%s: invalid arguments\n", __func__);
+        return false;
+    }
+
+    if (attention_runtime_is_ready(ctx)) {
+        return true;
+    }
+
+    std::vector<int32_t> self_position_ids((size_t) ctx->chunk_size);
+    std::vector<int32_t> cross_position_ids((size_t) ctx->chunk_size);
 
     std::vector<uint8_t> self_attention_mask_u8((size_t) ctx->chunk_size * (prefix_seq_len + ctx->chunk_size));
     std::vector<uint8_t> cross_attention_mask_u8((size_t) ctx->chunk_size * prefix_seq_len);
 
     build_self_attn_mask_and_positions(
-        ctx->cached_prefix_valid_mask.data(),
+        prefix_valid_mask,
         prefix_seq_len,
         ctx->chunk_size,
-        ctx->cached_self_position_ids.data(),
+        self_position_ids.data(),
         self_attention_mask_u8.data());
     build_cross_attn_mask_and_positions(
-        ctx->cached_prefix_valid_mask.data(),
+        prefix_valid_mask,
         prefix_seq_len,
         ctx->chunk_size,
-        ctx->cached_cross_position_ids.data(),
+        cross_position_ids.data(),
         cross_attention_mask_u8.data());
 
+    std::vector<float> self_attention_mask_f32;
+    std::vector<float> cross_attention_mask_f32;
     mask_u8_to_f32_padded(
         self_attention_mask_u8.data(),
         ctx->chunk_size,
         prefix_seq_len + ctx->chunk_size,
-        ctx->cached_self_attention_mask_f32);
+        self_attention_mask_f32);
     mask_u8_to_f32_padded(
         cross_attention_mask_u8.data(),
         ctx->chunk_size,
         prefix_seq_len,
-        ctx->cached_cross_attention_mask_f32);
+        cross_attention_mask_f32);
+
+    ggml_backend_tensor_set(
+        ctx->attention_runtime.self_pos,
+        self_position_ids.data(),
+        0,
+        self_position_ids.size() * sizeof(int32_t));
+    ggml_backend_tensor_set(
+        ctx->attention_runtime.cross_pos,
+        cross_position_ids.data(),
+        0,
+        cross_position_ids.size() * sizeof(int32_t));
+    ggml_backend_tensor_set(
+        ctx->attention_runtime.self_mask,
+        self_attention_mask_f32.data(),
+        0,
+        self_attention_mask_f32.size() * sizeof(float));
+    ggml_backend_tensor_set(
+        ctx->attention_runtime.cross_mask,
+        cross_attention_mask_f32.data(),
+        0,
+        cross_attention_mask_f32.size() * sizeof(float));
+    ctx->attention_runtime.prepared = true;
 
     return true;
 }
@@ -1180,10 +1274,9 @@ static struct ggml_tensor * build_transformer_stack_op(
         return nullptr;
     }
 
-    if (ctx->prefix_kv_runtime.prefix_seq_len != prefix_seq_len ||
-        ctx->prefix_kv_runtime.k_layers.size() != (size_t) ctx->num_layers ||
+    if (ctx->prefix_kv_runtime.k_layers.size() != (size_t) ctx->num_layers ||
         ctx->prefix_kv_runtime.v_layers.size() != (size_t) ctx->num_layers) {
-        LOG_ERR("%s: prefix KV runtime is not prepared for seq_len=%d\n", __func__, prefix_seq_len);
+        LOG_ERR("%s: prefix KV runtime is not prepared\n", __func__);
         return nullptr;
     }
 
@@ -1245,15 +1338,8 @@ static bool transformer_velocity_build_graph(
     }
 
     graph_state.inp_hidden = ggml_new_tensor_2d(graph_state.ctx_graph, GGML_TYPE_F32, hidden, chunk);
-    graph_state.inp_self_pos = ggml_new_tensor_1d(graph_state.ctx_graph, GGML_TYPE_I32, chunk);
-    graph_state.inp_cross_pos = ggml_new_tensor_1d(graph_state.ctx_graph, GGML_TYPE_I32, chunk);
-    graph_state.inp_self_mask = ggml_new_tensor_2d(graph_state.ctx_graph, GGML_TYPE_F32, prefix_seq_len + chunk, q_pad);
-    graph_state.inp_cross_mask = ggml_new_tensor_2d(graph_state.ctx_graph, GGML_TYPE_F32, prefix_seq_len, q_pad);
+
     ggml_set_input(graph_state.inp_hidden);
-    ggml_set_input(graph_state.inp_self_pos);
-    ggml_set_input(graph_state.inp_cross_pos);
-    ggml_set_input(graph_state.inp_self_mask);
-    ggml_set_input(graph_state.inp_cross_mask);
 
     graph_state.inp_prefix_k = ctx->prefix_kv_runtime.k_layers;
     graph_state.inp_prefix_v = ctx->prefix_kv_runtime.v_layers;
@@ -1263,10 +1349,10 @@ static bool transformer_velocity_build_graph(
         prefix_seq_len,
         graph_state.ctx_graph,
         graph_state.inp_hidden,
-        graph_state.inp_self_pos,
-        graph_state.inp_cross_pos,
-        graph_state.inp_self_mask,
-        graph_state.inp_cross_mask);
+        ctx->attention_runtime.self_pos,
+        ctx->attention_runtime.cross_pos,
+        ctx->attention_runtime.self_mask,
+        ctx->attention_runtime.cross_mask);
     if (!cur) {
         clear_transformer_graph(graph_state);
         return false;
@@ -1340,6 +1426,11 @@ bool smolvla_action_expert_init_fixed_prefix_runtime(
         return false;
     }
 
+    if (!create_attention_runtime_tensors(ctx, prefix_seq_len)) {
+        LOG_ERR("%s: failed to create attention runtime tensors\n", __func__);
+        return false;
+    }
+
     if (!reserve_transformer_velocity_graph(ctx, prefix_seq_len)) {
         LOG_ERR("%s: failed to reserve transformer+velocity graph\n", __func__);
         return false;
@@ -1368,7 +1459,7 @@ static int build_self_attn_mask_and_positions(
     uint8_t * attention_mask) {
     int prefix_valid_count = 0;
     for (int i = 0; i < prefix_seq_len; ++i) {
-        prefix_valid_count += prefix_valid_mask ? (prefix_valid_mask[i] != 0) : 1;
+        prefix_valid_count += prefix_valid_mask[i] != 0;
     }
 
     for (int i = 0; i < suffix_len; ++i) {
@@ -1379,7 +1470,7 @@ static int build_self_attn_mask_and_positions(
     for (int qi = 0; qi < suffix_len; ++qi) {
         uint8_t * row = attention_mask + (size_t) qi * total_kv_len;
         for (int kj = 0; kj < prefix_seq_len; ++kj) {
-            row[kj] = prefix_valid_mask ? (uint8_t) (prefix_valid_mask[kj] != 0) : 1;
+            row[kj] = (uint8_t) (prefix_valid_mask[kj] != 0);
         }
         for (int kj = 0; kj < suffix_len; ++kj) {
             row[prefix_seq_len + kj] = (uint8_t) (kj <= qi);
@@ -1403,7 +1494,7 @@ static void build_cross_attn_mask_and_positions(
     for (int qi = 0; qi < suffix_len; ++qi) {
         uint8_t * row = attention_mask + (size_t) qi * prefix_seq_len;
         for (int kj = 0; kj < prefix_seq_len; ++kj) {
-            row[kj] = prefix_valid_mask ? (uint8_t) (prefix_valid_mask[kj] != 0) : 1;
+            row[kj] = (uint8_t) (prefix_valid_mask[kj] != 0);
         }
     }
 }
@@ -1411,8 +1502,6 @@ static void build_cross_attn_mask_and_positions(
 bool smolvla_action_expert_eval_transformer_project_velocity(
     struct smolvla_action_expert * ctx,
     const float * hidden_in,
-    const uint8_t * prefix_valid_mask,
-    int prefix_seq_len,
     float * velocity_out
 ) {
     if (!ctx || !hidden_in || !velocity_out) {
@@ -1420,12 +1509,9 @@ bool smolvla_action_expert_eval_transformer_project_velocity(
         return false;
     }
 
-    if (!ensure_attention_cache(ctx, prefix_valid_mask, prefix_seq_len)) {
-        LOG_ERR("%s: failed to prepare cached attention masks\n", __func__);
-        return false;
-    }
-    if (ctx->prefix_kv_runtime.prefix_seq_len != prefix_seq_len) {
-        LOG_ERR("%s: prefix KV runtime not prepared for seq_len=%d\n", __func__, prefix_seq_len);
+    const int prefix_seq_len = ctx->prefix_kv_runtime.prefix_seq_len;
+    if (!attention_runtime_is_ready(ctx)) {
+        LOG_ERR("%s: attention cache is not prepared\n", __func__);
         return false;
     }
     const auto t_build_start = std::chrono::high_resolution_clock::now();
@@ -1450,10 +1536,6 @@ bool smolvla_action_expert_eval_transformer_project_velocity(
     const auto t_build_end = std::chrono::high_resolution_clock::now();
 
     ggml_backend_tensor_set(graph_state.inp_hidden, hidden_in, 0, (size_t) ctx->chunk_size * ctx->hidden_size * sizeof(float));
-    ggml_backend_tensor_set(graph_state.inp_self_pos, ctx->cached_self_position_ids.data(), 0, (size_t) ctx->chunk_size * sizeof(int32_t));
-    ggml_backend_tensor_set(graph_state.inp_cross_pos, ctx->cached_cross_position_ids.data(), 0, (size_t) ctx->chunk_size * sizeof(int32_t));
-    ggml_backend_tensor_set(graph_state.inp_self_mask, ctx->cached_self_attention_mask_f32.data(), 0, ctx->cached_self_attention_mask_f32.size() * sizeof(float));
-    ggml_backend_tensor_set(graph_state.inp_cross_mask, ctx->cached_cross_attention_mask_f32.data(), 0, ctx->cached_cross_attention_mask_f32.size() * sizeof(float));
 
     smolvla_action_expert_set_backend_threads(ctx, ctx->graph_n_threads);
 
@@ -1594,6 +1676,7 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(
 void smolvla_action_expert_free(struct smolvla_action_expert * ctx) {
     if (!ctx) return;
 
+    clear_attention_runtime(ctx);
     clear_prefix_kv_runtime(ctx);
     if (ctx->sched) {
         ggml_backend_sched_free(ctx->sched);

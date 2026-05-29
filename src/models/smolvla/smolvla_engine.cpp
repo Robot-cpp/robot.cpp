@@ -1101,6 +1101,13 @@ static struct smolvla_result smolvla_predict_impl(
         for (size_t i = 0; i < ctx->prefix_valid_mask.size(); ++i) {
             prefix_valid_mask_u8[i] = (uint8_t) (ctx->prefix_valid_mask[i] ? 1 : 0);
         }
+        if (!smolvla_action_expert_prepare_attention_cache(
+                ctx->expert,
+                prefix_valid_mask_u8.data(),
+                ctx->vlm_kv_seq_len)) {
+            fprintf(stderr, "[SmolVLA] FATAL: action attention cache preparation failed\n");
+            return result;
+        }
 
         std::vector<float> x_t((size_t) chunk * padded_action_dim);
         smolvla_fill_initial_noise(ctx, x_t.data(), chunk, padded_action_dim);
@@ -1120,8 +1127,6 @@ static struct smolvla_result smolvla_predict_impl(
             if (!smolvla_action_expert_eval_transformer_project_velocity(
                            ctx->expert,
                            suffix_emb.data(),
-                           prefix_valid_mask_u8.data(),
-                           ctx->vlm_kv_seq_len,
                            v_t.data())) {
                 fprintf(stderr, "[SmolVLA] FATAL: M6 transformer+velocity failed at step %d\n", step);
                 return result;

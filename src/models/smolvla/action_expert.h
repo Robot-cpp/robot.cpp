@@ -137,13 +137,17 @@ struct smolvla_action_expert {
         std::vector<struct ggml_tensor *> v_layers;
     } prefix_kv_runtime;
 
-    // Cached Phase 2 attention metadata for repeated denoising steps.
-    int cached_prefix_seq_len = -1;
-    std::vector<uint8_t> cached_prefix_valid_mask;
-    std::vector<int32_t> cached_self_position_ids;
-    std::vector<int32_t> cached_cross_position_ids;
-    std::vector<float> cached_self_attention_mask_f32;
-    std::vector<float> cached_cross_attention_mask_f32;
+    struct attention_runtime_t {
+        int prefix_seq_len = -1;
+        bool prepared = false;
+        struct ggml_context * ctx_data = nullptr;
+        ggml_backend_buffer_t buffer = nullptr;
+        struct ggml_tensor * self_pos = nullptr;
+        struct ggml_tensor * cross_pos = nullptr;
+        struct ggml_tensor * self_mask = nullptr;
+        struct ggml_tensor * cross_mask = nullptr;
+    } attention_runtime;
+
 };
 
 // ============================================================================
@@ -191,9 +195,13 @@ SMOLVLA_EXPERT_API bool smolvla_action_expert_embed_suffix(
 SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_transformer_project_velocity(
     struct smolvla_action_expert * ctx,
     const float * hidden_in,
-    const uint8_t * prefix_valid_mask,
-    int prefix_seq_len,
     float * velocity_out
+);
+
+SMOLVLA_EXPERT_API bool smolvla_action_expert_prepare_attention_cache(
+    struct smolvla_action_expert * ctx,
+    const uint8_t * prefix_valid_mask,
+    int prefix_seq_len
 );
 
 SMOLVLA_EXPERT_API bool smolvla_action_expert_prepare_prefix_kv_from_backend(
