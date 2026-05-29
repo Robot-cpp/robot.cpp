@@ -26,6 +26,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <algorithm>
 
 // ============================================================================
 // Logging
@@ -48,13 +49,13 @@ static int build_self_attn_mask_and_positions(
     int prefix_seq_len,
     int suffix_len,
     int32_t * position_ids,
-    uint8_t * attention_mask);
+    std::vector<float> & attention_mask_f32);
 static void build_cross_attn_mask_and_positions(
     const uint8_t * prefix_valid_mask,
     int prefix_seq_len,
     int suffix_len,
     int32_t * position_ids,
-    uint8_t * attention_mask);
+    std::vector<float> & attention_mask_f32);
 
 // ============================================================================
 // Helpers (shared pattern with state_proj.cpp)
@@ -941,22 +942,6 @@ bool smolvla_action_expert_embed_suffix(
 
     return true;
 }
-static void mask_u8_to_f32_padded(
-    const uint8_t * mask_u8,
-    int q_len,
-    int kv_len,
-    std::vector<float> & mask_f32) {
-    const int q_pad = GGML_PAD(q_len, GGML_KQ_MASK_PAD);
-    mask_f32.assign((size_t) kv_len * q_pad, -INFINITY);
-    for (int q = 0; q < q_len; ++q) {
-        const uint8_t * src_row = mask_u8 + (size_t) q * kv_len;
-        float * dst_col = mask_f32.data() + (size_t) q * kv_len;
-        for (int kv = 0; kv < kv_len; ++kv) {
-            dst_col[kv] = src_row[kv] ? 0.0f : -INFINITY;
-        }
-    }
-}
-
 static bool attention_runtime_is_ready(
     const smolvla_action_expert * ctx) {
     return ctx &&
@@ -1055,33 +1040,20 @@ bool smolvla_action_expert_prepare_attention_cache(
     std::vector<int32_t> self_position_ids((size_t) ctx->chunk_size);
     std::vector<int32_t> cross_position_ids((size_t) ctx->chunk_size);
 
-    std::vector<uint8_t> self_attention_mask_u8((size_t) ctx->chunk_size * (prefix_seq_len + ctx->chunk_size));
-    std::vector<uint8_t> cross_attention_mask_u8((size_t) ctx->chunk_size * prefix_seq_len);
+    std::vector<float> self_attention_mask_f32;
+    std::vector<float> cross_attention_mask_f32;
 
     build_self_attn_mask_and_positions(
         prefix_valid_mask,
         prefix_seq_len,
         ctx->chunk_size,
         self_position_ids.data(),
-        self_attention_mask_u8.data());
+        self_attention_mask_f32);
     build_cross_attn_mask_and_positions(
         prefix_valid_mask,
         prefix_seq_len,
         ctx->chunk_size,
         cross_position_ids.data(),
-        cross_attention_mask_u8.data());
-
-    std::vector<float> self_attention_mask_f32;
-    std::vector<float> cross_attention_mask_f32;
-    mask_u8_to_f32_padded(
-        self_attention_mask_u8.data(),
-        ctx->chunk_size,
-        prefix_seq_len + ctx->chunk_size,
-        self_attention_mask_f32);
-    mask_u8_to_f32_padded(
-        cross_attention_mask_u8.data(),
-        ctx->chunk_size,
-        prefix_seq_len,
         cross_attention_mask_f32);
 
     ggml_backend_tensor_set(
@@ -1450,13 +1422,12 @@ static struct ggml_tensor * build_project_velocity_op(
     return vel;
 }
 
-//TODO: 为什么感觉这个实现看上去很低效。。。。
 static int build_self_attn_mask_and_positions(
     const uint8_t * prefix_valid_mask,
     int prefix_seq_len,
     int suffix_len,
     int32_t * position_ids,
-    uint8_t * attention_mask) {
+    std::vector<float> & attention_mask_f32) {
     int prefix_valid_count = 0;
     for (int i = 0; i < prefix_seq_len; ++i) {
         prefix_valid_count += prefix_valid_mask[i] != 0;
@@ -1467,35 +1438,44 @@ static int build_self_attn_mask_and_positions(
     }
 
     const int total_kv_len = prefix_seq_len + suffix_len;
+    const int q_pad = GGML_PAD(suffix_len, GGML_KQ_MASK_PAD);
+    attention_mask_f32.assign((size_t) total_kv_len * q_pad, -INFINITY);
+
+    std::vector<float> prefix_mask_f32((size_t) prefix_seq_len);
+    for (int kj = 0; kj < prefix_seq_len; ++kj) {
+        prefix_mask_f32[kj] = prefix_valid_mask[kj] ? 0.0f : -INFINITY;
+    }
+
     for (int qi = 0; qi < suffix_len; ++qi) {
-        uint8_t * row = attention_mask + (size_t) qi * total_kv_len;
-        for (int kj = 0; kj < prefix_seq_len; ++kj) {
-            row[kj] = (uint8_t) (prefix_valid_mask[kj] != 0);
-        }
-        for (int kj = 0; kj < suffix_len; ++kj) {
-            row[prefix_seq_len + kj] = (uint8_t) (kj <= qi);
-        }
+        float * row = attention_mask_f32.data() + (size_t) qi * total_kv_len;
+        memcpy(row, prefix_mask_f32.data(), (size_t) prefix_seq_len * sizeof(float));
+        std::fill_n(row + prefix_seq_len, qi + 1, 0.0f);
     }
 
     return prefix_valid_count;
 }
 
-// TODO: 看着低效=-=
 static void build_cross_attn_mask_and_positions(
     const uint8_t * prefix_valid_mask,
     int prefix_seq_len,
     int suffix_len,
     int32_t * position_ids,
-    uint8_t * attention_mask) {
+    std::vector<float> & attention_mask_f32) {
     for (int i = 0; i < suffix_len; ++i) {
         position_ids[i] = i;
     }
 
+    const int q_pad = GGML_PAD(suffix_len, GGML_KQ_MASK_PAD);
+    attention_mask_f32.assign((size_t) prefix_seq_len * q_pad, -INFINITY);
+
+    std::vector<float> prefix_mask_f32((size_t) prefix_seq_len);
+    for (int kj = 0; kj < prefix_seq_len; ++kj) {
+        prefix_mask_f32[kj] = prefix_valid_mask[kj] ? 0.0f : -INFINITY;
+    }
+
     for (int qi = 0; qi < suffix_len; ++qi) {
-        uint8_t * row = attention_mask + (size_t) qi * prefix_seq_len;
-        for (int kj = 0; kj < prefix_seq_len; ++kj) {
-            row[kj] = (uint8_t) (prefix_valid_mask[kj] != 0);
-        }
+        float * row = attention_mask_f32.data() + (size_t) qi * prefix_seq_len;
+        memcpy(row, prefix_mask_f32.data(), (size_t) prefix_seq_len * sizeof(float));
     }
 }
 
