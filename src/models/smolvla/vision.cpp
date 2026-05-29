@@ -819,8 +819,7 @@ void smolvla_vision_free(smolvla_vision_ctx * ctx) {
 static std::vector<float> smolvla_vision_encode_preprocessed(
     smolvla_vision_ctx * ctx,
     const std::vector<float> & inp_nchw,
-    int n_threads,
-    bool print_debug
+    int n_threads
 ) {
     std::vector<float> result;
     if (!ctx || inp_nchw.empty()) {
@@ -840,7 +839,6 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     ggml_cgraph * graph = ctx->graph;
     ggml_tensor * inp_raw = ctx->graph_inp_raw;
     ggml_tensor * positions = ctx->graph_positions;
-    ggml_tensor * vision_out = ctx->graph_vision_output;
     ggml_tensor * connector_out = ctx->graph_connector_output;
 
     double build_alloc_ms = 0.0;
@@ -858,7 +856,6 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
 
         inp_raw = ggml_graph_get_tensor(graph, "inp_raw");
         positions = ggml_graph_get_tensor(graph, "positions");
-        vision_out = ggml_graph_get_tensor(graph, "vision_output");
         connector_out = ggml_graph_get_tensor(graph, "connector_output");
         if (!inp_raw || !positions || !connector_out) {
             LOG_ERR("%s: failed to bind per-run merged vision graph tensors\n", __func__);
@@ -884,32 +881,8 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
                 std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
     }
 
-    if (print_debug) {
-        const int64_t vit_n = ggml_nelements(vision_out); // 1024*768
-        std::vector<float> vit(vit_n);
-        ggml_backend_tensor_get(vision_out, vit.data(), 0, vit.size() * sizeof(float));
-        printf("\n=== ViT Output ===\n");
-        printf("Shape: [%d, %d]\n", ctx->num_patches, ctx->hidden_size);
-        printf("First 10: [");
-        for (int i = 0; i < 10; ++i) printf("%.6f%s", vit[i], i < 9 ? ", " : "");
-        printf("]\n");
-        printf("Last 10: [");
-        for (int i = (int) vit.size() - 10; i < (int) vit.size(); ++i) printf("%.6f%s", vit[i], i < (int) vit.size() - 1 ? ", " : "");
-        printf("]\n");
-    }
     result.resize(ctx->output_tokens * ctx->proj_dim);
     ggml_backend_tensor_get(connector_out, result.data(), 0, result.size() * sizeof(float));
-
-    if (print_debug) {
-        printf("\n=== Connector Output ===\n");
-        printf("Shape: [%d, %d]\n", ctx->output_tokens, ctx->proj_dim);
-        printf("First 10: [");
-        for (int i = 0; i < 10; ++i) printf("%.6f%s", result[i], i < 9 ? ", " : "");
-        printf("]\n");
-        printf("Last 10: [");
-        for (int i = (int) result.size() - 10; i < (int) result.size(); ++i) printf("%.6f%s", result[i], i < (int) result.size() - 1 ? ", " : "");
-        printf("]\n");
-    }
 
     return result;
 }
@@ -925,7 +898,7 @@ std::vector<float> smolvla_vision_encode_file(smolvla_vision_ctx * ctx, const ch
         return {};
     }
 
-    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads, false);
+    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
 std::vector<float> smolvla_vision_encode_bytes(
@@ -950,7 +923,7 @@ std::vector<float> smolvla_vision_encode_bytes(
         return {};
     }
 
-    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads, false);
+    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
 std::vector<float> smolvla_vision_encode_constant(smolvla_vision_ctx * ctx, float pixel_value, int n_threads) {
@@ -960,7 +933,7 @@ std::vector<float> smolvla_vision_encode_constant(smolvla_vision_ctx * ctx, floa
     }
 
     std::vector<float> inp_nchw(3 * ctx->image_size * ctx->image_size, pixel_value);
-    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads, false);
+    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
 std::vector<float> smolvla_vision_encode_raw(

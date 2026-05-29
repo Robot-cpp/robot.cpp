@@ -130,119 +130,6 @@ static bool smolvla_env_has_value(const char * name) {
     return value && value[0] != '\0';
 }
 
-static bool smolvla_env_flag_enabled(const char * name) {
-    const char * value = std::getenv(name);
-    if (!value || value[0] == '\0') {
-        return false;
-    }
-
-    if (strcmp(value, "0") == 0 ||
-        strcmp(value, "false") == 0 ||
-        strcmp(value, "FALSE") == 0 ||
-        strcmp(value, "off") == 0 ||
-        strcmp(value, "OFF") == 0 ||
-        strcmp(value, "no") == 0 ||
-        strcmp(value, "NO") == 0) {
-        return false;
-    }
-
-    return true;
-}
-
-static void smolvla_log_matmul_shape(
-    const char * scope,
-    const char * name,
-    const ggml_tensor * weight,
-    int tokens) {
-    if (!weight) {
-        return;
-    }
-
-    const long long in_features = (long long) weight->ne[0];
-    const long long out_features = (long long) weight->ne[1];
-    fprintf(stderr,
-            "[SmolVLA][shape][%s] %s: W[%lld,%lld] x X[%lld,%d] -> Y[%lld,%d]\n",
-            scope,
-            name,
-            out_features,
-            in_features,
-            in_features,
-            tokens,
-            out_features,
-            tokens);
-}
-
-static void smolvla_log_shape_debug(const smolvla_context * ctx) {
-    if (!ctx || !smolvla_env_flag_enabled("SMOLVLA_SHAPE_DEBUG")) {
-        return;
-    }
-
-    if (ctx->expert) {
-        const int action_tokens = ctx->expert->chunk_size;
-        const int prefix_tokens = ctx->fixed_prefix_seq_len > 0 ? ctx->fixed_prefix_seq_len : 0;
-        const int self_tokens = prefix_tokens + action_tokens;
-        fprintf(stderr,
-                "[SmolVLA][shape][action] hidden=%d intermediate=%d chunk=%d prefix=%d self_kv=%d heads(q=%d kv=%d head_dim=%d)\n",
-                ctx->expert->hidden_size,
-                ctx->expert->intermediate_size,
-                action_tokens,
-                prefix_tokens,
-                self_tokens,
-                ctx->expert->n_q_heads,
-                ctx->expert->n_kv_heads,
-                ctx->expert->head_dim);
-        smolvla_log_matmul_shape("action", "action_in_proj", ctx->expert->action_in_proj_w, action_tokens);
-        smolvla_log_matmul_shape("action", "time_mlp_in", ctx->expert->time_mlp_in_w, action_tokens);
-        smolvla_log_matmul_shape("action", "time_mlp_out", ctx->expert->time_mlp_out_w, action_tokens);
-        if (!ctx->expert->layers.empty()) {
-            const auto & self_layer = ctx->expert->layers.front();
-            smolvla_log_matmul_shape("action", "self_attn_q", self_layer.attn_q, action_tokens);
-            smolvla_log_matmul_shape("action", "self_attn_k", self_layer.attn_k, action_tokens);
-            smolvla_log_matmul_shape("action", "self_attn_v", self_layer.attn_v, action_tokens);
-            smolvla_log_matmul_shape("action", "self_attn_out", self_layer.attn_output, action_tokens);
-            smolvla_log_matmul_shape("action", "self_ffn_gate", self_layer.ffn_gate, action_tokens);
-            smolvla_log_matmul_shape("action", "self_ffn_up", self_layer.ffn_up, action_tokens);
-            smolvla_log_matmul_shape("action", "self_ffn_down", self_layer.ffn_down, action_tokens);
-        }
-        for (const auto & layer : ctx->expert->layers) {
-            if (!layer.is_cross_attn) {
-                continue;
-            }
-            smolvla_log_matmul_shape("action", "cross_attn_q", layer.attn_q, action_tokens);
-            smolvla_log_matmul_shape("action", "cross_attn_k", layer.attn_k, prefix_tokens);
-            smolvla_log_matmul_shape("action", "cross_attn_v", layer.attn_v, prefix_tokens);
-            smolvla_log_matmul_shape("action", "cross_attn_out", layer.attn_output, action_tokens);
-            smolvla_log_matmul_shape("action", "cross_ffn_gate", layer.ffn_gate, action_tokens);
-            smolvla_log_matmul_shape("action", "cross_ffn_up", layer.ffn_up, action_tokens);
-            smolvla_log_matmul_shape("action", "cross_ffn_down", layer.ffn_down, action_tokens);
-            break;
-        }
-    }
-
-    if (ctx->vlm) {
-        const int llama_tokens = ctx->fixed_prefix_seq_len > 0 ? ctx->fixed_prefix_seq_len : SMOLVLA_LANG_MAX_LEN;
-        ggml_tensor * q = llama_get_model_tensor(ctx->vlm, "blk.0.attn_q.weight");
-        ggml_tensor * k = llama_get_model_tensor(ctx->vlm, "blk.0.attn_k.weight");
-        ggml_tensor * v = llama_get_model_tensor(ctx->vlm, "blk.0.attn_v.weight");
-        ggml_tensor * out = llama_get_model_tensor(ctx->vlm, "blk.0.attn_output.weight");
-        ggml_tensor * gate = llama_get_model_tensor(ctx->vlm, "blk.0.ffn_gate.weight");
-        ggml_tensor * up = llama_get_model_tensor(ctx->vlm, "blk.0.ffn_up.weight");
-        ggml_tensor * down = llama_get_model_tensor(ctx->vlm, "blk.0.ffn_down.weight");
-
-        fprintf(stderr,
-                "[SmolVLA][shape][llama] tokens=%d n_embd=%d\n",
-                llama_tokens,
-                ctx->n_embd);
-        smolvla_log_matmul_shape("llama", "attn_q", q, llama_tokens);
-        smolvla_log_matmul_shape("llama", "attn_k", k, llama_tokens);
-        smolvla_log_matmul_shape("llama", "attn_v", v, llama_tokens);
-        smolvla_log_matmul_shape("llama", "attn_out", out, llama_tokens);
-        smolvla_log_matmul_shape("llama", "ffn_gate", gate, llama_tokens);
-        smolvla_log_matmul_shape("llama", "ffn_up", up, llama_tokens);
-        smolvla_log_matmul_shape("llama", "ffn_down", down, llama_tokens);
-    }
-}
-
 static const char * smolvla_noise_mode_name(int noise_mode) {
     switch (noise_mode) {
         case SMOLVLA_NOISE_MODE_GAUSSIAN:
@@ -252,58 +139,6 @@ static const char * smolvla_noise_mode_name(int noise_mode) {
         default:
             return "unknown";
     }
-}
-
-static bool dump_m6_step(
-    const smolvla_context * ctx,
-    int step_idx,
-    const float * x_t_in,
-    const float * v_t,
-    const float * x_t_out,
-    int chunk,
-    int action_dim) {
-    const char * dump_dir_env = std::getenv("SMOLVLA_M6_DUMP_DIR");
-    if (!dump_dir_env || dump_dir_env[0] == '\0') {
-        return true;
-    }
-
-    std::filesystem::path dump_dir(dump_dir_env);
-    std::error_code ec;
-    std::filesystem::create_directories(dump_dir, ec);
-    if (ec) {
-        fprintf(stderr, "[M6 dump] failed to create %s: %s\n", dump_dir_env, ec.message().c_str());
-        return false;
-    }
-
-    std::ofstream meta(dump_dir / "meta.txt", std::ios::binary);
-    if (!meta) {
-        fprintf(stderr, "[M6 dump] failed to open meta.txt\n");
-        return false;
-    }
-    meta << "num_steps " << ctx->num_steps << "\n";
-    meta << "chunk_size " << chunk << "\n";
-    meta << "action_dim " << action_dim << "\n";
-    meta.close();
-
-    char xin_name[64];
-    char vt_name[64];
-    char xout_name[64];
-    snprintf(xin_name, sizeof(xin_name), "step%02d_x_t_in.bin", step_idx);
-    snprintf(vt_name, sizeof(vt_name), "step%02d_v_t.bin", step_idx);
-    snprintf(xout_name, sizeof(xout_name), "step%02d_x_t_out.bin", step_idx);
-
-    std::ofstream xin_f(dump_dir / xin_name, std::ios::binary);
-    std::ofstream vt_f(dump_dir / vt_name, std::ios::binary);
-    std::ofstream xout_f(dump_dir / xout_name, std::ios::binary);
-    if (!xin_f || !vt_f || !xout_f) {
-        fprintf(stderr, "[M6 dump] failed to open dump files under %s\n", dump_dir_env);
-        return false;
-    }
-
-    xin_f.write(reinterpret_cast<const char *>(x_t_in), (size_t) chunk * action_dim * sizeof(float));
-    vt_f.write(reinterpret_cast<const char *>(v_t), (size_t) chunk * action_dim * sizeof(float));
-    xout_f.write(reinterpret_cast<const char *>(x_t_out), (size_t) chunk * action_dim * sizeof(float));
-    return true;
 }
 
 static bool dump_m7_actions(
@@ -678,8 +513,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         }
     }
 
-    smolvla_log_shape_debug(ctx);
-
     if (params.verbosity >= 1) {
         fprintf(stderr, "[SmolVLA] Engine initialized%s\n",
                 ctx->expert ? "" : " (no action expert — Phase 2 will be stub)");
@@ -794,7 +627,6 @@ static struct smolvla_result smolvla_predict_impl(
         return result;
     }
 
-    const bool m6_debug = smolvla_env_has_value("SMOLVLA_M6_DUMP_DIR");
     const bool m7_debug = smolvla_env_has_value("SMOLVLA_M7_DUMP_DIR");
 
     if (ctx->verbosity >= 1) {
@@ -1043,10 +875,8 @@ static struct smolvla_result smolvla_predict_impl(
 
         std::vector<float> suffix_emb((size_t) chunk * hidden);
         std::vector<float> v_t((size_t) chunk * padded_action_dim);
-        std::vector<float> x_t_in((size_t) chunk * padded_action_dim);
         for (int step = 0; step < ctx->num_steps; ++step) {
             const float timestep = 1.0f + step * dt;
-            x_t_in = x_t;
 
             if (!smolvla_action_expert_embed_suffix(
                     ctx->expert, ctx->n_threads, x_t.data(), timestep, suffix_emb.data())) {
@@ -1063,27 +893,6 @@ static struct smolvla_result smolvla_predict_impl(
 
             for (size_t i = 0; i < x_t.size(); ++i) {
                 x_t[i] += dt * v_t[i];
-            }
-
-            if (m6_debug) {
-                fprintf(stdout, "[M6 step %d] v_t[0,0,:10]:", step);
-                for (int j = 0; j < 10; ++j) fprintf(stdout, " %.6f", v_t[j]);
-                fprintf(stdout, "\n");
-                fprintf(stdout, "[M6 step %d] x_t[0,0,:10]:", step);
-                for (int j = 0; j < 10; ++j) fprintf(stdout, " %.6f", x_t[j]);
-                fprintf(stdout, "\n");
-
-                if (!dump_m6_step(
-                        ctx,
-                        step,
-                        x_t_in.data(),
-                        v_t.data(),
-                        x_t.data(),
-                        chunk,
-                        padded_action_dim)) {
-                    fprintf(stderr, "[SmolVLA] FATAL: M6 step dump failed at step %d\n", step);
-                    return result;
-                }
             }
         }
         // 找到真正的action dim，这里做了一些防御，防止越界
