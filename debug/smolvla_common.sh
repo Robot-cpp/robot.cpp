@@ -11,15 +11,16 @@ RESEARCH_ROOT="${RESEARCH_ROOT:-$(cd "${VLA_CPP_ROOT}/.." && pwd)}"
 
 BITVLA_ROOT="${BITVLA_ROOT:-${RESEARCH_ROOT}/bitvla.cpp}"
 GT_DIR="${GT_DIR:-${BITVLA_ROOT}/3rdparty/bitvla_lerobot/smolvla_cpp_gt}"
-GGUF_DIR="${GGUF_DIR:-${RESEARCH_ROOT}/ckpts/smolvla}"
+GGUF_DIR="${GGUF_DIR:-${RESEARCH_ROOT}/ckpts/smolvla/new_gguf}"
+CKPT_DIR="${CKPT_DIR:-${RESEARCH_ROOT}/ckpts/smolvla}"
 
 VLM_GGUF="${VLM_GGUF:-${GGUF_DIR}/smolvla-vlm-f32.gguf}"
 VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-f32.gguf}"
 STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
 ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
 
-PRETRAINED_PATH="${PRETRAINED_PATH:-${GGUF_DIR}/pytorch_version/smolvla/smolvla_450m_grasp_50k/pretrained_model}"
-SMOLVLA_IMAGE_PATH="${SMOLVLA_IMAGE_PATH:-${GGUF_DIR}/test_image.jpg}"
+PRETRAINED_PATH="${PRETRAINED_PATH:-${CKPT_DIR}/pytorch_version/smolvla/smolvla_450m_grasp_50k/pretrained_model}"
+SMOLVLA_IMAGE_PATH="${SMOLVLA_IMAGE_PATH:-${CKPT_DIR}/test_image.jpg}"
 SMOLVLA_STATE="${SMOLVLA_STATE:-0.5479121208190918,-0.12224312126636505,0.7171958684921265,0.39473605155944824,-0.8116453289985657,0.9512447118759155}"
 SMOLVLA_TASK="${SMOLVLA_TASK:-grab the block.}"
 
