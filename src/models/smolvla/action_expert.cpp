@@ -730,7 +730,6 @@ static void compute_sinusoidal_time_emb(
     }
 }
 
-//TODO: 为什么感觉非常智障，非要存（hidden size，chunk size），明明感觉存hidden size就行了，chunk size感觉完全可以广播啊。现在就是存了chunksize行一样的东西=-=
 static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
     if (!ctx || ctx->num_steps <= 0 || ctx->hidden_size <= 0 || ctx->chunk_size <= 0) {
         return;
@@ -765,12 +764,12 @@ static const float * resolve_time_emb_2d(
     float timestep,
     std::vector<float> & time_emb_2d_fallback) {
     for (size_t step = 0; step < ctx->precomputed_timesteps.size(); ++step) {
-        // 命中缓存
+        // hit cache
         if (fabsf(ctx->precomputed_timesteps[step] - timestep) <= 1e-6f) {
             return ctx->precomputed_time_emb_2d.data() + step * ctx->hidden_size * ctx->chunk_size;
         }
     }
-    // 没有命中缓存，重新算
+    // cache miss, compute on the fly 
     std::vector<float> time_emb_1d(ctx->hidden_size);
     compute_sinusoidal_time_emb(
         timestep, ctx->hidden_size, ctx->min_period, ctx->max_period, time_emb_1d.data());
