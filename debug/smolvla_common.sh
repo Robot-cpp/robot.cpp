@@ -75,6 +75,7 @@ smolvla_configure_release_cpu_blas() {
     cmake -S "${VLA_CPP_ROOT}" -B "${SMOLVLA_BUILD_DIR}" \
         -DCMAKE_BUILD_TYPE=Release \
         -DGGML_METAL=OFF \
+        -DGGML_NATIVE=OFF \
         -DGGML_BLAS=ON \
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF
