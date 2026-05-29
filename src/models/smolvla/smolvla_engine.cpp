@@ -59,8 +59,6 @@ struct smolvla_context {
 
     // Vision embedding buffer
     std::vector<float> vision_emb;
-    // LLM debug hidden buffer (last token)
-    std::vector<float> llm_last_hidden;
 
     // Task string
     std::string task;
@@ -796,10 +794,8 @@ static struct smolvla_result smolvla_predict_impl(
         return result;
     }
 
-    const bool debug_trace = smolvla_env_flag_enabled("SMOLVLA_DEBUG");
-    const bool llm_debug = debug_trace;
-    const bool m6_debug = debug_trace || smolvla_env_has_value("SMOLVLA_M6_DUMP_DIR");
-    const bool m7_debug = debug_trace || smolvla_env_has_value("SMOLVLA_M7_DUMP_DIR");
+    const bool m6_debug = smolvla_env_has_value("SMOLVLA_M6_DUMP_DIR");
+    const bool m7_debug = smolvla_env_has_value("SMOLVLA_M7_DUMP_DIR");
 
     if (ctx->verbosity >= 1) {
         fprintf(stdout, "\n");
@@ -912,19 +908,6 @@ static struct smolvla_result smolvla_predict_impl(
             v *= lang_scale;
         }
 
-        if (llm_debug) {
-            fprintf(stdout, "\n=== Language Embedding Output ===\n");
-            fprintf(stdout, "Shape: [%d, %d]\n", (int) task_tokens.size(), ctx->n_embd);
-            fprintf(stdout, "First 10: [");
-            for (int i = 0; i < 10 && i < (int) lang_embeds.size(); ++i) fprintf(stdout, "%.6f%s", lang_embeds[i], i < 9 ? ", " : "");
-            fprintf(stdout, "]\n");
-            fprintf(stdout, "Last 10: [");
-            for (int i = std::max(0, (int) lang_embeds.size() - 10); i < (int) lang_embeds.size(); ++i) {
-                fprintf(stdout, "%.6f%s", lang_embeds[i], i < (int) lang_embeds.size() - 1 ? ", " : "");
-            }
-            fprintf(stdout, "]\n");
-        }
-
         //=====1.4 Concatenate embeddings → prefix
         const int n_vis = (int) ctx->vision_emb.size() / ctx->n_embd;
         const int n_task = (int) task_tokens.size();
@@ -971,21 +954,8 @@ static struct smolvla_result smolvla_predict_impl(
             memcpy(merged_embeds.data() + (size_t) offset * ctx->n_embd, ctx->state_emb.data(), (size_t) ctx->n_embd * sizeof(float));
         }
         
-        if (llm_debug) {
-            fprintf(stdout, "\n=== LLM Input Embeddings (Merged) ===\n");
-            fprintf(stdout, "Shape: [%d, %d]\n", n_total, ctx->n_embd);
-            fprintf(stdout, "First 10: [");
-            for (int i = 0; i < 10 && i < (int) merged_embeds.size(); ++i) fprintf(stdout, "%.6f%s", merged_embeds[i], i < 9 ? ", " : "");
-            fprintf(stdout, "]\n");
-            fprintf(stdout, "Last 10: [");
-            for (int i = std::max(0, (int) merged_embeds.size() - 10); i < (int) merged_embeds.size(); ++i) {
-                fprintf(stdout, "%.6f%s", merged_embeds[i], i < (int) merged_embeds.size() - 1 ? ", " : "");
-            }
-            fprintf(stdout, "]\n");
-        }
-
         llama_kv_cache_clear(ctx->ctx_llama);
-        llama_set_embeddings(ctx->ctx_llama, llm_debug);
+        llama_set_embeddings(ctx->ctx_llama, false);
         // Prefix-LM attention mask via seq_ids, with padding mask:
         //   valid lang+vision tokens:  seq_id={0,1} — bidirectional among valid prefix
         //   padded tokens:        seq_id={2}   - 谁也看不到，但它也看不到谁
@@ -996,7 +966,7 @@ static struct smolvla_result smolvla_predict_impl(
         memcpy(batch.embd, merged_embeds.data(), (size_t) n_total * ctx->n_embd * sizeof(float));
         int pad_position = 0;
         for (int i = 0; i < n_total; ++i) {
-            batch.logits[i] = llm_debug ? 1 : 0;
+            batch.logits[i] = 0;
             if (!pad_mask[i]) {
                 // padded tokens: seq_id={2}, invisible to valid tokens
                 batch.pos[i] = pad_position++;
@@ -1029,48 +999,6 @@ static struct smolvla_result smolvla_predict_impl(
         if (ctx->verbosity >= 1) {
             fprintf(stderr, "[SmolVLA] llm merged decode: %.2f ms (%d tokens)\n",
                     std::chrono::duration<double, std::milli>(t_llm1 - t_llm0).count(), n_total);
-        }
-
-        if (llm_debug) {
-            float * h_first = llama_get_embeddings_ith(ctx->ctx_llama, 0);
-            float * h_last = llama_get_embeddings_ith(ctx->ctx_llama, n_total - 1);
-            if (!h_first || !h_last) {
-                fprintf(stderr, "[SmolVLA] Error: failed to fetch token hidden states\n");
-                llama_batch_free(batch);
-                llama_set_embeddings(ctx->ctx_llama, false);
-                return result;
-            }
-
-            ctx->llm_last_hidden.assign(h_last, h_last + ctx->n_embd);
-
-            fprintf(stdout, "\n=== LLM Output (Flatten) ===\n");
-            fprintf(stdout, "Shape: [%d, %d]\n", n_total, ctx->n_embd);
-            fprintf(stdout, "First 10: [");
-            for (int i = 0; i < 10 && i < ctx->n_embd; ++i) {
-                fprintf(stdout, "%.6f%s", h_first[i], i < 9 ? ", " : "");
-            }
-            fprintf(stdout, "]\n");
-            fprintf(stdout, "Last 10: [");
-            const int tail_start = std::max(0, ctx->n_embd - 10);
-            for (int i = tail_start; i < ctx->n_embd; ++i) {
-                fprintf(stdout, "%.6f%s", h_last[i], i < ctx->n_embd - 1 ? ", " : "");
-            }
-            fprintf(stdout, "]\n");
-            fprintf(stdout, "\n--- Per-Row LLM Final Output ---\n");
-            for (int i = 0; i < n_total; ++i) {
-                float * h_i = llama_get_embeddings_ith(ctx->ctx_llama, i);
-                if (!h_i) {
-                    fprintf(stdout, "  Row %d: <missing>\n", i);
-                    continue;
-                }
-                fprintf(stdout, "  Row %d: [", i);
-                for (int j = 0; j < ctx->n_embd; ++j) {
-                    fprintf(stdout, "%.6f%s", h_i[j], j < ctx->n_embd - 1 ? ", " : "");
-                }
-                fprintf(stdout, "]\n");
-            }
-        } else {
-            ctx->llm_last_hidden.clear();
         }
 
         llama_batch_free(batch);

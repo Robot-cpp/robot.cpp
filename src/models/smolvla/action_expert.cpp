@@ -1101,7 +1101,6 @@ static struct ggml_tensor * build_self_attn_layer_op(
     struct ggml_tensor * prefix_v_in,
     struct ggml_tensor * pos_in,
     struct ggml_tensor * mask_in) {
-    const bool graph_debug = smolvla_env_flag_enabled("SMOLVLA_DEBUG");
     const auto & layer = ctx->layers[layer_idx];
     const int chunk = ctx->chunk_size;
     const int head_dim = ctx->head_dim;
@@ -1130,23 +1129,8 @@ static struct ggml_tensor * build_self_attn_layer_op(
     struct ggml_tensor * v_all = ggml_concat(ctx0, prefix_v_3d, v_suffix, 2);
     struct ggml_tensor * k = ggml_permute(ctx0, k_all, 0, 2, 1, 3);
     struct ggml_tensor * v = ggml_cont(ctx0, ggml_permute(ctx0, v_all, 1, 2, 0, 3));
-    if (graph_debug) {
-        fprintf(stderr,
-                "[graph self L%d] q=(%lld,%lld,%lld,%lld) k=(%lld,%lld,%lld,%lld) v=(%lld,%lld,%lld,%lld)\n",
-                layer_idx,
-                (long long) q->ne[0], (long long) q->ne[1], (long long) q->ne[2], (long long) q->ne[3],
-                (long long) k->ne[0], (long long) k->ne[1], (long long) k->ne[2], (long long) k->ne[3],
-                (long long) v->ne[0], (long long) v->ne[1], (long long) v->ne[2], (long long) v->ne[3]);
-    }
 
     struct ggml_tensor * kq = ggml_mul_mat(ctx0, k, q);
-    if (graph_debug) {
-        fprintf(stderr,
-                "[graph self L%d] kq=(%lld,%lld,%lld,%lld) mask=(%lld,%lld,%lld,%lld)\n",
-                layer_idx,
-                (long long) kq->ne[0], (long long) kq->ne[1], (long long) kq->ne[2], (long long) kq->ne[3],
-                (long long) mask_in->ne[0], (long long) mask_in->ne[1], (long long) mask_in->ne[2], (long long) mask_in->ne[3]);
-    }
     ggml_mul_mat_set_prec(kq, GGML_PREC_F32);
     kq = ggml_soft_max_ext(ctx0, kq, mask_in, attn_scale, 0.0f);
     struct ggml_tensor * kqv = ggml_mul_mat(ctx0, v, kq);
@@ -1175,7 +1159,6 @@ static struct ggml_tensor * build_cross_attn_layer_op(
     struct ggml_tensor * prefix_v_in,
     struct ggml_tensor * pos_in,
     struct ggml_tensor * mask_in) {
-    const bool graph_debug = smolvla_env_flag_enabled("SMOLVLA_DEBUG");
     const auto & layer = ctx->layers[layer_idx];
     const int chunk = ctx->chunk_size;
     const int head_dim = ctx->head_dim;
@@ -1197,23 +1180,8 @@ static struct ggml_tensor * build_cross_attn_layer_op(
     v = ggml_reshape_3d(ctx0, v, head_dim, ctx->n_kv_heads, prefix_seq_len);
     struct ggml_tensor * k_view = ggml_permute(ctx0, k, 0, 2, 1, 3);
     struct ggml_tensor * v_view = ggml_cont(ctx0, ggml_permute(ctx0, v, 1, 2, 0, 3));
-    if (graph_debug) {
-        fprintf(stderr,
-                "[graph cross L%d] q=(%lld,%lld,%lld,%lld) k=(%lld,%lld,%lld,%lld) v=(%lld,%lld,%lld,%lld)\n",
-                layer_idx,
-                (long long) q->ne[0], (long long) q->ne[1], (long long) q->ne[2], (long long) q->ne[3],
-                (long long) k_view->ne[0], (long long) k_view->ne[1], (long long) k_view->ne[2], (long long) k_view->ne[3],
-                (long long) v_view->ne[0], (long long) v_view->ne[1], (long long) v_view->ne[2], (long long) v_view->ne[3]);
-    }
 
     struct ggml_tensor * kq = ggml_mul_mat(ctx0, k_view, q);
-    if (graph_debug) {
-        fprintf(stderr,
-                "[graph cross L%d] kq=(%lld,%lld,%lld,%lld) mask=(%lld,%lld,%lld,%lld)\n",
-                layer_idx,
-                (long long) kq->ne[0], (long long) kq->ne[1], (long long) kq->ne[2], (long long) kq->ne[3],
-                (long long) mask_in->ne[0], (long long) mask_in->ne[1], (long long) mask_in->ne[2], (long long) mask_in->ne[3]);
-    }
     ggml_mul_mat_set_prec(kq, GGML_PREC_F32);
     kq = ggml_soft_max_ext(ctx0, kq, mask_in, attn_scale, 0.0f);
     struct ggml_tensor * kqv = ggml_mul_mat(ctx0, v_view, kq);
