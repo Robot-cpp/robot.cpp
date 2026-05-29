@@ -45,6 +45,8 @@ struct smolvla_context {
     int n_batch;
     int n_ctx;
     int n_embd;
+    int lang_max_len;
+    llama_token lang_pad_id;
     int noise_mode;
     int64_t noise_seed;
     int verbosity;
@@ -80,10 +82,6 @@ struct smolvla_context {
 };
 
 using smolvla_clock = std::chrono::steady_clock;
-
-// TODO: 这里的SMOLVLA_LANG_MAX_LEN 48 和SMOLVLA_LANG_PAD_ID pad_id=2应该也要改成从gguf里读的配置，而不是写死的了
-static constexpr int SMOLVLA_LANG_MAX_LEN = 48;
-static constexpr llama_token SMOLVLA_LANG_PAD_ID = 2;
 
 static double smolvla_elapsed_ms(
     const smolvla_clock::time_point & start,
@@ -123,6 +121,32 @@ static std::vector<llama_token> smolvla_pad_tokens_right(
     }
     out.resize(target_len, pad_id);
     return out;
+}
+
+static bool smolvla_read_meta_int(const llama_model * model, const char * key, int * out) {
+    char buf[32];
+    if (llama_model_meta_val_str(model, key, buf, sizeof(buf)) < 0) {
+        fprintf(stderr, "[SmolVLA] Error: missing required GGUF metadata %s\n", key);
+        return false;
+    }
+    *out = std::atoi(buf);
+    if (*out <= 0) {
+        fprintf(stderr, "[SmolVLA] Error: invalid GGUF metadata %s=%s\n", key, buf);
+        return false;
+    }
+    return true;
+}
+
+static bool smolvla_load_language_config(smolvla_context * ctx) {
+    if (!smolvla_read_meta_int(ctx->vlm, "smolvla.tokenizer_max_length", &ctx->lang_max_len)) {
+        return false;
+    }
+    ctx->lang_pad_id = llama_vocab_pad(llama_model_get_vocab(ctx->vlm));
+    if (ctx->lang_pad_id == LLAMA_TOKEN_NULL) {
+        fprintf(stderr, "[SmolVLA] Error: missing required GGUF metadata tokenizer.ggml.padding_token_id\n");
+        return false;
+    }
+    return true;
 }
 
 static bool smolvla_env_has_value(const char * name) {
@@ -372,6 +396,8 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     ctx->n_batch    = params.n_batch > 0 ? params.n_batch : 512;
     ctx->n_ctx      = params.n_ctx > 0 ? params.n_ctx : 2048;
     ctx->n_embd     = 0;
+    ctx->lang_max_len = 0;
+    ctx->lang_pad_id = LLAMA_TOKEN_NULL;
     ctx->noise_mode = params.noise_mode;
     if (ctx->noise_mode != SMOLVLA_NOISE_MODE_GAUSSIAN &&
         ctx->noise_mode != SMOLVLA_NOISE_MODE_DEBUG_SIN) {
@@ -453,6 +479,10 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
             smolvla_free(ctx);
             return nullptr;
         }
+        if (!smolvla_load_language_config(ctx)) {
+            smolvla_free(ctx);
+            return nullptr;
+        }
 
         llama_context_params cparams = llama_context_default_params();
         cparams.n_ctx = ctx->n_ctx;
@@ -484,8 +514,9 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
             return nullptr;
         }
         if (ctx->verbosity >= 1) {
-            fprintf(stderr, "[SmolVLA] VLM loaded: n_embd=%d, token_embd(type=%d shape=[%d, %d])\n",
-                    ctx->n_embd, ctx->tok_embd->type, (int) ctx->tok_embd->ne[0], (int) ctx->tok_embd->ne[1]);
+            fprintf(stderr, "[SmolVLA] VLM loaded: n_embd=%d, lang_max_len=%d, lang_pad_id=%d, token_embd(type=%d shape=[%d, %d])\n",
+                    ctx->n_embd, ctx->lang_max_len, (int) ctx->lang_pad_id,
+                    ctx->tok_embd->type, (int) ctx->tok_embd->ne[0], (int) ctx->tok_embd->ne[1]);
         }
     }
 
@@ -500,7 +531,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     if (ctx->vision && ctx->expert) {
         const int n_vis = smolvla_vision_n_tokens(ctx->vision) * (1 + std::max(0, ctx->empty_cameras));
         const int n_state = !ctx->state_emb.empty() ? 1 : 0;
-        ctx->fixed_prefix_seq_len = n_vis + SMOLVLA_LANG_MAX_LEN + n_state;
+        ctx->fixed_prefix_seq_len = n_vis + ctx->lang_max_len + n_state;
         if (!smolvla_action_expert_init_fixed_prefix_runtime(ctx->expert, ctx->fixed_prefix_seq_len)) {
             fprintf(stderr, "[SmolVLA] Error: failed to initialize fixed prefix runtime (seq_len=%d)\n",
                     ctx->fixed_prefix_seq_len);
@@ -509,7 +540,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         }
         if (ctx->verbosity >= 1) {
             fprintf(stderr, "[SmolVLA] Fixed prefix runtime initialized: vision=%d lang=%d state=%d total=%d\n",
-                    n_vis, SMOLVLA_LANG_MAX_LEN, n_state, ctx->fixed_prefix_seq_len);
+                    n_vis, ctx->lang_max_len, n_state, ctx->fixed_prefix_seq_len);
         }
     }
 
@@ -692,9 +723,7 @@ static struct smolvla_result smolvla_predict_impl(
             fprintf(stderr, "[SmolVLA] Error: task tokenization failed\n");
             return result;
         }
-        // Match SmolVLA config: tokenizer_max_length=48, right padding.
-        // TODO: 这里的SMOLVLA_LANG_MAX_LEN 48 和SMOLVLA_LANG_PAD_ID pad_id=2应该也要改成从gguf里读的配置，而不是写死的了
-        std::vector<llama_token> task_tokens = smolvla_pad_tokens_right(task_tokens_raw, SMOLVLA_LANG_MAX_LEN, SMOLVLA_LANG_PAD_ID);
+        std::vector<llama_token> task_tokens = smolvla_pad_tokens_right(task_tokens_raw, ctx->lang_max_len, ctx->lang_pad_id);
 
         if (ctx->verbosity >= 1) {
             fprintf(stdout, "[SmolVLA] task tokens(raw): n=%d, first 10=[", (int) task_tokens_raw.size());
@@ -718,14 +747,14 @@ static struct smolvla_result smolvla_predict_impl(
             }
         }
         if (n_raw < (int) task_tokens.size()) {
-            if (!ctx->lang_pad_emb_cache_ready || ctx->lang_pad_emb_cache_id != SMOLVLA_LANG_PAD_ID) {
+            if (!ctx->lang_pad_emb_cache_ready || ctx->lang_pad_emb_cache_id != ctx->lang_pad_id) {
                 ctx->lang_pad_emb_cache.resize(ctx->n_embd);
                 // TODO: 感觉其实这里也可以扔到load阶段去算，然后在predict的时候直接拼padding就行了
-                if (!lookup_token_embeddings(ctx->tok_embd, &SMOLVLA_LANG_PAD_ID, 1, ctx->n_embd, ctx->lang_pad_emb_cache.data())) {
+                if (!lookup_token_embeddings(ctx->tok_embd, &ctx->lang_pad_id, 1, ctx->n_embd, ctx->lang_pad_emb_cache.data())) {
                     fprintf(stderr, "[SmolVLA] Error: pad token embedding lookup failed\n");
                     return result;
                 }
-                ctx->lang_pad_emb_cache_id = SMOLVLA_LANG_PAD_ID;
+                ctx->lang_pad_emb_cache_id = ctx->lang_pad_id;
                 ctx->lang_pad_emb_cache_ready = true;
             }
             for (int i = n_raw; i < (int) task_tokens.size(); ++i) {
