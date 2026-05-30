@@ -38,7 +38,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
-        --target smolvla-server smolvla-client \
+        --target smolvla-server \
         -j8
 fi
 
