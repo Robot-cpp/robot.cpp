@@ -6,4 +6,4 @@ PYTHON="${PYTHON:-python3}"
 
 cd "${VLA_CPP_ROOT}"
 
-"${PYTHON}" robot_server/examples/minimal_predict.py
+"${PYTHON}" robot_server/examples/python/minimal_predict.py

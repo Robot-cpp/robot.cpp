@@ -8,9 +8,9 @@ import struct
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from smolvla_client import SmolVLAClient
+from client.python.smolvla_client import SmolVLAClient
 
 
 DEFAULT_STATE = (
