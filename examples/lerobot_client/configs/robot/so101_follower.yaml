@@ -1,0 +1,3 @@
+port: /dev/tty.usbmodem5B3E1195731
+type: so101_follower
+use_degrees: true

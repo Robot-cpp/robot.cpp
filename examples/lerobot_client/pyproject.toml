@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=71.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vlacpp-lerobot-client"
+version = "0.1.0"
+description = "LeRobot client layer for vla.cpp SmolVLA TCP robot server and SO101 hardware"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "grpcio>=1.73.1",
+    "protobuf>=6.31.1,<6.32.0",
+    "opencv-python>=4.9.0,<4.14.0",
+]
+
+[project.optional-dependencies]
+robot = [
+    "pyserial>=3.5,<4.0",
+    "feetech-servo-sdk>=1.0.0,<2.0.0",
+]
+async = [
+    "pynput>=1.7,<2.0",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+vlacpp-robot-client = "vlacpp_lerobot.client.app:main"
+vlacpp-async-robot-client = "vlacpp_lerobot.async_inference.client:main"
+vlacpp-async-policy-server = "vlacpp_lerobot.async_inference.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

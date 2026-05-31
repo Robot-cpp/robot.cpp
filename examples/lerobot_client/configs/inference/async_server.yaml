@@ -1,0 +1,5 @@
+host: "127.0.0.1"
+port: 8080
+fps: 10
+inference_latency: 0.1
+obs_queue_timeout: 2
