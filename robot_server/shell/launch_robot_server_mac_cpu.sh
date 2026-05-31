@@ -47,7 +47,7 @@ echo "host: ${HOST}"
 echo "port: ${PORT}"
 echo "task: ${TASK}"
 
-"${SERVER_BIN}" \
+exec "${SERVER_BIN}" \
     --vlm "${VLM_GGUF}" \
     --mmproj "${VISION_GGUF}" \
     --state-proj "${STATE_PROJ_GGUF}" \
