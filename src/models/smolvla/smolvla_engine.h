@@ -124,8 +124,34 @@ SMOLVLA_API struct smolvla_result smolvla_predict_bytes(
     int state_dim);
 
 /**
+ * Run one prediction with raw RGB image memory.
+ *
+ * This is the production on-device runtime path for robot clients. The image
+ * must be HWC uint8 RGB. JPEG/PNG encode/decode and filesystem IO are not used.
+ *
+ * @param ctx          Engine context
+ * @param rgb          RGB image memory in HWC layout
+ * @param width        Image width in pixels
+ * @param height       Image height in pixels
+ * @param channels     Must be 3
+ * @param stride_bytes Row stride in bytes. <=0 means width * 3.
+ * @param state        State array, or NULL
+ * @param state_dim    Number of state dimensions
+ * @return Prediction result
+ */
+SMOLVLA_API struct smolvla_result smolvla_predict_raw_rgb(
+    struct smolvla_context * ctx,
+    const unsigned char * rgb,
+    int width,
+    int height,
+    int channels,
+    int stride_bytes,
+    const float * state,
+    int state_dim);
+
+/**
  * Return the stage timings captured by the most recent successful or failed
- * predict()/predict_bytes() call on this context.
+ * predict()/predict_bytes()/predict_raw_rgb() call on this context.
  */
 SMOLVLA_API struct smolvla_stage_timings smolvla_get_last_stage_timings(
     const struct smolvla_context * ctx);

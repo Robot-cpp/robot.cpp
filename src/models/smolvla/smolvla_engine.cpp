@@ -1042,6 +1042,60 @@ struct smolvla_result smolvla_predict_bytes(
     return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(bytes)", state, state_dim), t_total0);
 }
 
+struct smolvla_result smolvla_predict_raw_rgb(
+    struct smolvla_context * ctx,
+    const unsigned char * rgb,
+    int width,
+    int height,
+    int channels,
+    int stride_bytes,
+    const float * state,
+    int state_dim)
+{
+    if (!ctx) {
+        return smolvla_empty_result();
+    }
+
+    const auto t_total0 = smolvla_clock::now();
+    smolvla_reset_last_stage_timings(ctx);
+
+    ctx->vision_emb.clear();
+    if (!ctx->vision || !rgb || width <= 0 || height <= 0 || channels != 3) {
+        fprintf(stderr,
+            "[SmolVLA] Error: predict_raw_rgb requires RGB/HWC/uint8 image memory and vision model "
+            "(rgb=%p width=%d height=%d channels=%d)\n",
+            (const void *) rgb, width, height, channels);
+        return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+    }
+
+    if (stride_bytes <= 0) {
+        stride_bytes = width * channels;
+    }
+    if (stride_bytes < width * channels) {
+        fprintf(stderr,
+            "[SmolVLA] Error: predict_raw_rgb invalid stride_bytes=%d for width=%d channels=%d\n",
+            stride_bytes, width, channels);
+        return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+    }
+
+    if (ctx->verbosity >= 1) {
+        fprintf(stderr,
+            "[SmolVLA] predict_raw_rgb: width=%d height=%d channels=%d stride_bytes=%d\n",
+            width, height, channels, stride_bytes);
+    }
+
+    const auto t_vision0 = smolvla_clock::now();
+    std::vector<float> main_cam_emb = smolvla_vision_encode_raw(
+        ctx->vision, rgb, width, height, channels, stride_bytes, ctx->n_threads);
+    ctx->last_timings.vision_ms = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
+    if (!smolvla_prepare_vision_embedding(ctx, main_cam_emb)) {
+        fprintf(stderr, "[SmolVLA] Error: vision encode failed for raw RGB input\n");
+        return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+    }
+
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb)", state, state_dim), t_total0);
+}
+
 struct smolvla_stage_timings smolvla_get_last_stage_timings(const struct smolvla_context * ctx) {
     if (!ctx) {
         return smolvla_empty_stage_timings();
