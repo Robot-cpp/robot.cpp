@@ -2,7 +2,7 @@
 # Shared SO101 defaults for calibrate / teleoperate / record scripts.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-VLA_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
+VLA_CPP_ROOT="$(cd "${ROOT}/../../../.." && pwd)"
 
 CONDA_ENV="${CONDA_ENV:-vlacpp-lerobot}"
 

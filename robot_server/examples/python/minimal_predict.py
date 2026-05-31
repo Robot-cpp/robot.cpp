@@ -3,20 +3,17 @@
 from __future__ import annotations
 
 import random
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from client.python.smolvla_client import SmolVLAClient
-
-
-HOST = "127.0.0.1"
-PORT = 5555
-PROMPT = "grab the block."
-IMAGE_WIDTH = 224
-IMAGE_HEIGHT = 224
-STATE_DIM = 6
+from smolvla_observation import (
+    DEFAULT_HOST,
+    DEFAULT_IMAGE_HEIGHT,
+    DEFAULT_IMAGE_WIDTH,
+    DEFAULT_PORT,
+    DEFAULT_PROMPT,
+    DEFAULT_STATE_DIM,
+    SmolVLAClient,
+    make_predict_observation,
+)
 
 
 def make_random_rgb_image(width: int, height: int) -> bytes:
@@ -30,20 +27,20 @@ def make_random_state(dim: int) -> list[float]:
 
 
 def make_observation() -> dict:
-    return {
-        "image": {
-            "rgb_hwc_u8": make_random_rgb_image(IMAGE_WIDTH, IMAGE_HEIGHT),
-            "width": IMAGE_WIDTH,
-            "height": IMAGE_HEIGHT,
-            "stride_bytes": IMAGE_WIDTH * 3,
+    return make_predict_observation(
+        {
+            "rgb_hwc_u8": make_random_rgb_image(DEFAULT_IMAGE_WIDTH, DEFAULT_IMAGE_HEIGHT),
+            "width": DEFAULT_IMAGE_WIDTH,
+            "height": DEFAULT_IMAGE_HEIGHT,
+            "stride_bytes": DEFAULT_IMAGE_WIDTH * 3,
         },
-        "state": make_random_state(STATE_DIM),
-        "prompt": PROMPT,
-    }
+        make_random_state(DEFAULT_STATE_DIM),
+        DEFAULT_PROMPT,
+    )
 
 
 def main() -> int:
-    client = SmolVLAClient(host=HOST, port=PORT)
+    client = SmolVLAClient(host=DEFAULT_HOST, port=DEFAULT_PORT)
     response = client.predict(make_observation())
 
     print("chunk_size:", response.chunk_size)

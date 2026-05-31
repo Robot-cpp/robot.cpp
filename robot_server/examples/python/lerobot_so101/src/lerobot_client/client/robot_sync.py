@@ -7,9 +7,15 @@ from dataclasses import dataclass
 from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
-from vlacpp_lerobot.bridge.vlacpp_tcp import VLACPPTcpClient
-from vlacpp_lerobot.utils.robot import build_camera_config, extract_home_action
-from vlacpp_lerobot.utils.stdin import StdinCBreak
+from lerobot_client.bridge.smolvla import (
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    DEFAULT_PROMPT,
+    SmolVLAClient,
+    make_predict_observation,
+)
+from lerobot_client.utils.robot import build_camera_config, extract_home_action
+from lerobot_client.utils.stdin import StdinCBreak
 
 
 @dataclass
@@ -18,9 +24,9 @@ class RobotSyncClientConfig:
     robot_cameras: str
     camera_key: str = "camera1"
     fps: int = 10
-    task: str = "grab the block"
-    server_host: str = "127.0.0.1"
-    server_port: int = 5555
+    task: str = DEFAULT_PROMPT
+    server_host: str = DEFAULT_HOST
+    server_port: int = DEFAULT_PORT
     server_timeout: float | None = None
     loops: int = 0
 
@@ -46,8 +52,8 @@ def parse_chunk_actions(
 def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
     """Synchronous control loop: observe -> TCP Predict -> execute action chunk."""
     dt = 1.0 / max(1, cfg.fps)
-    tcp_client = VLACPPTcpClient(host=cfg.server_host, port=cfg.server_port, timeout=cfg.server_timeout)
-    health = tcp_client.health()
+    client = SmolVLAClient(host=cfg.server_host, port=cfg.server_port, timeout=cfg.server_timeout)
+    health = client.health()
     logging.info("Connected to vla.cpp SmolVLA server at %s:%s (%s)", cfg.server_host, cfg.server_port, health)
 
     cams = build_camera_config(cfg.robot_cameras)
@@ -75,7 +81,7 @@ def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
                     break
                 if ch in ("r", "R"):
                     logging.info("R pressed. moving to home pose.")
-                    tcp_client.reset()
+                    client.reset()
                     for _ in range(max(6, int(cfg.fps * 0.8))):
                         robot.send_action(dict(home_action))
                         time.sleep(max(0.01, dt))
@@ -87,22 +93,25 @@ def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
                     raise KeyError(f"Camera key {cfg.camera_key!r} missing in observation.")
                 image = obs[cfg.camera_key]
                 proprio = [float(obs[k]) for k in action_keys if k in obs]
-                pred = tcp_client.predict(image, proprio, cfg.task)
-                if not pred.ok:
-                    raise RuntimeError(f"Predict failed: {pred.error}")
-                if pred.n_chunks <= 0 or pred.action_dim <= 0:
+                response = client.predict(
+                    make_predict_observation(image, proprio, cfg.task),
+                )
+                if response.chunk_size <= 0 or response.action_dim <= 0:
                     raise RuntimeError("Invalid Predict response shape")
 
+                logging.info(
+                    "chunk_size=%d action_dim=%d first_action=%s timings=%s",
+                    response.chunk_size,
+                    response.action_dim,
+                    response.actions[0] if response.actions else [],
+                    response.timings,
+                )
+
                 chunk_actions = parse_chunk_actions(
-                    pred.actions_flat, pred.n_chunks, pred.action_dim, action_keys
+                    response.actions_flat, response.chunk_size, response.action_dim, action_keys
                 )
                 predict_ms = (time.perf_counter() - t0) * 1000.0
-                logging.info(
-                    "predict done: chunk=%d action_dim=%d predict_ms=%.2f",
-                    pred.n_chunks,
-                    pred.action_dim,
-                    predict_ms,
-                )
+                logging.info("predict_ms=%.2f", predict_ms)
 
                 for action in chunk_actions:
                     ch_inner = kb.poll_key(timeout_s=0.0)
@@ -111,7 +120,7 @@ def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
                         return
                     if ch_inner in ("r", "R"):
                         logging.info("R pressed during chunk execution. moving to home pose.")
-                        tcp_client.reset()
+                        client.reset()
                         for _ in range(max(6, int(cfg.fps * 0.8))):
                             robot.send_action(dict(home_action))
                             time.sleep(max(0.01, dt))
@@ -135,5 +144,4 @@ def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
                 )
     finally:
         robot.disconnect()
-        tcp_client.close()
         logging.info("Shutdown complete.")

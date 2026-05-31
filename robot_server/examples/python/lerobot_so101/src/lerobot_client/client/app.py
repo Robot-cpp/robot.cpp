@@ -6,8 +6,15 @@ from __future__ import annotations
 import argparse
 import logging
 
-from vlacpp_lerobot.bridge.vlacpp_tcp import parse_host_port
-from vlacpp_lerobot.client.robot_sync import RobotSyncClientConfig, run_robot_sync_client
+from lerobot_client.bridge.smolvla import DEFAULT_PORT, DEFAULT_PROMPT
+from lerobot_client.client.robot_sync import RobotSyncClientConfig, run_robot_sync_client
+
+
+def parse_host_port(target: str, default_port: int = DEFAULT_PORT) -> tuple[str, int]:
+    if ":" in target:
+        host, port_str = target.rsplit(":", 1)
+        return host, int(port_str)
+    return target, default_port
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -23,11 +30,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--camera-key", type=str, default="camera1")
     parser.add_argument("--fps", type=int, default=10)
-    parser.add_argument("--task", type=str, default="grab the block")
+    parser.add_argument("--task", type=str, default=DEFAULT_PROMPT)
     parser.add_argument(
         "--server",
         type=str,
-        default="127.0.0.1:5555",
+        default=f"127.0.0.1:{DEFAULT_PORT}",
         help="vla.cpp SmolVLA TCP server address (host:port)",
     )
     parser.add_argument("--server-timeout", type=float, default=None)
