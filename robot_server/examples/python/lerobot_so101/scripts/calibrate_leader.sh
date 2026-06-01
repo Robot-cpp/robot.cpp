@@ -6,6 +6,8 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/so101_env.sh"
 
+require_teleop_port
+
 echo "[calibrate] leader port=${TELEOP_PORT}"
 
 run_lerobot lerobot-calibrate \

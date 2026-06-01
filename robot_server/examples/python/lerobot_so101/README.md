@@ -9,7 +9,6 @@ robot_server/examples/python/lerobot_so101/
 ├── src/
 │   ├── lerobot_camera_crop/    # 相机 plugin（居中裁剪 + resize）
 │   └── lerobot_client/
-│       ├── bridge/             # 复用 robot_server/client/python/smolvla_client.py
 │       ├── client/             # 同步控制循环 + CLI
 │       └── utils/
 ├── configs/

@@ -30,8 +30,8 @@ from lerobot.cameras.configs import Cv2Backends
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.import_utils import register_third_party_plugins
 
-from lerobot_client.bridge.smolvla import make_predict_observation
 from lerobot_client.utils.robot import build_camera_config
+from smolvla_observation import make_predict_observation
 
 # Default matches scripts/run_robot_client.sh (camera1 + warmup_s).
 DEFAULT_ROBOT_CAMERAS = (

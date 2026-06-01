@@ -6,6 +6,9 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/so101_env.sh"
 
+require_robot_port
+require_teleop_port
+
 DATASET_REPO_ID="YOUR_HF_USER/my_so101_dataset"
 DATASET_ROOT="${ROOT}/data"
 DATASET_PUSH_TO_HUB=false

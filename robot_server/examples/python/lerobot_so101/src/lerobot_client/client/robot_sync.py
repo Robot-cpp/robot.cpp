@@ -1,5 +1,8 @@
+"""Synchronous SO101 client: CLI entry + observe -> TCP Predict -> execute loop."""
+
 from __future__ import annotations
 
+import argparse
 import logging
 import time
 from dataclasses import dataclass
@@ -7,11 +10,11 @@ from dataclasses import dataclass
 from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
-from lerobot_client.bridge.smolvla import (
+from client.python.smolvla_client import SmolVLAClient
+from smolvla_observation import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     DEFAULT_PROMPT,
-    SmolVLAClient,
     make_predict_observation,
 )
 from lerobot_client.utils.robot import build_camera_config, extract_home_action
@@ -93,12 +96,8 @@ def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
                     raise KeyError(f"Camera key {cfg.camera_key!r} missing in observation.")
                 image = obs[cfg.camera_key]
                 proprio = [float(obs[k]) for k in action_keys if k in obs]
-                response = client.predict(
-                    make_predict_observation(image, proprio, cfg.task),
-                )
-                if response.chunk_size <= 0 or response.action_dim <= 0:
-                    raise RuntimeError("Invalid Predict response shape")
 
+                response = client.predict(make_predict_observation(image, proprio, cfg.task))
                 logging.info(
                     "chunk_size=%d action_dim=%d first_action=%s timings=%s",
                     response.chunk_size,
@@ -145,3 +144,57 @@ def run_robot_sync_client(cfg: RobotSyncClientConfig) -> None:
     finally:
         robot.disconnect()
         logging.info("Shutdown complete.")
+
+
+def parse_host_port(target: str, default_port: int = DEFAULT_PORT) -> tuple[str, int]:
+    if ":" in target:
+        host, port_str = target.rsplit(":", 1)
+        return host, int(port_str)
+    return target, default_port
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Synchronous SO101 robot client for vla.cpp SmolVLA TCP server"
+    )
+    parser.add_argument("--robot-port", type=str, required=True)
+    parser.add_argument(
+        "--robot-cameras",
+        type=str,
+        required=True,
+        help='JSON, e.g. \'{"camera1":{"type":"opencv_crop","index_or_path":0,...}}\'',
+    )
+    parser.add_argument("--camera-key", type=str, default="camera1")
+    parser.add_argument("--fps", type=int, default=10)
+    parser.add_argument("--task", type=str, default=DEFAULT_PROMPT)
+    parser.add_argument(
+        "--server",
+        type=str,
+        default=f"127.0.0.1:{DEFAULT_PORT}",
+        help="vla.cpp SmolVLA TCP server address (host:port)",
+    )
+    parser.add_argument("--server-timeout", type=float, default=None)
+    parser.add_argument("--loops", type=int, default=0, help="0 means infinite")
+    return parser
+
+
+def main() -> None:
+    args = build_arg_parser().parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    host, port = parse_host_port(args.server)
+    cfg = RobotSyncClientConfig(
+        robot_port=args.robot_port,
+        robot_cameras=args.robot_cameras,
+        camera_key=args.camera_key,
+        fps=args.fps,
+        task=args.task,
+        server_host=host,
+        server_port=port,
+        server_timeout=args.server_timeout,
+        loops=args.loops,
+    )
+    run_robot_sync_client(cfg)
+
+
+if __name__ == "__main__":
+    main()

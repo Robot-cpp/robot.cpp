@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Copy to local_env.sh and adjust paths for your machine.
+#   cp local_env.sh.example local_env.sh
+
+export VLA_CPP_ROOT="/path/to/vla.cpp"
+export GGUF_DIR="${VLA_CPP_ROOT}/ckpts/smolvla"
+export BUILD_DIR="${VLA_CPP_ROOT}/build_smolvla_mac_cpu"
+export CONDA_ENV="lerobot-py312"
+
+export SERVER="127.0.0.1:5555"
+export TASK="grab the block."
+
+export LEROBOT_SO101_ROOT="${VLA_CPP_ROOT}/robot_server/examples/python/lerobot_so101"
+export CAMERAS_JSON="${LEROBOT_SO101_ROOT}/configs/cameras/front.json"
+export CAMERA_KEY="camera1"
+export CAMERA_INDEX="0"
+
+# Serial ports live in configs/robot/so101_follower.yaml and so101_leader.yaml
+# Optional runtime override:
+# export ROBOT_PORT=/dev/tty.usbmodemXXXX
+# export TELEOP_PORT=/dev/tty.usbmodemYYYY
+
+export PYTHONPATH="${LEROBOT_SO101_ROOT}/src:${LEROBOT_SO101_ROOT}/src/lerobot_camera_crop"
+export COPYFILE_DISABLE=1

@@ -6,6 +6,8 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/so101_env.sh"
 
+require_robot_port
+
 echo "[calibrate] follower port=${ROBOT_PORT}"
 
 run_lerobot lerobot-calibrate \

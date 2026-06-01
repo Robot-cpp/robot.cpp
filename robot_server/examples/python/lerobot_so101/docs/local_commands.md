@@ -23,18 +23,31 @@ pip install -e "robot_server/examples/python/lerobot_so101[robot]"
 
 ---
 
-## 2. 查串口
+## 2. 串口配置
+
+**唯一配置源**（所有脚本通过 `so101_env.sh` 自动读取）：
+
+```yaml
+# configs/robot/so101_follower.yaml
+port: /dev/tty.usbmodemXXXX   # → ROBOT_PORT
+
+# configs/robot/so101_leader.yaml
+port: /dev/tty.usbmodemYYYY    # → TELEOP_PORT
+```
+
+查本机实际串口：
 
 ```bash
 lerobot-find-port
 # macOS
-ls /dev/tty.usb*
-ls /dev/cu.usb*
+ls /dev/tty.usb* /dev/cu.usb*
 ```
 
+临时覆盖（不改 yaml）：
+
 ```bash
-export ROBOT_PORT=/dev/tty.usbmodemXXXX    # follower
-export TELEOP_PORT=/dev/tty.usbmodemYYYY   # leader（遥操/录制时需要）
+export ROBOT_PORT=/dev/tty.usbmodemXXXX
+export TELEOP_PORT=/dev/tty.usbmodemYYYY
 ```
 
 ---

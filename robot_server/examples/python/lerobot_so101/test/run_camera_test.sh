@@ -3,17 +3,21 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONDA_ENV="${CONDA_ENV:-lerobot-py312}"
+VLA_CPP_ROOT="$(cd "${ROOT}/../../../.." && pwd)"
 
-export PYTHONPATH="${ROOT}/src:${ROOT}/src/lerobot_camera_crop${PYTHONPATH:+:${PYTHONPATH}}"
+if [[ -f "${VLA_CPP_ROOT}/local_env.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "${VLA_CPP_ROOT}/local_env.sh"
+fi
+
+CONDA_ENV="${CONDA_ENV:-lerobot-py312}"
+export PYTHONPATH="${LEROBOT_SO101_ROOT:-${ROOT}}/src:${LEROBOT_SO101_ROOT:-${ROOT}}/src/lerobot_camera_crop${PYTHONPATH:+:${PYTHONPATH}}"
 
 CAMERA_KEY="${CAMERA_KEY:-camera1}"
 CAMERA_INDEX="${CAMERA_INDEX:-0}"
 FRAMES="${FRAMES:-0}"
 PREVIEW="${PREVIEW:-1}"
-CAMERAS_JSON="${CAMERAS_JSON:-}"
-
-ROBOT_CAMERAS="${ROBOT_CAMERAS:-{\"camera1\":{\"type\":\"opencv_crop\",\"index_or_path\":0,\"width\":1280,\"height\":720,\"fps\":30,\"backend\":\"AVFOUNDATION\",\"resize_width\":224,\"resize_height\":224,\"center_crop_square_before_resize\":true,\"warmup_s\":5}}}"
+CAMERAS_JSON="${CAMERAS_JSON:-${ROOT}/configs/cameras/front.json}"
 
 ARGS=(
   "${ROOT}/test/test_camera.py"
@@ -42,17 +46,16 @@ if [[ -n "${CAMERAS_JSON}" ]]; then
     echo "[error] camera config not found: ${CAMERAS_JSON}" >&2
     exit 1
   fi
-  echo "[camera-test] cameras_json=${CAMERAS_JSON} camera_key=${CAMERA_KEY} frames=${FRAMES}"
+  echo "[camera-test] cameras_json=${CAMERAS_JSON} camera_key=${CAMERA_KEY} index=${CAMERA_INDEX} preview=${PREVIEW} frames=${FRAMES}"
   ARGS+=(--cameras-json "${CAMERAS_JSON}")
 else
-  # Skip heavy inline config for discovery-only modes.
   case "${1:-}" in
     --list-cameras|--probe)
       echo "[camera-test] mode=${1} camera_key=${CAMERA_KEY}"
       ;;
     *)
-      echo "[camera-test] robot_cameras=<inline> camera_key=${CAMERA_KEY} index=${CAMERA_INDEX} preview=${PREVIEW} frames=${FRAMES}"
-      ARGS+=(--robot-cameras "${ROBOT_CAMERAS}")
+      echo "[error] CAMERAS_JSON is not set" >&2
+      exit 1
       ;;
   esac
 fi

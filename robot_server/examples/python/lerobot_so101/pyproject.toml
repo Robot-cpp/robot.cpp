@@ -22,7 +22,7 @@ dev = [
 ]
 
 [project.scripts]
-lerobot-so101-client = "lerobot_client.client.app:main"
+lerobot-so101-client = "lerobot_client.client.robot_sync:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -7,6 +7,9 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/so101_env.sh"
 
+require_robot_port
+require_teleop_port
+
 DISPLAY_DATA="${DISPLAY_DATA:-true}"
 
 echo "[teleoperate] robot=${ROBOT_PORT} teleop=${TELEOP_PORT} cameras=${CAMERAS_JSON}"
