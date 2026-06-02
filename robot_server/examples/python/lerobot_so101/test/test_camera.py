@@ -37,7 +37,7 @@ from smolvla_observation import make_predict_observation
 DEFAULT_ROBOT_CAMERAS = (
     '{"camera1":{"type":"opencv_crop","index_or_path":0,"width":1280,"height":720,'
     '"fps":30,"backend":"AVFOUNDATION","resize_width":224,"resize_height":224,'
-    '"center_crop_square_before_resize":true,"warmup_s":5}}'
+    '"warmup_s":5}}'
 )
 
 _CAMERA_TROUBLESHOOTING = """

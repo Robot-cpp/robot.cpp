@@ -7,10 +7,11 @@ minimal. Core runtime code lives under `src/core` for context lifecycle, errors,
 metadata parsing, and preprocessing. Model dispatch lives under `src/models`;
 pi0-specific implementation files live under `src/models/pi0` and are the
 future integration point for full ggml graphs. Sampling utilities live in
-`src/sampling`. CLI examples are in `examples/pi0-cli`, tests are in `tests`,
-conversion tools are in `tools`, optional simulator evaluation notes are in
-`eval`, benchmark notes are in `reports`, and third-party dependencies belong
-under `third_party`.
+`src/sampling`. CLI examples are in `examples/pi0-cli`, LeRobot SO101 client is in
+`robot_server/examples/python/lerobot_so101`, tests are in `tests`, conversion
+tools are in `tools`, optional simulator evaluation notes are in `eval`,
+benchmark notes are in `reports`, and third-party dependencies belong under
+`third_party`.
 
 ## Build, Test, and Development Commands
 

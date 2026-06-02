@@ -2,8 +2,8 @@
 set -e
 
 # ====== change these if needed ======
-VLA_CPP_ROOT="/Volumes/T7/vla.cpp"
-GGUF_DIR="/Volumes/T7/vla.cpp/ckpts/smolvla"
+VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
+GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
 
 

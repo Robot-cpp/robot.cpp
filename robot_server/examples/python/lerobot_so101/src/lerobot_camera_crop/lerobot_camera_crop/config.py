@@ -7,11 +7,10 @@ from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 @CameraConfig.register_subclass("opencv_crop")
 @dataclass
 class OpenCVCameraCropConfig(OpenCVCameraConfig):
-    """OpenCV camera with optional center-crop + resize after capture."""
+    """OpenCV camera with center-crop (square) + resize after capture."""
 
     resize_width: int | None = None
     resize_height: int | None = None
-    center_crop_square_before_resize: bool = True
 
     def __post_init__(self) -> None:
         super().__post_init__()

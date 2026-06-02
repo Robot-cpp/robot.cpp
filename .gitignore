@@ -22,3 +22,5 @@ checkpoints/
 # macOS resource forks
 ._*
 .vscode/
+
+local_*.sh

@@ -13,6 +13,7 @@
 - `src/models/pi0`: pi0 prefix/cache helpers, tokenizer, and action decoding.
 - `src/sampling`: flow sampler.
 - `examples/pi0-cli`: minimal command-line inference example.
+- `robot_server/examples/python/lerobot_so101`: minimal LeRobot SO101 TCP client.
 - `tools`: GGUF conversion, tensor mapping, and inspection utilities.
 - `eval`: optional LIBERO simulator evaluation flow.
 - `tests`: CTest-registered C++ and Python smoke/parity tests.
@@ -46,6 +47,22 @@ ctest --test-dir build-cuda --output-on-failure
 Set `CMAKE_CUDA_ARCHITECTURES` for your GPU. Common values are `80` for A100,
 `86` for RTX 30xx/A10, `89` for RTX 40xx/L40, and `90` for H100. The Python
 wrapper can load the CUDA build with `library_path="build-cuda/libvlacpp.so"`.
+
+## LeRobot SO101 Robot Client
+
+See [`robot_server/examples/python/lerobot_so101/README.md`](robot_server/examples/python/lerobot_so101/README.md).
+
+```sh
+git submodule update --init third_party/lerobot
+pip install -e "third_party/lerobot[feetech]"
+pip install -e "robot_server/examples/python/lerobot_so101/src/lerobot_camera_crop"
+pip install -e "robot_server/examples/python/lerobot_so101[robot]"
+
+export VLA_CPP_ROOT=$PWD
+export GGUF_DIR=/path/to/gguf
+bash robot_server/shell/launch_robot_server_mac_cpu.sh   # Terminal 1
+bash robot_server/examples/python/lerobot_so101/scripts/run_robot_client.sh # Terminal 2
+```
 
 ## pi0 LIBERO GGUF Flow
 

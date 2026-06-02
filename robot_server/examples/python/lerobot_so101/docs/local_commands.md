@@ -107,7 +107,7 @@ bash robot_server/examples/python/lerobot_so101/scripts/run_robot_client.sh
 lerobot-so101-client \
   --server 127.0.0.1:5555 \
   --robot-port "${ROBOT_PORT}" \
-  --robot-cameras '{"camera1":{"type":"opencv_crop","index_or_path":0,"width":1280,"height":720,"fps":30,"backend":"AVFOUNDATION","resize_width":224,"resize_height":224,"center_crop_square_before_resize":true,"warmup_s":5}}' \
+  --robot-cameras '{"camera1":{"type":"opencv_crop","index_or_path":0,"width":1280,"height":720,"fps":30,"backend":"AVFOUNDATION","resize_width":224,"resize_height":224,"warmup_s":5}}' \
   --task "grab the block." \
   --fps 25
 ```

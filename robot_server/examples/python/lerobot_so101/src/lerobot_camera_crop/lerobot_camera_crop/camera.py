@@ -28,8 +28,7 @@ def center_crop_square_rgb(image: NDArray[Any]) -> NDArray[Any]:
 def postprocess_frame(image: NDArray[Any], config: OpenCVCameraCropConfig) -> NDArray[Any]:
     processed = image
     if config.resize_width is not None and config.resize_height is not None:
-        if config.center_crop_square_before_resize:
-            processed = center_crop_square_rgb(processed)
+        processed = center_crop_square_rgb(processed)
         processed = cv2.resize(
             processed,
             (config.resize_width, config.resize_height),
@@ -39,7 +38,7 @@ def postprocess_frame(image: NDArray[Any], config: OpenCVCameraCropConfig) -> ND
 
 
 class OpenCVCameraCrop(Camera):
-    """Wraps upstream OpenCVCamera and applies optional crop + resize after capture."""
+    """Wraps upstream OpenCVCamera; center-crops to square then resizes after capture."""
 
     config_class = OpenCVCameraCropConfig
     name = "opencv_crop"

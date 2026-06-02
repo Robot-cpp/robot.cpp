@@ -8,6 +8,7 @@ from lerobot_camera_crop.config import OpenCVCameraCropConfig
 
 
 def extract_home_action(obs: dict[str, Any], action_keys: list[str]) -> dict[str, float]:
+    """Capture home action for pose reset"""
     home = {}
     for key in action_keys:
         if key in obs:
