@@ -3,7 +3,7 @@ requires = ["setuptools>=71.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lerobot_camera_crop"
+name = "camera"
 version = "0.1.0"
 description = "LeRobot camera plugin: OpenCV capture with center-crop + resize"
 requires-python = ">=3.12"
@@ -13,4 +13,4 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lerobot_camera_crop*"]
+include = ["camera*"]

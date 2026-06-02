@@ -55,13 +55,13 @@ See [`robot_server/examples/python/lerobot_so101/README.md`](robot_server/exampl
 ```sh
 git submodule update --init third_party/lerobot
 pip install -e "third_party/lerobot[feetech]"
-pip install -e "robot_server/examples/python/lerobot_so101/src/lerobot_camera_crop"
-pip install -e "robot_server/examples/python/lerobot_so101[robot]"
+pip install -e "robot_server/examples/python/lerobot_so101/camera"
 
 export VLA_CPP_ROOT=$PWD
 export GGUF_DIR=/path/to/gguf
+source local_env.sh
 bash robot_server/shell/launch_robot_server_mac_cpu.sh   # Terminal 1
-bash robot_server/examples/python/lerobot_so101/scripts/run_robot_client.sh # Terminal 2
+bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh # Terminal 2
 ```
 
 ## pi0 LIBERO GGUF Flow

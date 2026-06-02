@@ -1,4 +1,0 @@
-target: "127.0.0.1:5555"
-task: "grab the block."
-fps: 25
-camera_key: camera1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone camera smoke test aligned with lerobot-so101-client capture path.
+"""Standalone camera smoke test aligned with robot_sync capture path.
 
 Uses the same pipeline as ``SOFollower.get_observation`` + ``make_predict_observation``:
   build_camera_config -> make_cameras_from_configs -> connect -> read_latest -> encode
@@ -18,22 +18,16 @@ import time
 from pathlib import Path
 from typing import Any
 
-_LEROBOT_SO101_ROOT = Path(__file__).resolve().parents[1]
-for _path in (_LEROBOT_SO101_ROOT / "src", _LEROBOT_SO101_ROOT / "src" / "lerobot_camera_crop"):
-    _path_str = str(_path)
-    if _path_str not in sys.path:
-        sys.path.insert(0, _path_str)
-
-import lerobot_camera_crop  # noqa: F401  # register opencv_crop CameraConfig subclass
+import camera  # noqa: F401  # register opencv_crop CameraConfig subclass
 import numpy as np
 from lerobot.cameras.configs import Cv2Backends
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.import_utils import register_third_party_plugins
 
-from lerobot_client.utils.robot import build_camera_config
-from smolvla_observation import make_predict_observation
+from utils.robot import build_camera_config
+from sync_client import make_predict_observation
 
-# Default matches scripts/run_robot_client.sh (camera1 + warmup_s).
+# Default matches shell/run_robot_client.sh (camera1 + warmup_s).
 DEFAULT_ROBOT_CAMERAS = (
     '{"camera1":{"type":"opencv_crop","index_or_path":0,"width":1280,"height":720,'
     '"fps":30,"backend":"AVFOUNDATION","resize_width":224,"resize_height":224,'
@@ -42,9 +36,9 @@ DEFAULT_ROBOT_CAMERAS = (
 
 _CAMERA_TROUBLESHOOTING = """
 Camera connect/read failed. Common fixes on macOS:
-  1. List devices:  ./test/run_camera_test.sh --list-cameras
-  2. Probe indices:  ./test/run_camera_test.sh --probe
-  3. Try another index: CAMERA_INDEX=1 ./test/run_camera_test.sh
+  1. List devices:  ./camera/camera_test/run_camera_test.sh --list-cameras
+  2. Probe indices:  ./camera/camera_test/run_camera_test.sh --probe
+  3. Try another index: CAMERA_INDEX=1 ./camera/camera_test/run_camera_test.sh
   4. System Settings -> Privacy & Security -> Camera -> allow Terminal/iTerm/Cursor
   5. Close Zoom/FaceTime/Photo Booth and other apps using the camera
 """
@@ -178,7 +172,7 @@ def list_available_cameras(*, max_index: int) -> int:
         )
 
     if readable:
-        print(f"Try: CAMERA_INDEX={readable[0]['id']} ./test/run_camera_test.sh", flush=True)
+        print(f"Try: CAMERA_INDEX={readable[0]['id']} ./camera/camera_test/run_camera_test.sh", flush=True)
         return 0
 
     print("WARNING Cameras open but none returned a frame; check macOS camera permission.", flush=True)
@@ -225,7 +219,7 @@ def probe_camera_indices(
         return 1
 
     logging.info("Working indices: %s", ", ".join(str(i) for i in ok_indices))
-    logging.info("Example: CAMERA_INDEX=%s ./test/run_camera_test.sh", ok_indices[0])
+    logging.info("Example: CAMERA_INDEX=%s ./camera/camera_test/run_camera_test.sh", ok_indices[0])
     return 0
 
 
@@ -385,24 +379,24 @@ def run_camera_test(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Test SO101 cameras with the same capture/encode path as lerobot-so101-client.",
+        description="Test SO101 cameras with the same capture/encode path as robot_sync.",
     )
     src_group = parser.add_mutually_exclusive_group()
     src_group.add_argument(
         "--robot-cameras",
         default=None,
-        help="Camera JSON string (same as lerobot-so101-client --robot-cameras).",
+        help="Camera JSON string (same as so101_env.sh ROBOT_CAMERAS).",
     )
     src_group.add_argument(
         "--cameras-json",
         type=Path,
         default=None,
-        help="Camera JSON file (e.g. configs/cameras/front.json).",
+        help="Camera JSON file (optional; default is --robot-cameras from so101_env.sh).",
     )
     parser.add_argument(
         "--camera-key",
         default="camera1",
-        help="Camera dict key (camera1 for run_robot_client.sh, front for front.json).",
+        help="Camera dict key (default from so101_env.sh CAMERA_KEY).",
     )
     parser.add_argument(
         "--camera-index",

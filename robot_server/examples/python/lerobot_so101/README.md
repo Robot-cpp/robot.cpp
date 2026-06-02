@@ -2,18 +2,20 @@
 
 最小同步 client：SO101 硬件 → vla.cpp SmolVLA TCP server（`127.0.0.1:5555`）。**不修改** `third_party/lerobot` 源码。
 
+- LeRobot 上游：`third_party/lerobot`（submodule，只读）
+- 推理：vla.cpp `robot_server` TCP
+- 相机：LeRobot CLI 使用 `type: opencv_crop`
+
 ## 目录结构
 
 ```
-robot_server/examples/python/lerobot_so101/
-├── src/
-│   ├── lerobot_camera_crop/    # 相机 plugin（居中裁剪 + resize）
-│   └── lerobot_client/
-│       ├── client/             # 同步控制循环 + CLI
-│       └── utils/
-├── configs/
-├── scripts/
-└── docs/
+robot_server/examples/python/
+├── sync_client.py          # 通用入口 + observation 构建（读 so101_env.sh 环境变量）
+└── lerobot_so101/              # LeRobot 控制层
+    ├── lerobot_sync.py         # LerobotSyncClient + config_from_env
+    ├── utils/                  # robot / stdin
+    ├── camera/                 # 相机 plugin（居中裁剪 + resize）+ camera_test
+    └── shell/                  # so101_env.sh, run_robot_client.sh
 ```
 
 ## 安装
@@ -23,53 +25,117 @@ robot_server/examples/python/lerobot_so101/
 ```bash
 git submodule update --init third_party/lerobot
 
-conda create -n vlacpp-lerobot python=3.12 -y
-conda activate vlacpp-lerobot
+conda create -n lerobot-py312 python=3.12 -y
+conda activate lerobot-py312
 
 pip install -U pip setuptools wheel
 pip install -e "third_party/lerobot[feetech]"
-pip install -e "robot_server/examples/python/lerobot_so101/src/lerobot_camera_crop"
-pip install -e "robot_server/examples/python/lerobot_so101[robot]"
+pip install -e "robot_server/examples/python/lerobot_so101/camera"
+
+source local_env.sh   # 设置 PYTHONPATH
 ```
 
-## 运行
+建议复制并编辑仓库根目录的 `local_env.sh`（见 `local_env.sh.example`），设置 `VLA_CPP_ROOT`、`GGUF_DIR` 等路径。
+
+## 配置
+
+**唯一配置源**：`shell/so101_env.sh`（所有 shell 脚本 source 它）。
+
+按机器修改其中的默认值：
+
+
+| 变量                            | 说明                          |
+| ----------------------------- | --------------------------- |
+| `ROBOT_PORT` / `TELEOP_PORT`  | follower / leader 串口        |
+| `CAMERA_KEY` / `CAMERA_INDEX` | 相机 dict key 与 OpenCV index  |
+| `CAMERA_`*                    | 分辨率、backend、resize、warmup 等 |
+| `ROBOT_USE_DEGREES`           | follower 关节单位（默认 degrees）   |
+| `SERVER` / `TASK` / `FPS`     | vla.cpp TCP 推理              |
+| `DATASET_REPO_ID` 等           | 录制数据集                       |
+
+
+查本机串口：
 
 ```bash
-# Terminal 1: C++ policy server
-export VLA_CPP_ROOT=/path/to/vla.cpp
-export GGUF_DIR=/path/to/gguf
+lerobot-find-port
+# macOS
+ls /dev/tty.usb* /dev/cu.usb*
+```
+
+临时覆盖（不改 `so101_env.sh`）：
+
+```bash
+export ROBOT_PORT=/dev/tty.usbmodemXXXX
+export TELEOP_PORT=/dev/tty.usbmodemYYYY
+export CAMERA_INDEX=1
+```
+
+## 运行（C++ Server + 同步闭环）
+
+```bash
+# Terminal 1（vla.cpp 根目录）
+source local_env.sh
 bash robot_server/shell/launch_robot_server_mac_cpu.sh
 
-# Terminal 2: SO101 robot client
-export ROBOT_PORT=/dev/tty.usbmodemXXXX
-bash robot_server/examples/python/lerobot_so101/scripts/run_robot_client.sh
+# Terminal 2
+source local_env.sh
+bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
 ```
 
-Client 与 `robot_server/examples/python/minimal_predict.py` 共用 `smolvla_observation.py`：
-- 同一 `SmolVLAClient.predict(observation)` 接口
-- 默认 `127.0.0.1:5555`、prompt `"grab the block."`
+真机 client 通过 `sync_client.py` 中的 `make_predict_observation` 构建 observation 并调用 `SmolVLAClient.predict`。配置来自 `so101_env.sh` 的环境变量，无需命令行参数。
 
-## 摄像头单独测试
+或直接运行（需先 `source shell/so101_env.sh`）：
 
-不连接机械臂与 policy server，验证与 `lerobot-so101-client` 相同的采集与编码路径（`opencv_crop` → `read_latest` → `make_predict_observation`）：
+```bash
+source local_env.sh
+source robot_server/examples/python/lerobot_so101/shell/so101_env.sh
+python robot_server/examples/python/sync_client.py
+```
+
+按键：**R** 回 home，**Q** 退出。
+
+## 最小 TCP smoke test（无机械臂）
+
+```bash
+source local_env.sh
+bash robot_server/shell/client_example.sh
+# 或：python robot_server/test/benchmark_latency.py --warmup 0 --loops 1
+```
+
+## 摄像头单独测试（无机械臂 / 无 server）
 
 ```bash
 cd robot_server/examples/python/lerobot_so101
-./test/run_camera_test.sh
+./camera/camera_test/run_camera_test.sh
 
-# 与 calibrate/teleoperate 共用 front.json 时
-export CAMERAS_JSON=configs/cameras/front.json
-export CAMERA_KEY=front
-./test/run_camera_test.sh --preview --save-dir /tmp/so101_cam
+# 换摄像头 index
+export CAMERA_INDEX=1
+./camera/camera_test/run_camera_test.sh --preview
 ```
 
-## SO101 校准 / 遥操 / 录制
+验证项：帧 shape/dtype（224×224 uint8 RGB）、`make_predict_observation` 的 `rgb_hwc_u8` 字节长度与 stride。
+
+## 校准
 
 ```bash
 cd robot_server/examples/python/lerobot_so101
-./scripts/calibrate_follower.sh
-./scripts/teleoperate.sh
-./scripts/record_dataset.sh
+./shell/local_calibrate_follower.sh
+./shell/local_calibrate_leader.sh
 ```
 
-更多命令见 [docs/local_commands.md](docs/local_commands.md)。
+## 遥操
+
+```bash
+cd robot_server/examples/python/lerobot_so101
+./shell/local_teleoperate.sh
+```
+
+## 录制数据集
+
+编辑 `shell/so101_env.sh` 中的 `DATASET_REPO_ID`，然后：
+
+```bash
+cd robot_server/examples/python/lerobot_so101
+./shell/local_record_dataset.sh
+```
+
