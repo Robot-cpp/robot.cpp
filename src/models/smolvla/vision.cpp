@@ -617,18 +617,18 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     ctx->patch_embd_w = ctx->patch_embd_b = ctx->pos_embd = ctx->post_ln_w = ctx->post_ln_b = nullptr;
     ctx->connector_w = nullptr;
 
-    ctx->image_size = (int) get_u32_or(gctx, "clip.vision.image_size", 512);
-    ctx->patch_size = (int) get_u32_or(gctx, "clip.vision.patch_size", 16);
-    ctx->hidden_size = (int) get_u32_or(gctx, "clip.vision.embedding_length", 768);
-    ctx->intermediate_size = (int) get_u32_or(gctx, "clip.vision.feed_forward_length", 3072);
-    ctx->n_heads = (int) get_u32_or(gctx, "clip.vision.attention.head_count", 12);
-    ctx->n_layers = (int) get_u32_or(gctx, "clip.vision.block_count", 12);
-    ctx->eps = get_f32_or(gctx, "clip.vision.attention.layer_norm_epsilon", 1e-6f);
+    ctx->image_size = (int) get_u32_or(gctx, "smolvla.vision.image_size", 512);
+    ctx->patch_size = (int) get_u32_or(gctx, "smolvla.vision.patch_size", 16);
+    ctx->hidden_size = (int) get_u32_or(gctx, "smolvla.vision.hidden_size", 768);
+    ctx->intermediate_size = (int) get_u32_or(gctx, "smolvla.vision.intermediate_size", 3072);
+    ctx->n_heads = (int) get_u32_or(gctx, "smolvla.vision.num_heads", 12);
+    ctx->n_layers = (int) get_u32_or(gctx, "smolvla.vision.num_layers", 12);
+    ctx->eps = get_f32_or(gctx, "smolvla.vision.layer_norm_eps", 1e-6f);
     ctx->num_patches = (ctx->image_size / ctx->patch_size) * (ctx->image_size / ctx->patch_size);
     const float default_mean[3] = {0.5f, 0.5f, 0.5f};
     const float default_std[3] = {0.5f, 0.5f, 0.5f};
-    get_f32_arr3_or(gctx, "clip.vision.image_mean", ctx->image_mean, default_mean);
-    get_f32_arr3_or(gctx, "clip.vision.image_std", ctx->image_std, default_std);
+    get_f32_arr3_or(gctx, "smolvla.vision.image_mean", ctx->image_mean, default_mean);
+    get_f32_arr3_or(gctx, "smolvla.vision.image_std", ctx->image_std, default_std);
 
     const ggml_backend_buffer_type_t model_buft = smolvla_vision_default_model_buffer_type();
     if (verbosity >= 1) {
