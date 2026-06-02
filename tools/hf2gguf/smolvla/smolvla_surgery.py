@@ -14,6 +14,7 @@ import argparse
 import torch
 import os
 import json
+import shutil
 from pathlib import Path
 from safetensors import safe_open
 
@@ -30,6 +31,53 @@ ACTION_PROJ_NAMES = (
     "action_out_proj",
     "action_time_mlp",
 )
+
+DEFAULT_VLM_MODEL_NAME = "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+
+#TODO: actually I do not test downloading from Hugging Face, try this later
+def _download_vlm_config(repo_id: str) -> Path:
+    try:
+        from huggingface_hub import hf_hub_download
+    except Exception as exc:
+        raise RuntimeError(
+            f"VLM config is not a local path and huggingface_hub is unavailable: {exc}"
+        ) from exc
+
+    try:
+        return Path(hf_hub_download(repo_id=repo_id, filename="config.json"))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to download VLM config.json from Hugging Face repo '{repo_id}': {exc}") from exc
+
+
+def _resolve_vlm_config(vlm_model_name: str) -> Path:
+    model_ref = Path(vlm_model_name).expanduser()
+    if model_ref.exists():
+        config_file = model_ref / "config.json"
+        if not config_file.exists():
+            raise FileNotFoundError(f"Local VLM path has no config.json: {model_ref}")
+        return config_file
+
+    try:
+        return _download_vlm_config(vlm_model_name)
+    except RuntimeError as first_error:
+        if vlm_model_name == DEFAULT_VLM_MODEL_NAME:
+            raise
+        print(f"   Warning: could not load VLM config from '{vlm_model_name}': {first_error}")
+        print(f"   Falling back to {DEFAULT_VLM_MODEL_NAME}")
+        return _download_vlm_config(DEFAULT_VLM_MODEL_NAME)
+
+
+def _copy_vlm_config(config: dict, output_dir: Path) -> None:
+    vlm_model_name = str(config.get("vlm_model_name") or DEFAULT_VLM_MODEL_NAME)
+
+    vlm_config_file = _resolve_vlm_config(vlm_model_name)
+    with open(vlm_config_file, "r", encoding="utf-8") as f:
+        vlm_config = json.load(f)
+    if "vision_config" not in vlm_config or "text_config" not in vlm_config:
+        raise RuntimeError(f"VLM config must contain vision_config and text_config: {vlm_config_file}")
+
+    shutil.copy(vlm_config_file, output_dir / "vlm_config.json")
+    print(f"📋 Copied vlm_config.json from {vlm_config_file}")
 
 
 def extract_smolvla_components(model_path, output_dir):
@@ -121,28 +169,29 @@ def extract_smolvla_components(model_path, output_dir):
     # Copy config files
     config_file = pretrained_path / "config.json"
     if config_file.exists():
-        import shutil
         shutil.copy(config_file, output_dir / "config.json")
         print(f"\n📋 Copied config.json")
         
         # Also load and print key config values
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             config = json.load(f)
         print(f"   - chunk_size: {config.get('chunk_size', 'N/A')}")
         print(f"   - max_state_dim: {config.get('max_state_dim', 'N/A')}")
         print(f"   - max_action_dim: {config.get('max_action_dim', 'N/A')}")
         print(f"   - num_steps: {config.get('num_steps', 'N/A')}")
+        print(f"   - vlm_model_name: {config.get('vlm_model_name', 'N/A')}")
+        _copy_vlm_config(config, output_dir)
+    else:
+        raise RuntimeError(f"Missing required config.json: {config_file}")
     
     # Copy normalizer stats (for denormalization during inference)
     normalizer_file = pretrained_path / "policy_preprocessor_step_5_normalizer_processor.safetensors"
     if normalizer_file.exists():
-        import shutil
         shutil.copy(normalizer_file, output_dir / "normalizer_stats.safetensors")
         print(f"📊 Copied normalizer stats")
     
     unnormalizer_file = pretrained_path / "policy_postprocessor_step_0_unnormalizer_processor.safetensors"
     if unnormalizer_file.exists():
-        import shutil
         shutil.copy(unnormalizer_file, output_dir / "unnormalizer_stats.safetensors")
         print(f"📊 Copied unnormalizer stats")
     
