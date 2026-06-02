@@ -83,7 +83,7 @@ def extract_smolvla_components(model_path, output_dir):
                     clean_key = key.replace(CONNECTOR_PREFIX, "")
                     connector_state_dict[clean_key] = tensor
                 
-                # Text model (VLM backbone)
+                # Text model (LLM backbone)
                 elif key.startswith(TEXT_MODEL_PREFIX):
                     clean_key = key.replace(TEXT_MODEL_PREFIX, "")
                     text_model_state_dict[clean_key] = tensor
@@ -159,7 +159,7 @@ def extract_smolvla_components(model_path, output_dir):
     print(f"   [2/5] Connector -> {connector_output.name}")
     torch.save(connector_state_dict, connector_output)
     
-    # 3. Text model (VLM)
+    # 3. Text model (LLM)
     text_model_output = output_dir / "smolvla.text_model.pt"
     print(f"   [3/5] Text model -> {text_model_output.name}")
     # Include lm_head in text_model for consistency
@@ -208,7 +208,7 @@ def main():
     print("   1. Run convert_smolvla_vision_to_gguf.py for Vision + Connector")
     print("   2. Run convert_smolvla_state_proj_to_gguf.py for State Projector")
     print("   3. Run convert_smolvla_action_expert_to_gguf.py for Action Expert")
-    print("   4. Run convert_smolvla_vlm_to_gguf.py for VLM backbone")
+    print("   4. Run convert_smolvla_llm_to_gguf.py for LLM backbone")
 
 
 if __name__ == "__main__":

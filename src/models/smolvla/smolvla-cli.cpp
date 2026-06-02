@@ -1,7 +1,7 @@
 // smolvla-cli.cpp — CLI frontend for SmolVLA engine
 //
 // Usage:
-//   smolvla-cli --vlm <vlm.gguf> --mmproj <vision.gguf> \
+//   smolvla-cli --llm <llm.gguf> --mmproj <vision.gguf> \
 //     --state-proj <state.gguf> --action-expert <expert.gguf> \
 //     --image <image.jpg> --state <csv_values> --task "grab the block."
 
@@ -34,7 +34,7 @@ static void print_usage(const char * prog) {
     fprintf(stderr, " Usage:\n");
     fprintf(stderr, "   %s [options]\n\n", prog);
     fprintf(stderr, " Required:\n");
-    fprintf(stderr, "   --vlm <path>           VLM GGUF path (smolvla-vlm-f16.gguf)\n");
+    fprintf(stderr, "   --llm <path>           LLM GGUF path (smolvla-llm-f16.gguf)\n");
     fprintf(stderr, "   --mmproj <path>        Vision GGUF path (mmproj-smolvla-f16.gguf)\n");
     fprintf(stderr, "   --image <path>         Input image (JPEG/PNG)\n\n");
     fprintf(stderr, " Optional:\n");
@@ -51,7 +51,7 @@ static void print_usage(const char * prog) {
     fprintf(stderr, "   -v, --verbose          Increase verbosity\n");
     fprintf(stderr, "   -h, --help             Show this help\n\n");
     fprintf(stderr, " Example:\n");
-    fprintf(stderr, "   %s --vlm smolvla-vlm-f16.gguf --mmproj mmproj-smolvla-f16.gguf \\\n", prog);
+    fprintf(stderr, "   %s --llm smolvla-llm-f16.gguf --mmproj mmproj-smolvla-f16.gguf \\\n", prog);
     fprintf(stderr, "     --state-proj state-proj-smolvla-f16.gguf \\\n");
     fprintf(stderr, "     --action-expert action-expert-smolvla-f16.gguf \\\n");
     fprintf(stderr, "     --image test.jpg --state \"0.5,-0.1,0.7,0.4,-0.8,0.95\" \\\n");
@@ -78,7 +78,7 @@ static bool parse_state(const char * csv, std::vector<float> & out) {
 
 int main(int argc, char ** argv) {
     // Default parameters
-    std::string vlm_path;
+    std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;
@@ -104,8 +104,8 @@ int main(int argc, char ** argv) {
         else if (arg == "-v" || arg == "--verbose") {
             verbosity++;
         }
-        else if (arg == "--vlm" && i + 1 < argc) {
-            vlm_path = argv[++i];
+        else if (arg == "--llm" && i + 1 < argc) {
+            llm_path = argv[++i];
         }
         else if (arg == "--mmproj" && i + 1 < argc) {
             mmproj_path = argv[++i];
@@ -168,7 +168,7 @@ int main(int argc, char ** argv) {
 
     // Build engine params
     struct smolvla_params params = smolvla_default_params();
-    params.vlm_path           = vlm_path.empty() ? nullptr : vlm_path.c_str();
+    params.llm_path           = llm_path.empty() ? nullptr : llm_path.c_str();
     params.mmproj_path        = mmproj_path.empty() ? nullptr : mmproj_path.c_str();
     params.state_proj_path    = state_proj_path.empty() ? nullptr : state_proj_path.c_str();
     params.action_expert_path = action_expert_path.empty() ? nullptr : action_expert_path.c_str();

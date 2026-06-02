@@ -44,7 +44,7 @@ struct smolvla_expert_layer {
 
     // Attention projections
     struct ggml_tensor * attn_q;          // [hidden_size, n_q_heads * head_dim]
-    struct ggml_tensor * attn_k;          // [hidden_size, n_kv_heads * head_dim] (self) or [vlm_kv_dim, n_kv_heads * head_dim] (cross)
+    struct ggml_tensor * attn_k;          // [hidden_size, n_kv_heads * head_dim] (self) or [llm_kv_dim, n_kv_heads * head_dim] (cross)
     struct ggml_tensor * attn_v;          // same dimensions as attn_k
     struct ggml_tensor * attn_output;     // [n_q_heads * head_dim, hidden_size]
 
@@ -94,7 +94,7 @@ struct smolvla_action_expert {
     int head_dim   = 64;
     int n_q_heads  = 0;   // hidden_q_dim / head_dim  (usually 15)
     int n_kv_heads = 0;   // kv_dim / head_dim        (usually 5)
-    int vlm_kv_dim = 0;   // VLM n_kv_heads * head_dim for cross-attn input (usually 320)
+    int llm_kv_dim = 0;   // LLM n_kv_heads * head_dim for cross-attn input (usually 320)
 
     // ----- Model tensors -----
     std::vector<smolvla_expert_layer> layers;

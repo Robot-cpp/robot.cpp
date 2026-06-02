@@ -32,7 +32,7 @@ for output in \
     "${OUTPUT_DIR}/mmproj-smolvla-${DTYPE}.gguf" \
     "${OUTPUT_DIR}/state-proj-smolvla-${DTYPE}.gguf" \
     "${OUTPUT_DIR}/action-expert-smolvla-${DTYPE}.gguf" \
-    "${OUTPUT_DIR}/smolvla-vlm-${DTYPE}.gguf"; do
+    "${OUTPUT_DIR}/smolvla-llm-${DTYPE}.gguf"; do
     if [[ -e "${output}" && "${FORCE}" != "1" ]]; then
         echo "error: target already exists: ${output}; set FORCE=1 to overwrite" >&2
         exit 1
@@ -91,8 +91,8 @@ echo "convert action expert"
     --output-dir "${OUTPUT_DIR}" \
     --dtype "${DTYPE}"
 
-echo "convert VLM backbone"
-"${PYTHON_BIN}" convert_smolvla_vlm_to_gguf.py \
+echo "convert LLM backbone"
+"${PYTHON_BIN}" convert_smolvla_llm_to_gguf.py \
     --surgery-dir "${SURGERY_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
     --dtype "${DTYPE}"
