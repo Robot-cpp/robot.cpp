@@ -56,6 +56,7 @@ target_compile_definitions(vlacpp PRIVATE VLACPP_HAVE_GGML=1 VLACPP_HAVE_MTMD=1)
 
 if(VLACPP_BUILD_SMOLVLA)
     set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
+    set(SMOLVLA_ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
     add_library(smolvla OBJECT
         ${SMOLVLA_DIR}/smolvla_engine.cpp
         ${SMOLVLA_DIR}/smolvla_engine.h
@@ -84,6 +85,35 @@ if(VLACPP_BUILD_SMOLVLA)
     target_link_libraries(smolvla_static PUBLIC ggml llama)
     target_include_directories(smolvla_static PUBLIC ${SMOLVLA_DIR})
 
+    add_library(smolvla_robot_common STATIC
+        ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla_protocol.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla_protocol.h
+        ${SMOLVLA_ROBOT_SERVER_DIR}/socket.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/socket.h
+    )
+    target_include_directories(smolvla_robot_common PUBLIC ${SMOLVLA_ROBOT_SERVER_DIR})
+    target_compile_features(smolvla_robot_common PUBLIC cxx_std_17)
+    if(WIN32)
+        target_link_libraries(smolvla_robot_common PUBLIC ws2_32)
+    endif()
+
+    add_library(smolvla_robot_server STATIC
+        ${SMOLVLA_ROBOT_SERVER_DIR}/session.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/session.h
+        ${SMOLVLA_ROBOT_SERVER_DIR}/vla_policy.h
+    )
+    target_include_directories(smolvla_robot_server PUBLIC ${SMOLVLA_ROBOT_SERVER_DIR})
+    target_link_libraries(smolvla_robot_server PUBLIC smolvla_robot_common)
+    target_compile_features(smolvla_robot_server PUBLIC cxx_std_17)
+
+    add_library(smolvla_robot_client_cpp STATIC
+        ${SMOLVLA_ROBOT_SERVER_DIR}/client/cpp/smolvla_client.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/client/cpp/smolvla_client.h
+    )
+    target_include_directories(smolvla_robot_client_cpp PUBLIC ${SMOLVLA_ROBOT_SERVER_DIR})
+    target_link_libraries(smolvla_robot_client_cpp PUBLIC smolvla_robot_common)
+    target_compile_features(smolvla_robot_client_cpp PUBLIC cxx_std_17)
+
     add_executable(smolvla-cli ${SMOLVLA_DIR}/smolvla-cli.cpp)
     set_target_properties(smolvla-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_link_libraries(smolvla-cli PRIVATE smolvla_static ggml llama)
@@ -93,6 +123,24 @@ if(VLACPP_BUILD_SMOLVLA)
     set_target_properties(benchmark-smolvla-cpp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_link_libraries(benchmark-smolvla-cpp PRIVATE smolvla_static ggml llama)
     target_compile_features(benchmark-smolvla-cpp PRIVATE cxx_std_17)
+
+    add_executable(smolvla-server
+        ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla-server.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/vla_policy.cpp
+    )
+    set_target_properties(smolvla-server PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(smolvla-server PRIVATE smolvla_static smolvla_robot_server ggml llama)
+    target_compile_features(smolvla-server PRIVATE cxx_std_17)
+
+    add_executable(smolvla-cpp-client-example ${SMOLVLA_ROBOT_SERVER_DIR}/examples/cpp/minimal_predict.cpp)
+    set_target_properties(smolvla-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(smolvla-cpp-client-example PRIVATE smolvla_robot_client_cpp)
+    target_compile_features(smolvla-cpp-client-example PRIVATE cxx_std_17)
+
+    add_executable(smolvla-raw-predict ${SMOLVLA_ROBOT_SERVER_DIR}/test/smolvla_raw_predict.cpp)
+    set_target_properties(smolvla-raw-predict PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(smolvla-raw-predict PRIVATE smolvla_static ggml llama)
+    target_compile_features(smolvla-raw-predict PRIVATE cxx_std_17)
 endif()
 
 if(VLACPP_BUILD_EXAMPLES)

@@ -941,11 +941,41 @@ std::vector<float> smolvla_vision_encode_raw(
     const uint8_t * data,
     int width,
     int height,
+    int channels,
+    int stride_bytes,
     int n_threads
 ) {
-    (void) ctx; (void) data; (void) width; (void) height; (void) n_threads;
-    LOG_ERR("%s: raw data path not implemented yet\n", __func__);
-    return {};
+    if (!ctx || !data || width <= 0 || height <= 0 || channels != 3) {
+        LOG_ERR("%s: invalid raw RGB args (data=%p width=%d height=%d channels=%d)\n",
+                __func__, (const void *) data, width, height, channels);
+        return {};
+    }
+
+    const int tight_stride = width * channels;
+    if (stride_bytes <= 0) {
+        stride_bytes = tight_stride;
+    }
+    if (stride_bytes < tight_stride) {
+        LOG_ERR("%s: invalid stride_bytes=%d for width=%d channels=%d\n",
+                __func__, stride_bytes, width, channels);
+        return {};
+    }
+
+    std::vector<uint8_t> tight;
+    const uint8_t * packed = data;
+    if (stride_bytes != tight_stride) {
+        tight.resize((size_t) tight_stride * (size_t) height);
+        for (int y = 0; y < height; ++y) {
+            const uint8_t * src = data + (size_t) y * (size_t) stride_bytes;
+            uint8_t * dst = tight.data() + (size_t) y * (size_t) tight_stride;
+            std::memcpy(dst, src, (size_t) tight_stride);
+        }
+        packed = tight.data();
+    }
+
+    std::vector<float> inp_nchw;
+    preprocess_loaded_image(packed, width, height, ctx->image_size, ctx->image_mean, ctx->image_std, inp_nchw);
+    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
 int smolvla_vision_embd_size(const smolvla_vision_ctx * ctx) {

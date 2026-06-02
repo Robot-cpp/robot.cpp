@@ -101,6 +101,8 @@ std::vector<float> smolvla_vision_encode_raw(
     const uint8_t * data,
     int width,
     int height,
+    int channels,
+    int stride_bytes,
     int n_threads = 4
 );
 
