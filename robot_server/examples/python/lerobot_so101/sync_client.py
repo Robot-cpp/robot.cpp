@@ -11,8 +11,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-_EXAMPLES = Path(__file__).resolve().parent
-_ROBOT_SERVER = _EXAMPLES.parent
+_ROOT = Path(__file__).resolve().parent
+_OTHER = _ROOT / "other"
+_ROBOT_SERVER = _ROOT.parent.parent
 
 sys.path.insert(0, str(_ROBOT_SERVER))
 
@@ -65,14 +66,17 @@ def server_from_env() -> tuple[str, int, float | None]:
     return host, port, server_timeout
 
 
-def load_platform_module(name: str | None = None) -> ModuleType:
-    """Load robot platform layer (default: lerobot_so101)."""
-    platform_name = name or os.environ.get("ROBOT_PLATFORM", "lerobot_so101")
-    platform_root = _EXAMPLES / platform_name
-    for subpath in (_EXAMPLES, platform_root, platform_root / "camera"):
+def _ensure_platform_paths() -> None:
+    for subpath in (_ROOT, _OTHER, _OTHER / "client", _OTHER / "camera"):
         path = str(subpath)
         if path not in sys.path:
             sys.path.insert(0, path)
+
+
+def load_platform_module(name: str | None = None) -> ModuleType:
+    """Load robot platform layer (default: lerobot_sync under other/client/)."""
+    _ = name or os.environ.get("ROBOT_PLATFORM", "lerobot_so101")
+    _ensure_platform_paths()
     return importlib.import_module("lerobot_sync")
 
 

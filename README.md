@@ -55,7 +55,7 @@ See [`robot_server/examples/python/lerobot_so101/README.md`](robot_server/exampl
 ```sh
 git submodule update --init third_party/lerobot
 pip install -e "third_party/lerobot[feetech]"
-pip install -e "robot_server/examples/python/lerobot_so101/camera"
+pip install -e "robot_server/examples/python/lerobot_so101/other/camera"
 
 export VLA_CPP_ROOT=$PWD
 export GGUF_DIR=/path/to/gguf

@@ -36,9 +36,9 @@ DEFAULT_ROBOT_CAMERAS = (
 
 _CAMERA_TROUBLESHOOTING = """
 Camera connect/read failed. Common fixes on macOS:
-  1. List devices:  ./camera/camera_test/run_camera_test.sh --list-cameras
-  2. Probe indices:  ./camera/camera_test/run_camera_test.sh --probe
-  3. Try another index: CAMERA_INDEX=1 ./camera/camera_test/run_camera_test.sh
+  1. List devices:  ./test/run_camera_test.sh --list-cameras
+  2. Probe indices:  ./test/run_camera_test.sh --probe
+  3. Try another index: CAMERA_INDEX=1 ./test/run_camera_test.sh
   4. System Settings -> Privacy & Security -> Camera -> allow Terminal/iTerm/Cursor
   5. Close Zoom/FaceTime/Photo Booth and other apps using the camera
 """
@@ -172,7 +172,7 @@ def list_available_cameras(*, max_index: int) -> int:
         )
 
     if readable:
-        print(f"Try: CAMERA_INDEX={readable[0]['id']} ./camera/camera_test/run_camera_test.sh", flush=True)
+        print(f"Try: CAMERA_INDEX={readable[0]['id']} ./test/run_camera_test.sh", flush=True)
         return 0
 
     print("WARNING Cameras open but none returned a frame; check macOS camera permission.", flush=True)
@@ -219,7 +219,7 @@ def probe_camera_indices(
         return 1
 
     logging.info("Working indices: %s", ", ".join(str(i) for i in ok_indices))
-    logging.info("Example: CAMERA_INDEX=%s ./camera/camera_test/run_camera_test.sh", ok_indices[0])
+    logging.info("Example: CAMERA_INDEX=%s ./test/run_camera_test.sh", ok_indices[0])
     return 0
 
 

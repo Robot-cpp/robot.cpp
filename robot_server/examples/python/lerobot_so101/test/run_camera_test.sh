@@ -2,14 +2,14 @@
 # Camera-only smoke test; same defaults as shell/run_robot_client.sh.
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../shell" && pwd)/so101_env.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT}/shell/local_so101_env.sh"
 
-CAMERA_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRAMES="${FRAMES:-0}"
 PREVIEW="${PREVIEW:-1}"
 
 ARGS=(
-  "${CAMERA_PKG_ROOT}/camera_test/test_camera.py"
+  "${ROOT}/test/test_camera.py"
   --camera-key "${CAMERA_KEY}"
   --frames "${FRAMES}"
 )

@@ -9,13 +9,15 @@
 ## 目录结构
 
 ```
-robot_server/examples/python/
-├── sync_client.py          # 通用入口 + observation 构建（读 so101_env.sh 环境变量）
-└── lerobot_so101/              # LeRobot 控制层
-    ├── lerobot_sync.py         # LerobotSyncClient + config_from_env
-    ├── utils/                  # robot / stdin
-    ├── camera/                 # 相机 plugin（居中裁剪 + resize）+ camera_test
-    └── shell/                  # so101_env.sh, run_robot_client.sh
+lerobot_so101/
+├── sync_client.py              # 通用入口 + observation 构建
+├── local_lerobot_entry.py      # 校准/遥操/录制前注册 camera plugin
+├── other/
+│   ├── client/lerobot_sync.py  # LerobotSyncClient + config_from_env
+│   ├── utils/                  # robot / stdin
+│   └── camera/                 # opencv_crop plugin
+├── test/                       # test_camera.py, run_camera_test.sh
+└── shell/                      # local_so101_env.sh, run_robot_client.sh, local_*.sh
 ```
 
 ## 安装
@@ -30,7 +32,7 @@ conda activate lerobot-py312
 
 pip install -U pip setuptools wheel
 pip install -e "third_party/lerobot[feetech]"
-pip install -e "robot_server/examples/python/lerobot_so101/camera"
+pip install -e "robot_server/examples/python/lerobot_so101/other/camera"
 
 source local_env.sh   # 设置 PYTHONPATH
 ```
@@ -39,7 +41,7 @@ source local_env.sh   # 设置 PYTHONPATH
 
 ## 配置
 
-**唯一配置源**：`shell/so101_env.sh`（所有 shell 脚本 source 它）。
+**唯一配置源**：`shell/local_so101_env.sh`（机器默认值；`so101_env.sh` 与之共享 PYTHONPATH 等公共逻辑）。
 
 按机器修改其中的默认值：
 
@@ -82,14 +84,14 @@ source local_env.sh
 bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
 ```
 
-真机 client 通过 `sync_client.py` 中的 `make_predict_observation` 构建 observation 并调用 `SmolVLAClient.predict`。配置来自 `so101_env.sh` 的环境变量，无需命令行参数。
+真机 client 通过 `sync_client.py` 中的 `make_predict_observation` 构建 observation 并调用 `SmolVLAClient.predict`。配置来自 `local_so101_env.sh` 的环境变量，无需命令行参数。
 
-或直接运行（需先 `source shell/so101_env.sh`）：
+或直接运行（需先 source env）：
 
 ```bash
 source local_env.sh
-source robot_server/examples/python/lerobot_so101/shell/so101_env.sh
-python robot_server/examples/python/sync_client.py
+source robot_server/examples/python/lerobot_so101/shell/local_so101_env.sh
+python robot_server/examples/python/lerobot_so101/sync_client.py
 ```
 
 按键：**R** 回 home，**Q** 退出。
@@ -106,11 +108,11 @@ bash robot_server/shell/client_example.sh
 
 ```bash
 cd robot_server/examples/python/lerobot_so101
-./camera/camera_test/run_camera_test.sh
+./test/run_camera_test.sh
 
 # 换摄像头 index
 export CAMERA_INDEX=1
-./camera/camera_test/run_camera_test.sh --preview
+./test/run_camera_test.sh --preview
 ```
 
 验证项：帧 shape/dtype（224×224 uint8 RGB）、`make_predict_observation` 的 `rgb_hwc_u8` 字节长度与 stride。
@@ -132,7 +134,7 @@ cd robot_server/examples/python/lerobot_so101
 
 ## 录制数据集
 
-编辑 `shell/so101_env.sh` 中的 `DATASET_REPO_ID`，然后：
+编辑 `shell/local_so101_env.sh` 中的 `DATASET_REPO_ID`，然后：
 
 ```bash
 cd robot_server/examples/python/lerobot_so101
