@@ -20,8 +20,9 @@ LLAMA_CPP_ROOT="${LLAMA_CPP_ROOT:-${VLA_CPP_ROOT}/third_party/llama.cpp}"
 GGUF_PY_DIR="${LLAMA_CPP_ROOT}/gguf-py"
 SMOLVLA_CONVERTER_DIR="${VLA_CPP_ROOT}/tools/hf2gguf/smolvla"
 
-# Put llama.cpp's gguf-py first so imports use the repo-paired GGUF writer.
-export PYTHONPATH="${GGUF_PY_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+# Put llama.cpp's gguf-py and converter code first so imports use the
+# repo-paired GGUF writer and tokenizer pre-tokenizer detection.
+export PYTHONPATH="${GGUF_PY_DIR}:${LLAMA_CPP_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 
 mkdir -p "${OUTPUT_DIR}"
 

@@ -33,51 +33,68 @@ ACTION_PROJ_NAMES = (
 )
 
 DEFAULT_VLM_MODEL_NAME = "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+VLM_FILES = (
+    ("config.json", "vlm_config.json"),
+    ("tokenizer.json", "tokenizer.json"),
+    ("tokenizer_config.json", "tokenizer_config.json"),
+    ("vocab.json", "vocab.json"),
+    ("merges.txt", "merges.txt"),
+    ("special_tokens_map.json", "special_tokens_map.json"),
+    ("added_tokens.json", "added_tokens.json"),
+    ("generation_config.json", "generation_config.json"),
+    ("chat_template.json", "chat_template.json"),
+)
 
 #TODO: actually I do not test downloading from Hugging Face, try this later
-def _download_vlm_config(repo_id: str) -> Path:
+def _download_vlm_file(repo_id: str, filename: str) -> Path:
     try:
         from huggingface_hub import hf_hub_download
     except Exception as exc:
         raise RuntimeError(
-            f"VLM config is not a local path and huggingface_hub is unavailable: {exc}"
+            f"VLM file is not a local path and huggingface_hub is unavailable: {exc}"
         ) from exc
 
     try:
-        return Path(hf_hub_download(repo_id=repo_id, filename="config.json"))
+        return Path(hf_hub_download(repo_id=repo_id, filename=filename))
     except Exception as exc:
-        raise RuntimeError(f"Failed to download VLM config.json from Hugging Face repo '{repo_id}': {exc}") from exc
+        raise RuntimeError(f"Failed to download {filename} from Hugging Face repo '{repo_id}': {exc}") from exc
 
 
-def _resolve_vlm_config(vlm_model_name: str) -> Path:
+def _resolve_vlm_file(vlm_model_name: str, filename: str) -> Path:
     model_ref = Path(vlm_model_name).expanduser()
     if model_ref.exists():
-        config_file = model_ref / "config.json"
-        if not config_file.exists():
-            raise FileNotFoundError(f"Local VLM path has no config.json: {model_ref}")
-        return config_file
+        vlm_file = model_ref / filename
+        if not vlm_file.exists():
+            raise FileNotFoundError(f"Local VLM path has no {filename}: {model_ref}")
+        return vlm_file
 
     try:
-        return _download_vlm_config(vlm_model_name)
+        return _download_vlm_file(vlm_model_name, filename)
     except RuntimeError as first_error:
         if vlm_model_name == DEFAULT_VLM_MODEL_NAME:
             raise
-        print(f"   Warning: could not load VLM config from '{vlm_model_name}': {first_error}")
+        print(f"   Warning: could not load VLM {filename} from '{vlm_model_name}': {first_error}")
         print(f"   Falling back to {DEFAULT_VLM_MODEL_NAME}")
-        return _download_vlm_config(DEFAULT_VLM_MODEL_NAME)
+        return _download_vlm_file(DEFAULT_VLM_MODEL_NAME, filename)
 
 
-def _copy_vlm_config(config: dict, output_dir: Path) -> None:
+def _copy_vlm_files(config: dict, output_dir: Path) -> None:
     vlm_model_name = str(config.get("vlm_model_name") or DEFAULT_VLM_MODEL_NAME)
+    copied_files = {}
 
-    vlm_config_file = _resolve_vlm_config(vlm_model_name)
+    for src_name, dst_name in VLM_FILES:
+        src = _resolve_vlm_file(vlm_model_name, src_name)
+        shutil.copy(src, output_dir / dst_name)
+        copied_files[src_name] = src
+
+    vlm_config_file = output_dir / "vlm_config.json"
     with open(vlm_config_file, "r", encoding="utf-8") as f:
         vlm_config = json.load(f)
     if "vision_config" not in vlm_config or "text_config" not in vlm_config:
         raise RuntimeError(f"VLM config must contain vision_config and text_config: {vlm_config_file}")
 
-    shutil.copy(vlm_config_file, output_dir / "vlm_config.json")
-    print(f"📋 Copied vlm_config.json from {vlm_config_file}")
+    print(f"📋 Copied vlm_config.json from {copied_files['config.json']}")
+    print(f"🔤 Copied tokenizer files from {vlm_model_name}")
 
 
 def extract_smolvla_components(model_path, output_dir):
@@ -180,7 +197,7 @@ def extract_smolvla_components(model_path, output_dir):
         print(f"   - max_action_dim: {config.get('max_action_dim', 'N/A')}")
         print(f"   - num_steps: {config.get('num_steps', 'N/A')}")
         print(f"   - vlm_model_name: {config.get('vlm_model_name', 'N/A')}")
-        _copy_vlm_config(config, output_dir)
+        _copy_vlm_files(config, output_dir)
     else:
         raise RuntimeError(f"Missing required config.json: {config_file}")
     
