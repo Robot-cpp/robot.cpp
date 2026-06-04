@@ -406,7 +406,7 @@ static bool ensure_prefix_kv_runtime(
     ctx->prefix_kv_runtime.v_layers.resize(ctx->num_layers, nullptr);
     for (int layer_idx = 0; layer_idx < ctx->num_layers; ++layer_idx) {
         const bool is_cross = ctx->layers[layer_idx].is_cross_attn;
-        const int prefix_dim = is_cross ? ctx->vlm_kv_dim : ctx->n_kv_heads * ctx->head_dim;
+        const int prefix_dim = is_cross ? ctx->llm_kv_dim : ctx->n_kv_heads * ctx->head_dim;
 
         ctx->prefix_kv_runtime.k_layers[layer_idx] = ggml_new_tensor_2d(
             ctx->prefix_kv_runtime.ctx_data, GGML_TYPE_F32, prefix_dim, prefix_seq_len);
@@ -647,11 +647,11 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
         ctx->n_q_heads  = q_out_dim / ctx->head_dim;           // 15
         ctx->n_kv_heads = k_out_dim / ctx->head_dim;           // 5
 
-        // For cross-attn layers, k_proj input is VLM KV dim
-        // Find first cross-attn layer to read VLM KV dim
+        // For cross-attn layers, k_proj input is LLM KV dim
+        // Find first cross-attn layer to read LLM KV dim
         for (int i = 0; i < ctx->num_layers; i++) {
             if (ctx->layers[i].is_cross_attn) {
-                ctx->vlm_kv_dim = (int) ctx->layers[i].attn_k->ne[0];  // 320
+                ctx->llm_kv_dim = (int) ctx->layers[i].attn_k->ne[0];  // 320
                 break;
             }
         }
@@ -671,8 +671,8 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     }
 
     if (verbosity >= 1) {
-        LOG_INF("%s: head_dim=%d, n_q_heads=%d, n_kv_heads=%d, vlm_kv_dim=%d\n",
-                __func__, ctx->head_dim, ctx->n_q_heads, ctx->n_kv_heads, ctx->vlm_kv_dim);
+        LOG_INF("%s: head_dim=%d, n_q_heads=%d, n_kv_heads=%d, llm_kv_dim=%d\n",
+                __func__, ctx->head_dim, ctx->n_q_heads, ctx->n_kv_heads, ctx->llm_kv_dim);
         LOG_INF("%s: action_dim=%d (from unnorm stats)\n", __func__, ctx->action_dim);
         LOG_INF("%s: action_mean: [", __func__);
         for (int i = 0; i < ctx->action_dim; i++) {

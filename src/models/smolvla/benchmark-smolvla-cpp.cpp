@@ -41,7 +41,7 @@ static void quiet_llama_log_callback(ggml_log_level level, const char * text, vo
 }
 
 struct bench_args {
-    std::string vlm_path;
+    std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;
@@ -133,10 +133,10 @@ static double percentile_ms(std::vector<double> values, double q) {
 
 static void print_usage(const char * prog) {
     std::fprintf(stderr,
-        "Usage: %s --vlm <path> --mmproj <path> --image <path> [options]\n"
+        "Usage: %s --llm <path> --mmproj <path> --image <path> [options]\n"
         "\n"
         "Required:\n"
-        "  --vlm <path>            VLM GGUF path\n"
+        "  --llm <path>            LLM GGUF path\n"
         "  --mmproj <path>         Vision GGUF path\n"
         "  --image <path>          Input image path\n"
         "\n"
@@ -168,8 +168,8 @@ static bool parse_args(int argc, char ** argv, bench_args & args) {
             std::exit(0);
         } else if (arg == "-v" || arg == "--verbose") {
             args.verbosity++;
-        } else if (arg == "--vlm" && i + 1 < argc) {
-            args.vlm_path = argv[++i];
+        } else if (arg == "--llm" && i + 1 < argc) {
+            args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
@@ -211,8 +211,8 @@ static bool parse_args(int argc, char ** argv, bench_args & args) {
         }
     }
 
-    if (args.vlm_path.empty() || args.mmproj_path.empty() || args.image_path.empty()) {
-        std::fprintf(stderr, "Error: --vlm, --mmproj, and --image are required\n");
+    if (args.llm_path.empty() || args.mmproj_path.empty() || args.image_path.empty()) {
+        std::fprintf(stderr, "Error: --llm, --mmproj, and --image are required\n");
         return false;
     }
     if (args.mode != "path" && args.mode != "bytes") {
@@ -229,7 +229,7 @@ static bool parse_args(int argc, char ** argv, bench_args & args) {
 struct stage_accum {
     double vision_ms = 0.0;
     double state_proj_ms = 0.0;
-    double vlm_ms = 0.0;
+    double llm_ms = 0.0;
     double kv_extract_ms = 0.0;
     double phase2_ms = 0.0;
     double total_ms = 0.0;
@@ -255,7 +255,7 @@ static void append_result_tsv(
 
     if (!exists) {
         fout << "mode\tthreads\twarmup\tloops\tavg_ms\tp50_ms\tp95_ms\tmin_ms\tmax_ms\tinit_ms"
-             << "\tvision_ms\tstate_proj_ms\tvlm_ms\tkv_extract_ms\tphase2_ms\tstage_total_ms\tfirst_action0\n";
+             << "\tvision_ms\tstate_proj_ms\tllm_ms\tkv_extract_ms\tphase2_ms\tstage_total_ms\tfirst_action0\n";
     }
 
     const auto mm = std::minmax_element(samples_ms.begin(), samples_ms.end());
@@ -274,7 +274,7 @@ static void append_result_tsv(
          << init_ms << '\t'
          << (stage.vision_ms / samples_ms.size()) << '\t'
          << (stage.state_proj_ms / samples_ms.size()) << '\t'
-         << (stage.vlm_ms / samples_ms.size()) << '\t'
+         << (stage.llm_ms / samples_ms.size()) << '\t'
          << (stage.kv_extract_ms / samples_ms.size()) << '\t'
          << (stage.phase2_ms / samples_ms.size()) << '\t'
          << (stage.total_ms / samples_ms.size()) << '\t'
@@ -305,7 +305,7 @@ int main(int argc, char ** argv) {
     }
 
     smolvla_params params = smolvla_default_params();
-    params.vlm_path           = args.vlm_path.c_str();
+    params.llm_path           = args.llm_path.c_str();
     params.mmproj_path        = args.mmproj_path.c_str();
     params.state_proj_path    = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
@@ -376,7 +376,7 @@ int main(int argc, char ** argv) {
         const smolvla_stage_timings stage = smolvla_get_last_stage_timings(ctx);
         stage_sum.vision_ms += stage.vision_ms;
         stage_sum.state_proj_ms += stage.state_proj_ms;
-        stage_sum.vlm_ms += stage.vlm_ms;
+        stage_sum.llm_ms += stage.llm_ms;
         stage_sum.kv_extract_ms += stage.kv_extract_ms;
         stage_sum.phase2_ms += stage.phase2_ms;
         stage_sum.total_ms += stage.total_ms;
@@ -408,7 +408,7 @@ int main(int argc, char ** argv) {
     std::cout << "stage_avg_ms"
               << " vision=" << (stage_sum.vision_ms / loops_f)
               << " state_proj=" << (stage_sum.state_proj_ms / loops_f)
-              << " vlm=" << (stage_sum.vlm_ms / loops_f)
+              << " llm=" << (stage_sum.llm_ms / loops_f)
               << " kv_extract=" << (stage_sum.kv_extract_ms / loops_f)
               << " phase2=" << (stage_sum.phase2_ms / loops_f)
               << " total=" << (stage_sum.total_ms / loops_f) << '\n';

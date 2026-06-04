@@ -1,7 +1,7 @@
 // smolvla_engine.cpp — SmolVLA inference engine (stub implementation)
 //
 // SmolVLA Architecture:
-//   Phase 1: image + state + task → VLM → KV Cache (once)
+//   Phase 1: image + state + task → LLM → KV Cache (once)
 //   Phase 2: Denoising loop with Action Expert (10 steps)
 
 #include "smolvla_engine.h"
@@ -30,7 +30,7 @@
 // ============================================================================
 struct smolvla_context {
     // Models
-    llama_model * vlm;
+    llama_model * llm;
     llama_context * ctx_llama;
     smolvla_vision_ctx * vision;
     smolvla_state_proj * state_proj;
@@ -73,10 +73,10 @@ struct smolvla_context {
     llama_token lang_pad_emb_cache_id;
     bool lang_pad_emb_cache_ready;
 
-    // VLM KV metadata extracted after Phase 1
+    // LLM KV metadata extracted after Phase 1
     int fixed_prefix_seq_len;
-    int vlm_kv_seq_len;    // number of prefix tokens in KV cache
-    int vlm_kv_dim;        // n_kv_heads * head_dim = 320
+    int llm_kv_seq_len;    // number of prefix tokens in KV cache
+    int llm_kv_dim;        // n_kv_heads * head_dim = 320
     std::vector<bool> prefix_valid_mask;
 
 };
@@ -138,10 +138,10 @@ static bool smolvla_read_meta_int(const llama_model * model, const char * key, i
 }
 
 static bool smolvla_load_language_config(smolvla_context * ctx) {
-    if (!smolvla_read_meta_int(ctx->vlm, "smolvla.tokenizer_max_length", &ctx->lang_max_len)) {
+    if (!smolvla_read_meta_int(ctx->llm, "smolvla.tokenizer_max_length", &ctx->lang_max_len)) {
         return false;
     }
-    ctx->lang_pad_id = llama_vocab_pad(llama_model_get_vocab(ctx->vlm));
+    ctx->lang_pad_id = llama_vocab_pad(llama_model_get_vocab(ctx->llm));
     if (ctx->lang_pad_id == LLAMA_TOKEN_NULL) {
         fprintf(stderr, "[SmolVLA] Error: missing required GGUF metadata tokenizer.ggml.padding_token_id\n");
         return false;
@@ -202,9 +202,9 @@ static bool dump_m7_actions(
     return true;
 }
 
-// Extract VLM KV cache from llama.cpp after Phase 1 and prepare the
+// Extract LLM KV cache from llama.cpp after Phase 1 and prepare the
 // expert-side prefix runtime directly from backend tensors.
-static bool extract_vlm_kv_cache(smolvla_context * ctx) {
+static bool extract_llm_kv_cache(smolvla_context * ctx) {
     const int n_layers = ctx->expert->num_layers;
     const int kv_dim   = ctx->expert->n_kv_heads * ctx->expert->head_dim;  // 5*64 = 320
     const int seq_len  = ctx->fixed_prefix_seq_len;
@@ -224,8 +224,8 @@ static bool extract_vlm_kv_cache(smolvla_context * ctx) {
                 seq_len, kv_dim, v_trans);
     }
 
-    ctx->vlm_kv_seq_len = seq_len;
-    ctx->vlm_kv_dim     = kv_dim;
+    ctx->llm_kv_seq_len = seq_len;
+    ctx->llm_kv_dim     = kv_dim;
     std::vector<struct ggml_tensor *> prefix_k_tensors(n_layers, nullptr);
     std::vector<struct ggml_tensor *> prefix_v_tensors(n_layers, nullptr);
     for (int il = 0; il < n_layers; ++il) {
@@ -313,7 +313,7 @@ struct smolvla_params smolvla_default_params(void) {
     struct smolvla_params params;
     memset(&params, 0, sizeof(params));
 
-    params.vlm_path           = nullptr;
+    params.llm_path           = nullptr;
     params.mmproj_path        = nullptr;
     params.state_proj_path    = nullptr;
     params.action_expert_path = nullptr;
@@ -366,7 +366,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         fprintf(stderr, "===========================================\n");
         fprintf(stderr, "  SmolVLA Engine Initialization\n");
         fprintf(stderr, "===========================================\n");
-        fprintf(stderr, "VLM:           %s\n", params.vlm_path ? params.vlm_path : "(none)");
+        fprintf(stderr, "LLM:           %s\n", params.llm_path ? params.llm_path : "(none)");
         fprintf(stderr, "Vision:        %s\n", params.mmproj_path ? params.mmproj_path : "(none)");
         fprintf(stderr, "State Proj:    %s\n", params.state_proj_path ? params.state_proj_path : "(none)");
         fprintf(stderr, "Action Expert: %s\n", params.action_expert_path ? params.action_expert_path : "(none)");
@@ -385,7 +385,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
 
     // Allocate context
     smolvla_context * ctx = new smolvla_context();
-    ctx->vlm       = nullptr;
+    ctx->llm       = nullptr;
     ctx->ctx_llama = nullptr;
     ctx->tok_embd  = nullptr;
     ctx->expert    = nullptr;
@@ -469,13 +469,13 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         }
     }
 
-    // Load VLM model via llama.cpp (reuses standard llama runtime)
-    if (params.vlm_path) {
+    // Load LLM model via llama.cpp (reuses standard llama runtime)
+    if (params.llm_path) {
         llama_backend_init();
         llama_model_params model_params = llama_model_default_params();
-        ctx->vlm = llama_load_model_from_file(params.vlm_path, model_params);
-        if (!ctx->vlm) {
-            fprintf(stderr, "[SmolVLA] Error: failed to load VLM from %s\n", params.vlm_path);
+        ctx->llm = llama_load_model_from_file(params.llm_path, model_params);
+        if (!ctx->llm) {
+            fprintf(stderr, "[SmolVLA] Error: failed to load LLM from %s\n", params.llm_path);
             smolvla_free(ctx);
             return nullptr;
         }
@@ -499,22 +499,22 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         // to match the python implementation, we set the same default here
         cparams.rope_freq_base = 10000.0f;
 
-        ctx->ctx_llama = llama_new_context_with_model(ctx->vlm, cparams);
+        ctx->ctx_llama = llama_new_context_with_model(ctx->llm, cparams);
         if (!ctx->ctx_llama) {
             fprintf(stderr, "[SmolVLA] Error: failed to create llama context\n");
             smolvla_free(ctx);
             return nullptr;
         }
 
-        ctx->n_embd = llama_n_embd(ctx->vlm);
-        ctx->tok_embd = llama_get_model_tensor(ctx->vlm, "token_embd.weight");
+        ctx->n_embd = llama_n_embd(ctx->llm);
+        ctx->tok_embd = llama_get_model_tensor(ctx->llm, "token_embd.weight");
         if (!ctx->tok_embd) {
             fprintf(stderr, "[SmolVLA] Error: failed to get token_embd.weight\n");
             smolvla_free(ctx);
             return nullptr;
         }
         if (ctx->verbosity >= 1) {
-            fprintf(stderr, "[SmolVLA] VLM loaded: n_embd=%d, lang_max_len=%d, lang_pad_id=%d, token_embd(type=%d shape=[%d, %d])\n",
+            fprintf(stderr, "[SmolVLA] LLM loaded: n_embd=%d, lang_max_len=%d, lang_pad_id=%d, token_embd(type=%d shape=[%d, %d])\n",
                     ctx->n_embd, ctx->lang_max_len, (int) ctx->lang_pad_id,
                     ctx->tok_embd->type, (int) ctx->tok_embd->ne[0], (int) ctx->tok_embd->ne[1]);
         }
@@ -710,7 +710,7 @@ static struct smolvla_result smolvla_predict_impl(
     }
 
     if (ctx->ctx_llama && !ctx->vision_emb.empty() && ctx->tok_embd) {
-        const auto t_vlm0 = smolvla_clock::now();
+        const auto t_llm_start = smolvla_clock::now();
         // ====1.3 Tokenize task and embed
         // Match SmolVLA preprocessor behavior: ensure trailing newline before tokenization.
         std::string task_text = ctx->task;
@@ -718,7 +718,7 @@ static struct smolvla_result smolvla_predict_impl(
             task_text.push_back('\n');
         }
 
-        std::vector<llama_token> task_tokens_raw = smolvla_tokenize(ctx->vlm, task_text, true, true);
+        std::vector<llama_token> task_tokens_raw = smolvla_tokenize(ctx->llm, task_text, true, true);
         if (task_tokens_raw.empty()) {
             fprintf(stderr, "[SmolVLA] Error: task tokenization failed\n");
             return result;
@@ -847,7 +847,7 @@ static struct smolvla_result smolvla_predict_impl(
             }
         }
 
-        //======1.5 Run VLM forward → KV Cache
+        //======1.5 Run LLM forward → KV Cache
         auto t_llm0 = std::chrono::high_resolution_clock::now();
         if (llama_decode(ctx->ctx_llama, batch)) {
             fprintf(stderr, "[SmolVLA] Error: llama_decode failed on merged embeddings\n");
@@ -865,12 +865,12 @@ static struct smolvla_result smolvla_predict_impl(
         llama_batch_free(batch);
         llama_set_causal_attn(ctx->ctx_llama, true);
         llama_set_embeddings(ctx->ctx_llama, false);
-        ctx->last_timings.vlm_ms = smolvla_elapsed_ms(t_vlm0, smolvla_clock::now());
+        ctx->last_timings.llm_ms = smolvla_elapsed_ms(t_llm_start, smolvla_clock::now());
     }
 
-    // Extract VLM KV cache for Action Expert
+    // Extract LLM KV cache for Action Expert
     const auto t_kv0 = smolvla_clock::now();
-    if (!extract_vlm_kv_cache(ctx)) {
+    if (!extract_llm_kv_cache(ctx)) {
         fprintf(stderr, "[SmolVLA] FATAL: KV cache extraction failed\n");
         return result;
     }
@@ -894,7 +894,7 @@ static struct smolvla_result smolvla_predict_impl(
         if (!smolvla_action_expert_prepare_attention_cache(
                 ctx->expert,
                 prefix_valid_mask_u8.data(),
-                ctx->vlm_kv_seq_len)) {
+                ctx->llm_kv_seq_len)) {
             fprintf(stderr, "[SmolVLA] FATAL: action attention cache preparation failed\n");
             return result;
         }
@@ -1127,8 +1127,8 @@ void smolvla_free(struct smolvla_context * ctx) {
 
     if (ctx->ctx_llama) 
         llama_free(ctx->ctx_llama);
-    if (ctx->vlm) {
-        llama_free_model(ctx->vlm);
+    if (ctx->llm) {
+        llama_free_model(ctx->llm);
         llama_backend_free();
     }
 
