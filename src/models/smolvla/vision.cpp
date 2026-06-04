@@ -246,25 +246,16 @@ static bool smolvla_vision_init_backends(
 
     ctx->backend_cpu = nullptr;
     ctx->backends.clear();
-    ggml_backend_t offload_backend = nullptr;
-#ifdef GGML_USE_CUDA
-    offload_backend = ggml_backend_cuda_init(0);
-#elif defined(GGML_USE_METAL)
-    offload_backend = ggml_backend_metal_init();
-#endif
-    if (offload_backend) {
-        ctx->backends.push_back(offload_backend);
-    }
-
     for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
         ggml_backend_dev_t dev = ggml_backend_dev_get(i);
         const enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
-        // Newer ggml exposes the BLAS/Accelerate backend as ACCEL instead of CPU.
-        if (type == GGML_BACKEND_DEVICE_TYPE_CPU || type == GGML_BACKEND_DEVICE_TYPE_ACCEL) {
-            ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
-            if (backend) {
-                ctx->backends.push_back(backend);
-            }
+        if (type == GGML_BACKEND_DEVICE_TYPE_CPU) {
+            continue;
+        }
+
+        ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
+        if (backend) {
+            ctx->backends.push_back(backend);
         }
     }
 
@@ -276,7 +267,6 @@ static bool smolvla_vision_init_backends(
     ctx->backends.push_back(ctx->backend_cpu);
 
     if (verbosity >= 1) {
-        LOG_INF("%s: model buffer target resolved to %s\n", __func__, offload_backend ? "offload backend" : "CPU");
         LOG_INF("%s: enabled %zu backend(s)\n", __func__, ctx->backends.size());
         smolvla_vision_log_backend_plan(ctx, verbosity);
     }
