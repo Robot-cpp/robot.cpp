@@ -185,9 +185,13 @@ def main():
     if args.dtype == "f32":
         dtype_name = "f32"
         ggml_dtype = GGMLQuantizationType.F32
-    else:
+        file_type = 0
+    elif args.dtype == "f16":
         dtype_name = "f16"
         ggml_dtype = GGMLQuantizationType.F16
+        file_type = 1
+    else:
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     output_file = output_dir / f"smolvla-llm-{dtype_name}.gguf"
     
     print(f"\n💾 Output: {output_file}")
@@ -198,7 +202,7 @@ def main():
     # Write metadata
     fout.add_name("SmolVLA-LLM")
     fout.add_description("SmolVLA LLM backbone (Qwen2-style)")
-    fout.add_file_type(0 if args.dtype == "f32" else 1)
+    fout.add_file_type(file_type)
     
     # Model architecture
     fout.add_uint32(KEY_CONTEXT_LENGTH, context_length)
@@ -219,12 +223,20 @@ def main():
         raise RuntimeError(f"Missing required config key: tokenizer_max_length")
     fout.add_uint32(KEY_TOKENIZER_MAX_LENGTH, int(config["tokenizer_max_length"]))
     
+    def keep_tensor_f32(gguf_name):
+        return (
+            gguf_name.endswith(".attn_norm.weight")
+            or gguf_name.endswith(".ffn_norm.weight")
+            or gguf_name == "output_norm.weight"
+        )
+
     # Helper function to convert tensor
-    def convert_tensor(tensor):
-        if args.dtype == "f32":
-            return tensor.cpu().float().numpy()
-        else:
-            return tensor.cpu().half().numpy()
+    def convert_tensor(tensor, gguf_name):
+        if args.dtype == "f32" or keep_tensor_f32(gguf_name):
+            return tensor.cpu().float().numpy(), GGMLQuantizationType.F32
+        elif args.dtype == "f16":
+            return tensor.cpu().half().numpy(), GGMLQuantizationType.F16
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     
     def permute_qk(weights, n_head):
         """Permute Q/K weights from HF half-half format to llama.cpp interleaved format.
@@ -252,9 +264,9 @@ def main():
             tensor = permute_qk(tensor, num_key_value_heads)
             
         gguf_name = get_tensor_name(name, num_layers)
-        data = convert_tensor(tensor)
+        data, tensor_dtype = convert_tensor(tensor, gguf_name)
         
-        fout.add_tensor(gguf_name, data, raw_dtype=ggml_dtype)
+        fout.add_tensor(gguf_name, data, raw_dtype=tensor_dtype)
         count += 1
         if count <= 10 or count % 30 == 0:
             print(f"   [{count}/{len(text_model)}] {name} -> {gguf_name}")

@@ -75,6 +75,22 @@ def _check_equal(name: str, config_value: int, tensor_value: int) -> None:
         raise RuntimeError(f"{name} mismatch: config={config_value}, tensor={tensor_value}")
 
 
+def keep_tensor_f32(gguf_name: str) -> bool:
+    return (
+        gguf_name.endswith(".bias")
+        or ".ln1." in gguf_name
+        or ".ln2." in gguf_name
+        or ".post_ln." in gguf_name
+        or "position_embd.weight" in gguf_name
+    )
+
+
+def convert_tensor(tensor: torch.Tensor, gguf_name: str, dtype: str):
+    if dtype == "f32" or keep_tensor_f32(gguf_name):
+        return tensor.cpu().float().numpy(), GGMLQuantizationType.F32
+    return tensor.cpu().half().numpy(), GGMLQuantizationType.F16
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert SmolVLA vision encoder to GGUF"
@@ -157,9 +173,13 @@ def main():
     if args.dtype == "f32":
         dtype_name = "f32"
         ggml_dtype = GGMLQuantizationType.F32
-    else:
+        file_type = 0
+    elif args.dtype == "f16":
         dtype_name = "f16"
         ggml_dtype = GGMLQuantizationType.F16
+        file_type = 1
+    else:
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     output_file = output_dir / f"mmproj-smolvla-{dtype_name}.gguf"
     
     print(f"\n💾 Output: {output_file}")
@@ -169,7 +189,7 @@ def main():
     fout = GGUFWriter(path=str(output_file), arch="smolvla-vision")
     
     # Write metadata
-    fout.add_file_type(0 if args.dtype == "f32" else 1)
+    fout.add_file_type(file_type)
     
     fout.add_name("SmolVLA-Vision")
     fout.add_description("SmolVLA vision encoder (SigLIP) with connector")
@@ -196,13 +216,9 @@ def main():
     count = 0
     for name, tensor in vision_state.items():
         gguf_name = get_tensor_name(name)
-        
-        if args.dtype == "f32":
-            data = tensor.cpu().float().numpy()
-        else:
-            data = tensor.cpu().half().numpy()
-        
-        fout.add_tensor(gguf_name, data, raw_dtype=ggml_dtype)
+        data, tensor_dtype = convert_tensor(tensor, gguf_name, args.dtype)
+
+        fout.add_tensor(gguf_name, data, raw_dtype=tensor_dtype)
         count += 1
         if count <= 5 or count % 50 == 0:
             print(f"   [{count}/{len(vision_state)}] {name} -> {gguf_name}")
@@ -213,13 +229,9 @@ def main():
     print("\n📦 Writing connector tensors...")
     for name, tensor in connector_state.items():
         gguf_name = get_tensor_name(name)
-        
-        if args.dtype == "f32":
-            data = tensor.cpu().float().numpy()
-        else:
-            data = tensor.cpu().half().numpy()
-        
-        fout.add_tensor(gguf_name, data, raw_dtype=ggml_dtype)
+        data, tensor_dtype = convert_tensor(tensor, gguf_name, args.dtype)
+
+        fout.add_tensor(gguf_name, data, raw_dtype=tensor_dtype)
         print(f"   {name} -> {gguf_name} {data.shape}")
     
     # Finalize

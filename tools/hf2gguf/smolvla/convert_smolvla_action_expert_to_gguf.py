@@ -221,9 +221,13 @@ def main():
     if args.dtype == "f32":
         dtype_name = "f32"
         ggml_dtype = GGMLQuantizationType.F32
-    else:
+        file_type = 0
+    elif args.dtype == "f16":
         dtype_name = "f16"
         ggml_dtype = GGMLQuantizationType.F16
+        file_type = 1
+    else:
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     output_file = output_dir / f"action-expert-smolvla-{dtype_name}.gguf"
     
     print(f"\n💾 Output: {output_file}")
@@ -234,7 +238,7 @@ def main():
     # Write metadata
     fout.add_name("SmolVLA-ActionExpert")
     fout.add_description("SmolVLA Action Expert (transformer + projections + time MLP)")
-    fout.add_file_type(0 if args.dtype == "f32" else 1)
+    fout.add_file_type(file_type)
     
     # Config
     fout.add_uint32("smolvla.expert.hidden_size", expert_hidden)
@@ -251,19 +255,30 @@ def main():
     fout.add_array("smolvla.expert.cross_attn_layers", cross_attn_layers)
     cross_attn_layer_set = set(cross_attn_layers)
     
+    def keep_tensor_f32(gguf_name):
+        return (
+            gguf_name.endswith(".bias")
+            or gguf_name.endswith(".attn_norm.weight")
+            or gguf_name.endswith(".ffn_norm.weight")
+            or gguf_name == "smolvla.lm_expert.norm.weight"
+            or gguf_name.startswith("smolvla.unnorm.")
+        )
+
     # Helper function to convert tensor
-    def convert_tensor(tensor):
-        if args.dtype == "f32":
-            return tensor.cpu().float().numpy()
-        else:
-            return tensor.cpu().half().numpy()
+    def convert_tensor(tensor, gguf_name):
+        if args.dtype == "f32" or keep_tensor_f32(gguf_name):
+            return tensor.cpu().float().numpy(), GGMLQuantizationType.F32
+        elif args.dtype == "f16":
+            return tensor.cpu().half().numpy(), GGMLQuantizationType.F16
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     
     # Write unnormalizer stats
     for key, tensor in unnorm_stats.items():
         clean_key = key.replace(".", "_")
-        data = convert_tensor(tensor)
-        fout.add_tensor(f"smolvla.unnorm.{clean_key}", data, raw_dtype=ggml_dtype)
-        print(f"   Wrote unnorm stat: smolvla.unnorm.{clean_key}")
+        gguf_name = f"smolvla.unnorm.{clean_key}"
+        data, tensor_dtype = convert_tensor(tensor, gguf_name)
+        fout.add_tensor(gguf_name, data, raw_dtype=tensor_dtype)
+        print(f"   Wrote unnorm stat: {gguf_name}")
     
     # Write all tensors
     print("\n📦 Writing Action Expert tensors...")
@@ -286,9 +301,9 @@ def main():
                 permuted_k_self += 1
 
         gguf_name = get_tensor_name(name)
-        data = convert_tensor(tensor)
+        data, tensor_dtype = convert_tensor(tensor, gguf_name)
         
-        fout.add_tensor(gguf_name, data, raw_dtype=ggml_dtype)
+        fout.add_tensor(gguf_name, data, raw_dtype=tensor_dtype)
         count += 1
         if count <= 10 or count % 30 == 0:
             print(f"   [{count}/{len(action_expert)}] {name} -> {gguf_name}")

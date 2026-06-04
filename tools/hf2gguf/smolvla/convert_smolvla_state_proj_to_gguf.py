@@ -77,9 +77,13 @@ def main():
     if args.dtype == "f32":
         dtype_name = "f32"
         ggml_dtype = GGMLQuantizationType.F32
-    else:
+        file_type = 0
+    elif args.dtype == "f16":
         dtype_name = "f16"
         ggml_dtype = GGMLQuantizationType.F16
+        file_type = 1
+    else:
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     output_file = output_dir / f"state-proj-smolvla-{dtype_name}.gguf"
     
     print(f"\n💾 Output: {output_file}")
@@ -90,7 +94,7 @@ def main():
     # Write metadata
     fout.add_name("SmolVLA-StateProj")
     fout.add_description("SmolVLA state projector (Linear)")
-    fout.add_file_type(0 if args.dtype == "f32" else 1)
+    fout.add_file_type(file_type)
     
     # Config
     fout.add_uint32("smolvla.state_dim", state_dim)
@@ -100,8 +104,9 @@ def main():
     def convert_tensor(tensor):
         if args.dtype == "f32":
             return tensor.cpu().float().numpy()
-        else:
+        elif args.dtype == "f16":
             return tensor.cpu().half().numpy()
+        raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     
     # Write normalizer stats if available
     for key, tensor in norm_stats.items():
