@@ -21,7 +21,7 @@ public:
 };
 
 struct smolvla_policy_options {
-    std::string vlm_path;
+    std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;

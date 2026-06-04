@@ -15,6 +15,7 @@ IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
 STATE_DIM="${STATE_DIM:-6}"
 WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-50}"
+DTYPE="${DTYPE:-f32}"
 
 PYTHON="${PYTHON:-python3}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
@@ -56,11 +57,17 @@ echo "== build =="
 
 echo "== prepare outputs =="
 mkdir -p "${ARTIFACT_DIR}"
+rm -f "${RESULT_TSV}"
 
 echo "== launch server =="
 VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
 BUILD_DIR="${BUILD_DIR}" \
 GGUF_DIR="${GGUF_DIR}" \
+DTYPE="${DTYPE}" \
+LLM_GGUF="${LLM_GGUF:-}" \
+VISION_GGUF="${VISION_GGUF:-}" \
+STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-}" \
+ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-}" \
 HOST="${HOST}" \
 PORT="${PORT}" \
 THREADS="${THREADS}" \

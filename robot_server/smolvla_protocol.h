@@ -48,7 +48,7 @@ struct header {
 struct timings {
     double vision_ms = 0.0;
     double state_proj_ms = 0.0;
-    double vlm_ms = 0.0;
+    double llm_ms = 0.0;
     double kv_extract_ms = 0.0;
     double phase2_ms = 0.0;
     double model_total_ms = 0.0;

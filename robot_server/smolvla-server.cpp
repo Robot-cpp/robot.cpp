@@ -16,7 +16,7 @@ namespace sockets = robot_server::sockets;
 namespace {
 
 struct server_args {
-    std::string vlm_path;
+    std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;
@@ -55,10 +55,10 @@ static void quiet_llama_log_callback(ggml_log_level level, const char * text, vo
 
 static void print_usage(const char * prog) {
     std::fprintf(stderr,
-        "Usage: %s --vlm <path> --mmproj <path> [options]\n"
+        "Usage: %s --llm <path> --mmproj <path> [options]\n"
         "\n"
         "Model options:\n"
-        "  --vlm <path>             VLM GGUF path\n"
+        "  --llm <path>             LLM GGUF path\n"
         "  --mmproj <path>          Vision GGUF path\n"
         "  --state-proj <path>      State projector GGUF path\n"
         "  --action-expert <path>   Action expert GGUF path\n"
@@ -68,8 +68,8 @@ static void print_usage(const char * prog) {
         "  --host <ip>              Listen host (default: 127.0.0.1)\n"
         "  --port <n>               Listen port (default: 5555)\n"
         "  --threads <n>            CPU threads (default: auto)\n"
-        "  --n-batch <n>            VLM batch size (default: 512)\n"
-        "  --n-ctx <n>              VLM context size (default: 2048)\n"
+        "  --n-batch <n>            LLM batch size (default: 512)\n"
+        "  --n-ctx <n>              LLM context size (default: 2048)\n"
         "  --action-dim <n>         Action dimension (default: 6)\n"
         "  --chunk-size <n>         Action chunk size (default: 50)\n"
         "  --noise-mode <mode>      gaussian|debug-sin (default: gaussian)\n"
@@ -86,8 +86,8 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         if (arg == "-h" || arg == "--help") {
             print_usage(argv[0]);
             std::exit(0);
-        } else if (arg == "--vlm" && i + 1 < argc) {
-            args.vlm_path = argv[++i];
+        } else if (arg == "--llm" && i + 1 < argc) {
+            args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
@@ -134,8 +134,8 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         std::fprintf(stderr, "Error: smolvla-server only listens on 127.0.0.1 in this phase\n");
         return false;
     }
-    if (args.vlm_path.empty() || args.mmproj_path.empty()) {
-        std::fprintf(stderr, "Error: --vlm and --mmproj are required\n");
+    if (args.llm_path.empty() || args.mmproj_path.empty()) {
+        std::fprintf(stderr, "Error: --llm and --mmproj are required\n");
         return false;
     }
     return true;
@@ -143,7 +143,7 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
 
 static robot_server::smolvla_policy_options make_smolvla_options(const server_args & args) {
     robot_server::smolvla_policy_options options;
-    options.vlm_path = args.vlm_path;
+    options.llm_path = args.llm_path;
     options.mmproj_path = args.mmproj_path;
     options.state_proj_path = args.state_proj_path;
     options.action_expert_path = args.action_expert_path;

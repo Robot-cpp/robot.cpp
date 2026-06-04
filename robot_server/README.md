@@ -50,7 +50,7 @@ bash robot_server/shell/client_example.sh
 
 - `response.actions`：二维 list，形状是 `[chunk_size][action_dim]`。
 - `response.actions_flat`：一维 action buffer，长度是 `chunk_size * action_dim`。
-- `response.timings`：server 返回的分段耗时，包括 `vision_ms`、`vlm_ms`、`phase2_ms`、`model_total_ms` 等。
+- `response.timings`：server 返回的分段耗时，包括 `vision_ms`、`llm_ms`、`phase2_ms`、`model_total_ms` 等。
 
 ### C++ client
 

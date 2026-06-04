@@ -109,7 +109,7 @@ def decode_predict_response(payload: bytes) -> SmolVLAResponse:
     timing_names = [
         "vision_ms",
         "state_proj_ms",
-        "vlm_ms",
+        "llm_ms",
         "kv_extract_ms",
         "phase2_ms",
         "model_total_ms",

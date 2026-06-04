@@ -18,7 +18,7 @@
 namespace {
 
 struct args_t {
-    std::string vlm_path;
+    std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;
@@ -129,7 +129,8 @@ static bool write_actions_dump(const std::string & dir, const smolvla_result & r
 
 static void print_usage(const char * prog) {
     std::fprintf(stderr,
-        "Usage: %s --vlm <path> --mmproj <path> --raw-rgb <path> --width <w> --height <h> [options]\n"
+        "Usage: %s --llm <path> --mmproj <path> --raw-rgb <path> --width <w> --height <h> [options]\n"
+        "  --llm <path>             LLM GGUF path\n"
         "  --state-proj <path>      State projector GGUF path\n"
         "  --action-expert <path>   Action expert GGUF path\n"
         "  --state <csv>            State values\n"
@@ -153,8 +154,8 @@ static bool parse_args(int argc, char ** argv, args_t & args) {
         if (arg == "-h" || arg == "--help") {
             print_usage(argv[0]);
             std::exit(0);
-        } else if (arg == "--vlm" && i + 1 < argc) {
-            args.vlm_path = argv[++i];
+        } else if (arg == "--llm" && i + 1 < argc) {
+            args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
@@ -199,7 +200,7 @@ static bool parse_args(int argc, char ** argv, args_t & args) {
             return false;
         }
     }
-    if (args.vlm_path.empty() || args.mmproj_path.empty() || args.raw_rgb_path.empty() ||
+    if (args.llm_path.empty() || args.mmproj_path.empty() || args.raw_rgb_path.empty() ||
         args.width <= 0 || args.height <= 0) {
         return false;
     }
@@ -235,7 +236,7 @@ int main(int argc, char ** argv) {
     }
 
     smolvla_params params = smolvla_default_params();
-    params.vlm_path = args.vlm_path.c_str();
+    params.llm_path = args.llm_path.c_str();
     params.mmproj_path = args.mmproj_path.c_str();
     params.state_proj_path = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
