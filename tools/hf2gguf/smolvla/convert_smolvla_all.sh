@@ -8,7 +8,7 @@ OUTPUT_DIR="${OUTPUT_DIR:?OUTPUT_DIR must be set}"                          # ca
 SURGERY_DIR="${SURGERY_DIR:-${OUTPUT_DIR}/surgery}"                         # intermediate .pt dir
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"                                         # which python you want to use
-DTYPE="${DTYPE:?DTYPE must be set}"                                         # f16 or f32
+DTYPE="${DTYPE:?DTYPE must be set}"                                         # f32, f16, or bf16
 
 FORCE="${FORCE:-0}"                                                         # 1 allows overwriting GGUF outputs
 SKIP_SURGERY="${SKIP_SURGERY:-0}"                                           # 1 reuses existing surgery outputs

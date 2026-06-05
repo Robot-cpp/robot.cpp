@@ -301,6 +301,21 @@ static bool lookup_token_embeddings(
         return true;
     }
 
+    if (tok_embd->type == GGML_TYPE_BF16) {
+        std::vector<ggml_bf16_t> row_buf(n_embd);
+        for (int i = 0; i < n_tokens; i++) {
+            if (tokens[i] < 0 || tokens[i] >= n_vocab) {
+                fprintf(stderr, "[SmolVLA] Error: token id out of range: %d (n_vocab=%lld)\n",
+                        (int) tokens[i], (long long) n_vocab);
+                return false;
+            }
+            const size_t offset = (size_t) tokens[i] * row_stride;
+            ggml_backend_tensor_get(tok_embd, row_buf.data(), offset, n_embd * sizeof(ggml_bf16_t));
+            ggml_bf16_to_fp32_row(row_buf.data(), output + i * n_embd, n_embd);
+        }
+        return true;
+    }
+
     fprintf(stderr, "[SmolVLA] Error: unsupported token_embd type %d\n", tok_embd->type);
     return false;
 }

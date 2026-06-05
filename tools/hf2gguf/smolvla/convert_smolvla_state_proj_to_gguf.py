@@ -10,7 +10,7 @@ import json
 import torch
 import numpy as np
 from pathlib import Path
-from gguf import GGUFWriter, GGMLQuantizationType
+from gguf import GGUFWriter, GGMLQuantizationType, LlamaFileType, quantize
 
 
 def main():
@@ -27,7 +27,7 @@ def main():
     )
     parser.add_argument(
         "--dtype", type=str, default="f16",
-        help="Output dtype: f16 or f32"
+        help="Output dtype: f32, f16, or bf16"
     )
     
     args = parser.parse_args()
@@ -77,11 +77,15 @@ def main():
     if args.dtype == "f32":
         dtype_name = "f32"
         ggml_dtype = GGMLQuantizationType.F32
-        file_type = 0
+        file_type = int(LlamaFileType.ALL_F32)
     elif args.dtype == "f16":
         dtype_name = "f16"
         ggml_dtype = GGMLQuantizationType.F16
-        file_type = 1
+        file_type = int(LlamaFileType.MOSTLY_F16)
+    elif args.dtype == "bf16":
+        dtype_name = "bf16"
+        ggml_dtype = GGMLQuantizationType.BF16
+        file_type = int(LlamaFileType.MOSTLY_BF16)
     else:
         raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     output_file = output_dir / f"state-proj-smolvla-{dtype_name}.gguf"
@@ -101,27 +105,30 @@ def main():
     fout.add_uint32("smolvla.hidden_size", hidden_size)
     
     # Helper function to convert tensor
-    def convert_tensor(tensor):
-        if args.dtype == "f32":
-            return tensor.cpu().float().numpy()
+    def convert_tensor(tensor, keep_f32=False):
+        if args.dtype == "f32" or keep_f32:
+            return tensor.cpu().float().numpy(), GGMLQuantizationType.F32
         elif args.dtype == "f16":
-            return tensor.cpu().half().numpy()
+            return tensor.cpu().half().numpy(), GGMLQuantizationType.F16
+        elif args.dtype == "bf16":
+            data = tensor.cpu().float().numpy()
+            return quantize(data, GGMLQuantizationType.BF16), GGMLQuantizationType.BF16
         raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     
     # Write normalizer stats if available
     for key, tensor in norm_stats.items():
         clean_key = key.replace(".", "_")
-        data = convert_tensor(tensor)
-        fout.add_tensor(f"smolvla.norm.{clean_key}", data, raw_dtype=ggml_dtype)
+        data, tensor_dtype = convert_tensor(tensor, keep_f32=True)
+        fout.add_tensor(f"smolvla.norm.{clean_key}", data, raw_dtype=tensor_dtype)
         print(f"   Wrote norm stat: smolvla.norm.{clean_key}")
     
     # Write projector weights
     print("\n📦 Writing state projector tensors...")
     for name, tensor in state_proj.items():
         gguf_name = f"smolvla.state_proj.{name}"
-        data = convert_tensor(tensor)
+        data, tensor_dtype = convert_tensor(tensor)
         
-        fout.add_tensor(gguf_name, data, raw_dtype=ggml_dtype)
+        fout.add_tensor(gguf_name, data, raw_dtype=tensor_dtype)
         print(f"   {name} -> {gguf_name} {data.shape}")
     
     # Finalize

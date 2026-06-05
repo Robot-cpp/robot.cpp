@@ -13,7 +13,7 @@ import json
 import torch
 import numpy as np
 from pathlib import Path
-from gguf import GGUFWriter, GGMLQuantizationType
+from gguf import GGUFWriter, GGMLQuantizationType, LlamaFileType, quantize
 
 
 def get_tensor_name(name: str) -> str:
@@ -135,7 +135,7 @@ def main():
     )
     parser.add_argument(
         "--dtype", type=str, default="f16",
-        help="Output dtype: f16 or f32"
+        help="Output dtype: f32, f16, or bf16"
     )
     
     args = parser.parse_args()
@@ -221,11 +221,15 @@ def main():
     if args.dtype == "f32":
         dtype_name = "f32"
         ggml_dtype = GGMLQuantizationType.F32
-        file_type = 0
+        file_type = int(LlamaFileType.ALL_F32)
     elif args.dtype == "f16":
         dtype_name = "f16"
         ggml_dtype = GGMLQuantizationType.F16
-        file_type = 1
+        file_type = int(LlamaFileType.MOSTLY_F16)
+    elif args.dtype == "bf16":
+        dtype_name = "bf16"
+        ggml_dtype = GGMLQuantizationType.BF16
+        file_type = int(LlamaFileType.MOSTLY_BF16)
     else:
         raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     output_file = output_dir / f"action-expert-smolvla-{dtype_name}.gguf"
@@ -270,6 +274,9 @@ def main():
             return tensor.cpu().float().numpy(), GGMLQuantizationType.F32
         elif args.dtype == "f16":
             return tensor.cpu().half().numpy(), GGMLQuantizationType.F16
+        elif args.dtype == "bf16":
+            data = tensor.cpu().float().numpy()
+            return quantize(data, GGMLQuantizationType.BF16), GGMLQuantizationType.BF16
         raise RuntimeError(f"Unsupported dtype: {args.dtype}")
     
     # Write unnormalizer stats
