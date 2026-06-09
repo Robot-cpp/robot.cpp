@@ -1,9 +1,11 @@
 #include "smolvla_engine.h"
 #include "session.h"
 #include "socket.h"
-#include "vla_policy.h"
+#include "model_adapter.h"
 
 #include "llama.h"
+#include "models/model.h"
+#include "models/smolvla/smolvla_model.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -141,22 +143,26 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
     return true;
 }
 
-static robot_server::smolvla_policy_options make_smolvla_options(const server_args & args) {
-    robot_server::smolvla_policy_options options;
-    options.llm_path = args.llm_path;
-    options.mmproj_path = args.mmproj_path;
-    options.state_proj_path = args.state_proj_path;
-    options.action_expert_path = args.action_expert_path;
-    options.task = args.task;
-    options.threads = args.threads;
-    options.n_batch = args.n_batch;
-    options.n_ctx = args.n_ctx;
-    options.action_dim = args.action_dim;
-    options.chunk_size = args.chunk_size;
-    options.num_steps = args.num_steps;
-    options.noise_mode = args.noise_mode;
-    options.noise_seed = args.noise_seed;
-    options.verbosity = args.verbosity;
+static robotcpp::model_options make_model_options(const server_args & args) {
+    robotcpp::smolvla_model_options smolvla_options;
+    smolvla_options.llm_path = args.llm_path;
+    smolvla_options.mmproj_path = args.mmproj_path;
+    smolvla_options.state_proj_path = args.state_proj_path;
+    smolvla_options.action_expert_path = args.action_expert_path;
+    smolvla_options.task = args.task;
+    smolvla_options.n_batch = args.n_batch;
+    smolvla_options.n_ctx = args.n_ctx;
+    smolvla_options.action_dim = args.action_dim;
+    smolvla_options.chunk_size = args.chunk_size;
+    smolvla_options.num_steps = args.num_steps;
+    smolvla_options.noise_mode = args.noise_mode;
+    smolvla_options.noise_seed = args.noise_seed;
+
+    robotcpp::model_options options;
+    options.type = robotcpp::model_type::smolvla;
+    options.common.threads = args.threads;
+    options.common.verbosity = args.verbosity;
+    options.config = smolvla_options;
     return options;
 }
 
@@ -177,12 +183,14 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    std::unique_ptr<robot_server::vla_policy> policy = robot_server::make_smolvla_policy(make_smolvla_options(args), error);
-    if (!policy) {
+    std::unique_ptr<robotcpp::Model> model;
+    if (!robotcpp::make_model(make_model_options(args), model, error)) {
         std::fprintf(stderr, "Error: %s\n", error.c_str());
         sockets::cleanup();
         return 1;
     }
+    robot_server::model_adapter adapter(std::move(model));
+    adapter.set_task(args.task);
 
     sockets::socket_handle server = sockets::tcp_listen(args.host.c_str(), (uint16_t) args.port, 16, error);
     if (server == sockets::invalid_socket) {
@@ -192,7 +200,7 @@ int main(int argc, char ** argv) {
     }
 
     std::fprintf(stderr, "[SmolVLA server] listening on %s:%d policy=%s\n",
-                 args.host.c_str(), args.port, policy->name());
+                 args.host.c_str(), args.port, adapter.name());
 
     bool shutdown_requested = false;
     std::mutex predict_mutex;
@@ -206,7 +214,7 @@ int main(int argc, char ** argv) {
         if (args.verbosity >= 1) {
             std::fprintf(stderr, "[SmolVLA server] client connected: %s\n", peer.c_str());
         }
-        robot_server::handle_client(client, *policy, predict_mutex, shutdown_requested);
+        robot_server::handle_client(client, adapter, predict_mutex, shutdown_requested);
         sockets::close(client);
     }
 

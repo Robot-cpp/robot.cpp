@@ -93,7 +93,7 @@ static bool read_message(
 
 bool handle_client(
     sockets::socket_handle fd,
-    vla_policy & policy,
+    model_adapter & policy,
     std::mutex & predict_mutex,
     bool & shutdown_requested) {
     while (!shutdown_requested) {

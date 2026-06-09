@@ -42,14 +42,14 @@ struct model_result {
     std::vector<model_metric> metrics;
 };
 
-struct model_runtime_options {
+struct common_options {
     int threads = 0;
     int verbosity = 1;
 };
 
 struct model_options {
     model_type type = model_type::smolvla;
-    model_runtime_options runtime;
+    common_options common;
     std::any config;
 };
 

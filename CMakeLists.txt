@@ -85,6 +85,21 @@ if(VLACPP_BUILD_SMOLVLA)
     target_link_libraries(smolvla_static PUBLIC ggml llama)
     target_include_directories(smolvla_static PUBLIC ${SMOLVLA_DIR})
 
+    add_library(robotcpp STATIC
+        src/models/model.h
+        src/models/model_factory.cpp
+        ${SMOLVLA_DIR}/smolvla_model.cpp
+        ${SMOLVLA_DIR}/smolvla_model.h
+    )
+    target_include_directories(robotcpp
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${SMOLVLA_DIR}
+    )
+    target_link_libraries(robotcpp PUBLIC smolvla_static)
+    target_compile_features(robotcpp PUBLIC cxx_std_17)
+
     add_library(smolvla_robot_common STATIC
         ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla_protocol.cpp
         ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla_protocol.h
@@ -100,7 +115,7 @@ if(VLACPP_BUILD_SMOLVLA)
     add_library(smolvla_robot_server STATIC
         ${SMOLVLA_ROBOT_SERVER_DIR}/session.cpp
         ${SMOLVLA_ROBOT_SERVER_DIR}/session.h
-        ${SMOLVLA_ROBOT_SERVER_DIR}/vla_policy.h
+        ${SMOLVLA_ROBOT_SERVER_DIR}/model_adapter.h
     )
     target_include_directories(smolvla_robot_server PUBLIC ${SMOLVLA_ROBOT_SERVER_DIR})
     target_link_libraries(smolvla_robot_server PUBLIC smolvla_robot_common)
@@ -126,10 +141,11 @@ if(VLACPP_BUILD_SMOLVLA)
 
     add_executable(smolvla-server
         ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla-server.cpp
-        ${SMOLVLA_ROBOT_SERVER_DIR}/vla_policy.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/model_adapter.cpp
     )
     set_target_properties(smolvla-server PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_link_libraries(smolvla-server PRIVATE smolvla_static smolvla_robot_server ggml llama)
+    target_include_directories(smolvla-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMOLVLA_DIR})
+    target_link_libraries(smolvla-server PRIVATE robotcpp smolvla_robot_server ggml llama)
     target_compile_features(smolvla-server PRIVATE cxx_std_17)
 
     add_executable(smolvla-cpp-client-example ${SMOLVLA_ROBOT_SERVER_DIR}/examples/cpp/minimal_predict.cpp)
