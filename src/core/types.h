@@ -101,9 +101,9 @@ struct RuntimeConfig {
     std::mt19937 rng;
 };
 
-class Model {
+class RuntimeModel {
 public:
-    virtual ~Model() = default;
+    virtual ~RuntimeModel() = default;
     virtual const ModelConfig & config() const = 0;
     virtual const char * capability() const = 0;
     virtual vlacpp_status reset_cache(KvCache & cache) = 0;

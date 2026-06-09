@@ -214,12 +214,33 @@ vlacpp_status validate_pi0_tensors(const ModelConfig & config, const TensorMap &
 
 } // namespace
 
-std::unique_ptr<Model> make_pi0_model(ModelConfig config, BackendConfig backend, TensorMap tensors);
+std::unique_ptr<RuntimeModel> make_pi0_model(ModelConfig config, BackendConfig backend, TensorMap tensors);
+
+} // namespace vlacpp
+
+namespace robotcpp {
+
+bool make_model(
+    const model_options & options,
+    std::unique_ptr<Model> & out,
+    std::string & error) {
+    out.reset();
+    if (options.type == model_type::smolvla) {
+        error = "SmolVLA Model wrapper is not implemented yet";
+        return false;
+    }
+    error = "unsupported model type";
+    return false;
+}
+
+} // namespace robotcpp
+
+namespace vlacpp {
 
 vlacpp_status load_model_from_path(
     const std::string & path,
     const BackendConfig & backend,
-    std::unique_ptr<Model> & out) {
+    std::unique_ptr<RuntimeModel> & out) {
     ModelConfig config;
     TensorMap tensors;
     std::ifstream file(path, std::ios::binary);
