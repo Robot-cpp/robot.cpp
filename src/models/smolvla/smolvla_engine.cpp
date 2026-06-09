@@ -64,11 +64,6 @@ struct smolvla_context {
 
     // Task string
     std::string task;
-    // Number of synthetic empty cameras to match SmolVLA prefix construction.
-    int empty_cameras;
-    // Cached embeddings for deterministic padding paths.
-    std::vector<float> empty_cam_emb_cache;
-    bool empty_cam_emb_cache_ready;
     std::vector<float> lang_pad_emb_cache;
     llama_token lang_pad_emb_cache_id;
     bool lang_pad_emb_cache_ready;
@@ -422,9 +417,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     ctx->noise_seed = params.noise_seed;
     ctx->verbosity  = params.verbosity;
     ctx->task       = params.task ? params.task : "";
-    ctx->empty_cameras = 2; // TODO: 这里写死了2个空摄像头，之后应该改成gguf里读
     ctx->fixed_prefix_seq_len = -1;
-    ctx->empty_cam_emb_cache_ready = false;
     ctx->lang_pad_emb_cache_ready = false;
     ctx->lang_pad_emb_cache_id = -1;
 
@@ -464,23 +457,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         } else {
             int embd_size = smolvla_vision_embd_size(ctx->vision);
             ctx->vision_emb.resize(embd_size, 0.0f);
-
-            if (ctx->empty_cameras > 0) {
-                const int n_tokens_per_cam = smolvla_vision_n_tokens(ctx->vision);
-                const int proj_dim = ctx->vision->proj_dim;
-                const size_t one_cam_size = (size_t) n_tokens_per_cam * proj_dim;
-
-                ctx->empty_cam_emb_cache = smolvla_vision_encode_constant(ctx->vision, -1.0f, ctx->n_threads);
-                if (ctx->empty_cam_emb_cache.size() != one_cam_size) {
-                    if (!ctx->empty_cam_emb_cache.empty()) {
-                        fprintf(stderr, "[SmolVLA] Warning: empty camera embedding size mismatch during init\n");
-                    }
-                    ctx->empty_cam_emb_cache.clear();
-                    ctx->empty_cam_emb_cache_ready = false;
-                } else {
-                    ctx->empty_cam_emb_cache_ready = true;
-                }
-            }
         }
     }
 
@@ -544,7 +520,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     }
 
     if (ctx->vision && ctx->expert) {
-        const int n_vis = smolvla_vision_n_tokens(ctx->vision) * (1 + std::max(0, ctx->empty_cameras));
+        const int n_vis = smolvla_vision_n_tokens(ctx->vision);
         const int n_state = !ctx->state_emb.empty() ? 1 : 0;
         ctx->fixed_prefix_seq_len = n_vis + ctx->lang_max_len + n_state;
         if (!smolvla_action_expert_init_fixed_prefix_runtime(ctx->expert, ctx->fixed_prefix_seq_len)) {
@@ -569,7 +545,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     return ctx;
 }
 
-// 主相机+空相机的视觉嵌入准备：如果有空相机则用constant encoding填充
+// Prepare the real camera vision embedding for prefix assembly.
 static bool smolvla_prepare_vision_embedding(
     struct smolvla_context * ctx,
     const std::vector<float> & main_cam_emb
@@ -593,21 +569,8 @@ static bool smolvla_prepare_vision_embedding(
     }
 
     ctx->vision_emb.clear();
-    ctx->vision_emb.reserve((size_t) (1 + std::max(0, ctx->empty_cameras)) * one_cam_size);
+    ctx->vision_emb.reserve(one_cam_size);
     ctx->vision_emb.insert(ctx->vision_emb.end(), main_cam_emb.begin(), main_cam_emb.end());
-
-    for (int i = 0; i < ctx->empty_cameras; ++i) {
-        if (!ctx->empty_cam_emb_cache_ready) {
-            ctx->empty_cam_emb_cache = smolvla_vision_encode_constant(ctx->vision, -1.0f, ctx->n_threads);
-            if (ctx->empty_cam_emb_cache.size() != one_cam_size) {
-                fprintf(stderr, "[SmolVLA] Error: empty camera embedding size mismatch\n");
-                ctx->vision_emb.clear();
-                return false;
-            }
-            ctx->empty_cam_emb_cache_ready = true;
-        }
-        ctx->vision_emb.insert(ctx->vision_emb.end(), ctx->empty_cam_emb_cache.begin(), ctx->empty_cam_emb_cache.end());
-    }
 
     // Match SmolVLA Python: img_emb = img_emb * sqrt(hidden_size)
     const float vision_scale = std::sqrt((float) proj_dim);
@@ -616,10 +579,8 @@ static bool smolvla_prepare_vision_embedding(
     }
 
     if (ctx->verbosity >= 1) {
-        const int n_tokens = n_tokens_per_cam * (1 + std::max(0, ctx->empty_cameras));
-        fprintf(stdout, "[SmolVLA] image padding: main=1 empty=%d tokens_per_cam=%d\n",
-                ctx->empty_cameras, n_tokens_per_cam);
-        fprintf(stdout, "[SmolVLA] vision output shape: [%d, %d]\n", n_tokens, proj_dim);
+        fprintf(stdout, "[SmolVLA] vision tokens: cameras=1 tokens_per_camera=%d\n", n_tokens_per_cam);
+        fprintf(stdout, "[SmolVLA] vision output shape: [%d, %d]\n", n_tokens_per_cam, proj_dim);
         fprintf(stdout, "[SmolVLA] vision output (first 10): [");
         for (int i = 0; i < 10 && i < (int) ctx->vision_emb.size(); i++) {
             fprintf(stdout, "%.6f%s", ctx->vision_emb[i], i < 9 ? ", " : "");
@@ -796,11 +757,9 @@ static struct smolvla_result smolvla_predict_impl(
 
         // 从这里开始，主要是处理pad，position id，attention mask相关设置
         // Build pad_mask to identify valid (non-padded) tokens.
-        // Matches Python: pad_mask = [cam1_valid] + [empty_cam_pad] + ... + [lang_valid+pad] + [state]
-        // TODO: 这里相机设置还是写死了，之后要fix
-        const int n_vis_per_cam = n_vis / (1 + ctx->empty_cameras);
+        // Layout: [real_camera_tokens] + [language raw + language pad] + [state].
         std::vector<bool> pad_mask(n_total, false);
-        for (int i = 0; i < n_vis_per_cam; ++i) pad_mask[i] = true; //vis
+        for (int i = 0; i < n_vis; ++i) pad_mask[i] = true; // vision
         for (int i = 0; i < n_raw; ++i) pad_mask[n_vis + i] = true; //lang 
         if (n_state == 1) pad_mask[n_total - 1] = true; //state
         ctx->prefix_valid_mask = pad_mask; 
