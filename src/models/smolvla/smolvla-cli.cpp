@@ -7,9 +7,15 @@
 
 #include "smolvla_engine.h"
 
+#include "models/model.h"
+#include "models/smolvla/smolvla_model.h"
+#include "stb_image.h"
+
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 #include <iostream>
@@ -73,6 +79,32 @@ static bool parse_state(const char * csv, std::vector<float> & out) {
             return false;
         }
     }
+    return true;
+}
+
+struct loaded_image {
+    std::vector<uint8_t> data;
+    int width = 0;
+    int height = 0;
+    int channels = 3;
+    int stride_bytes = 0;
+};
+
+static bool load_rgb_image(const std::string & path, loaded_image & out) {
+    int w = 0;
+    int h = 0;
+    int c = 0;
+    unsigned char * pixels = stbi_load(path.c_str(), &w, &h, &c, 3);
+    if (!pixels) {
+        fprintf(stderr, "Error: failed to load image '%s'\n", path.c_str());
+        return false;
+    }
+    out.width = w;
+    out.height = h;
+    out.channels = 3;
+    out.stride_bytes = w * out.channels;
+    out.data.assign(pixels, pixels + (size_t) out.stride_bytes * (size_t) out.height);
+    stbi_image_free(pixels);
     return true;
 }
 
@@ -166,49 +198,71 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    // Build engine params
-    struct smolvla_params params = smolvla_default_params();
-    params.llm_path           = llm_path.empty() ? nullptr : llm_path.c_str();
-    params.mmproj_path        = mmproj_path.empty() ? nullptr : mmproj_path.c_str();
-    params.state_proj_path    = state_proj_path.empty() ? nullptr : state_proj_path.c_str();
-    params.action_expert_path = action_expert_path.empty() ? nullptr : action_expert_path.c_str();
-    params.task               = task.c_str();
-    params.n_threads          = n_threads;
-    params.action_dim         = action_dim;
-    params.chunk_size         = chunk_size;
-    params.num_steps          = num_steps;
-    params.noise_mode         = noise_mode;
-    params.noise_seed         = (int64_t) noise_seed;
-    params.verbosity          = verbosity;
+    loaded_image image;
+    if (!load_rgb_image(image_path, image)) {
+        return 1;
+    }
 
-    // Initialize engine
+    robotcpp::smolvla_model_options smolvla_options;
+    smolvla_options.llm_path = llm_path;
+    smolvla_options.mmproj_path = mmproj_path;
+    smolvla_options.state_proj_path = state_proj_path;
+    smolvla_options.action_expert_path = action_expert_path;
+    smolvla_options.task = task;
+    smolvla_options.action_dim = action_dim;
+    smolvla_options.chunk_size = chunk_size;
+    smolvla_options.num_steps = num_steps;
+    smolvla_options.noise_mode = noise_mode;
+    smolvla_options.noise_seed = (int64_t) noise_seed;
+
+    robotcpp::model_options model_options;
+    model_options.type = robotcpp::model_type::smolvla;
+    model_options.common.threads = n_threads;
+    model_options.common.verbosity = verbosity;
+    model_options.config = smolvla_options;
+
+    // Initialize model through the common robotcpp dispatch path.
     auto start = std::chrono::high_resolution_clock::now();
 
-    struct smolvla_context * ctx = smolvla_init(params);
-    if (!ctx) {
-        fprintf(stderr, "Failed to initialize SmolVLA engine\n");
+    std::string error;
+    std::unique_ptr<robotcpp::Model> model;
+    if (!robotcpp::make_model(model_options, model, error)) {
+        fprintf(stderr, "Failed to initialize SmolVLA model: %s\n", error.c_str());
         return 1;
     }
 
     auto init_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> init_time = init_end - start;
-    fprintf(stderr, "[SmolVLA] Engine initialization: %.2f seconds\n", init_time.count());
+    fprintf(stderr, "[SmolVLA] Model initialization: %.2f seconds\n", init_time.count());
 
     // Run prediction
+    robotcpp::observation obs;
+    robotcpp::model_image model_image;
+    model_image.name = "image";
+    model_image.data = image.data.data();
+    model_image.width = image.width;
+    model_image.height = image.height;
+    model_image.channels = image.channels;
+    model_image.stride_bytes = image.stride_bytes;
+    model_image.data_size = image.data.size();
+    obs.images.push_back(model_image);
+    obs.state = state_vec;
+    obs.task = task;
+
     auto pred_start = std::chrono::high_resolution_clock::now();
 
-    struct smolvla_result result = smolvla_predict(
-        ctx,
-        image_path.c_str(),
-        state_vec.empty() ? nullptr : state_vec.data(),
-        (int)state_vec.size());
+    robotcpp::model_result result;
+    if (!model->predict(obs, result, error)) {
+        fprintf(stderr, "Error: %s\n", error.c_str());
+        return 1;
+    }
 
     auto pred_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> pred_time = pred_end - pred_start;
     fprintf(stderr, "[SmolVLA] Prediction: %.2f seconds\n", pred_time.count());
 
     // Print results
-    if (result.actions) {
+    if (!result.actions.empty()) {
         std::cout << "\n=== Predicted Actions ("
                   << result.chunk_size << " steps x "
                   << result.action_dim << " dims) ===\n";
@@ -219,7 +273,7 @@ int main(int argc, char ** argv) {
             std::cout << "Step " << std::setw(2) << t << ": [";
             for (int d = 0; d < result.action_dim; d++) {
                 std::cout << std::fixed << std::setprecision(4)
-                          << std::setw(8) << result.actions[t * result.action_dim + d];
+                          << std::setw(8) << result.actions[(size_t) t * (size_t) result.action_dim + (size_t) d];
                 if (d < result.action_dim - 1) std::cout << ", ";
             }
             std::cout << "]\n";
@@ -235,7 +289,7 @@ int main(int argc, char ** argv) {
                 std::cout << "Step " << std::setw(2) << t << ": [";
                 for (int d = 0; d < result.action_dim; d++) {
                     std::cout << std::fixed << std::setprecision(4)
-                              << std::setw(8) << result.actions[t * result.action_dim + d];
+                              << std::setw(8) << result.actions[(size_t) t * (size_t) result.action_dim + (size_t) d];
                     if (d < result.action_dim - 1) std::cout << ", ";
                 }
                 std::cout << "]\n";
@@ -244,9 +298,6 @@ int main(int argc, char ** argv) {
     } else {
         fprintf(stderr, "Error: No action prediction result\n");
     }
-
-    // Cleanup
-    smolvla_free(ctx);
 
     return 0;
 }
