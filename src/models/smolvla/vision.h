@@ -106,14 +106,6 @@ std::vector<float> smolvla_vision_encode_raw(
     int n_threads = 4
 );
 
-// Encode a synthetic image where every normalized pixel has the same value
-// (e.g. -1.0 for SmolVLA empty camera padding image).
-std::vector<float> smolvla_vision_encode_constant(
-    smolvla_vision_ctx * ctx,
-    float pixel_value,
-    int n_threads = 4
-);
-
 // Get embedding dimensions
 int smolvla_vision_embd_size(const smolvla_vision_ctx * ctx);  // Total embedding size
 int smolvla_vision_n_tokens(const smolvla_vision_ctx * ctx);   // Number of output tokens

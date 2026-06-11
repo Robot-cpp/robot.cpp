@@ -60,7 +60,7 @@ echo "== configure =="
 
 echo "== build =="
 "${CMAKE_BIN}" --build "${BUILD_DIR}" \
-    --target smolvla-server smolvla-raw-predict \
+    --target model-server smolvla-raw-predict \
     -j8
 
 echo "== prepare outputs =="

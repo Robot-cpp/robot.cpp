@@ -1,9 +1,10 @@
 #include "smolvla_engine.h"
 #include "session.h"
 #include "socket.h"
-#include "vla_policy.h"
+#include "model_adapter.h"
 
 #include "llama.h"
+#include "models/model.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +17,7 @@ namespace sockets = robot_server::sockets;
 namespace {
 
 struct server_args {
+    robotcpp::model_type model_type = robotcpp::model_type::smolvla;
     std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
@@ -26,13 +28,18 @@ struct server_args {
     int threads = 0;
     int n_batch = 512;
     int n_ctx = 2048;
-    int action_dim = 6;
-    int chunk_size = 50;
-    int num_steps = 10;
     int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
     int verbosity = 1;
 };
+
+static bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
+    if (value == "smolvla") {
+        out = robotcpp::model_type::smolvla;
+        return true;
+    }
+    return false;
+}
 
 static bool parse_noise_mode(const std::string & value, int & out_mode) {
     if (value == "gaussian") {
@@ -55,14 +62,17 @@ static void quiet_llama_log_callback(ggml_log_level level, const char * text, vo
 
 static void print_usage(const char * prog) {
     std::fprintf(stderr,
-        "Usage: %s --llm <path> --mmproj <path> [options]\n"
+        "Usage: %s --model-type smolvla --llm <path> --mmproj <path> [options]\n"
         "\n"
-        "Model options:\n"
+        "Common options:\n"
+        "  --model-type <type>      Model type (default: smolvla)\n"
+        "\n"
+        "SmolVLA options:\n"
         "  --llm <path>             LLM GGUF path\n"
         "  --mmproj <path>          Vision GGUF path\n"
         "  --state-proj <path>      State projector GGUF path\n"
         "  --action-expert <path>   Action expert GGUF path\n"
-        "  --task <str>             Task instruction\n"
+        "  --task <str>             Accepted for compatibility; predict request task is used\n"
         "\n"
         "Runtime options:\n"
         "  --host <ip>              Listen host (default: 127.0.0.1)\n"
@@ -70,8 +80,6 @@ static void print_usage(const char * prog) {
         "  --threads <n>            CPU threads (default: auto)\n"
         "  --n-batch <n>            LLM batch size (default: 512)\n"
         "  --n-ctx <n>              LLM context size (default: 2048)\n"
-        "  --action-dim <n>         Action dimension (default: 6)\n"
-        "  --chunk-size <n>         Action chunk size (default: 50)\n"
         "  --noise-mode <mode>      gaussian|debug-sin (default: gaussian)\n"
         "  --noise-seed <n>         RNG seed, <0 means auto (default: -1)\n"
         "  --verbosity <n>          Log verbosity (default: 1)\n"
@@ -88,6 +96,11 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
             std::exit(0);
         } else if (arg == "--llm" && i + 1 < argc) {
             args.llm_path = argv[++i];
+        } else if (arg == "--model-type" && i + 1 < argc) {
+            if (!parse_model_type(argv[++i], args.model_type)) {
+                std::fprintf(stderr, "Error: unsupported model type '%s'\n", argv[i]);
+                return false;
+            }
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
@@ -106,12 +119,6 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
             args.n_batch = std::atoi(argv[++i]);
         } else if (arg == "--n-ctx" && i + 1 < argc) {
             args.n_ctx = std::atoi(argv[++i]);
-        } else if (arg == "--action-dim" && i + 1 < argc) {
-            args.action_dim = std::atoi(argv[++i]);
-        } else if (arg == "--chunk-size" && i + 1 < argc) {
-            args.chunk_size = std::atoi(argv[++i]);
-        } else if (arg == "--num-steps" && i + 1 < argc) {
-            args.num_steps = std::atoi(argv[++i]);
         } else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], args.noise_mode)) {
                 std::fprintf(stderr, "Error: invalid noise mode '%s'\n", argv[i]);
@@ -131,7 +138,7 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         return false;
     }
     if (args.host != "127.0.0.1") {
-        std::fprintf(stderr, "Error: smolvla-server only listens on 127.0.0.1 in this phase\n");
+        std::fprintf(stderr, "Error: model-server only listens on 127.0.0.1 in this phase\n");
         return false;
     }
     if (args.llm_path.empty() || args.mmproj_path.empty()) {
@@ -141,23 +148,20 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
     return true;
 }
 
-static robot_server::smolvla_policy_options make_smolvla_options(const server_args & args) {
-    robot_server::smolvla_policy_options options;
-    options.llm_path = args.llm_path;
-    options.mmproj_path = args.mmproj_path;
-    options.state_proj_path = args.state_proj_path;
-    options.action_expert_path = args.action_expert_path;
-    options.task = args.task;
-    options.threads = args.threads;
-    options.n_batch = args.n_batch;
-    options.n_ctx = args.n_ctx;
-    options.action_dim = args.action_dim;
-    options.chunk_size = args.chunk_size;
-    options.num_steps = args.num_steps;
-    options.noise_mode = args.noise_mode;
-    options.noise_seed = args.noise_seed;
-    options.verbosity = args.verbosity;
-    return options;
+static robotcpp::model_args make_model_args(const server_args & args) {
+    robotcpp::model_args model_args;
+    model_args.type = args.model_type;
+    model_args.threads = args.threads;
+    model_args.verbosity = args.verbosity;
+    model_args.llm_path = args.llm_path;
+    model_args.mmproj_path = args.mmproj_path;
+    model_args.state_proj_path = args.state_proj_path;
+    model_args.action_expert_path = args.action_expert_path;
+    model_args.n_batch = args.n_batch;
+    model_args.n_ctx = args.n_ctx;
+    model_args.noise_mode = args.noise_mode;
+    model_args.noise_seed = args.noise_seed;
+    return model_args;
 }
 
 } // namespace
@@ -177,12 +181,13 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    std::unique_ptr<robot_server::vla_policy> policy = robot_server::make_smolvla_policy(make_smolvla_options(args), error);
-    if (!policy) {
+    std::unique_ptr<robotcpp::Model> model;
+    if (!robotcpp::make_model(make_model_args(args), model, error)) {
         std::fprintf(stderr, "Error: %s\n", error.c_str());
         sockets::cleanup();
         return 1;
     }
+    robot_server::model_adapter adapter(std::move(model));
 
     sockets::socket_handle server = sockets::tcp_listen(args.host.c_str(), (uint16_t) args.port, 16, error);
     if (server == sockets::invalid_socket) {
@@ -191,8 +196,8 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    std::fprintf(stderr, "[SmolVLA server] listening on %s:%d policy=%s\n",
-                 args.host.c_str(), args.port, policy->name());
+    std::fprintf(stderr, "[model-server] listening on %s:%d model=%s\n",
+                 args.host.c_str(), args.port, adapter.name());
 
     bool shutdown_requested = false;
     std::mutex predict_mutex;
@@ -200,13 +205,13 @@ int main(int argc, char ** argv) {
         std::string peer;
         sockets::socket_handle client = sockets::tcp_accept(server, peer, error);
         if (client == sockets::invalid_socket) {
-            std::fprintf(stderr, "[SmolVLA server] accept failed: %s\n", error.c_str());
+            std::fprintf(stderr, "[model-server] accept failed: %s\n", error.c_str());
             continue;
         }
         if (args.verbosity >= 1) {
-            std::fprintf(stderr, "[SmolVLA server] client connected: %s\n", peer.c_str());
+            std::fprintf(stderr, "[model-server] client connected: %s\n", peer.c_str());
         }
-        robot_server::handle_client(client, *policy, predict_mutex, shutdown_requested);
+        robot_server::handle_client(client, adapter, predict_mutex, shutdown_requested);
         sockets::close(client);
     }
 

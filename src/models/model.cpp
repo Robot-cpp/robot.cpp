@@ -214,12 +214,12 @@ vlacpp_status validate_pi0_tensors(const ModelConfig & config, const TensorMap &
 
 } // namespace
 
-std::unique_ptr<Model> make_pi0_model(ModelConfig config, BackendConfig backend, TensorMap tensors);
+std::unique_ptr<RuntimeModel> make_pi0_model(ModelConfig config, BackendConfig backend, TensorMap tensors);
 
 vlacpp_status load_model_from_path(
     const std::string & path,
     const BackendConfig & backend,
-    std::unique_ptr<Model> & out) {
+    std::unique_ptr<RuntimeModel> & out) {
     ModelConfig config;
     TensorMap tensors;
     std::ifstream file(path, std::ios::binary);

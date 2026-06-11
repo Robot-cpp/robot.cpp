@@ -23,7 +23,7 @@ LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
 VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}"
 STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
 ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
-SERVER_BIN="${BUILD_DIR}/bin/smolvla-server"
+SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     echo "== configure =="
@@ -39,7 +39,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
-        --target smolvla-server \
+        --target model-server \
         -j8
 fi
 
@@ -49,6 +49,7 @@ echo "port: ${PORT}"
 echo "task: ${TASK}"
 
 exec "${SERVER_BIN}" \
+    --model-type smolvla \
     --llm "${LLM_GGUF}" \
     --mmproj "${VISION_GGUF}" \
     --state-proj "${STATE_PROJ_GGUF}" \
@@ -59,9 +60,6 @@ exec "${SERVER_BIN}" \
     --threads "${THREADS}" \
     --n-batch 512 \
     --n-ctx 2048 \
-    --action-dim 6 \
-    --chunk-size 50 \
-    --num-steps 10 \
     --noise-mode "${NOISE_MODE}" \
     --noise-seed "${NOISE_SEED}" \
     --verbosity 0

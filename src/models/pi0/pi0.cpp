@@ -12,7 +12,7 @@
 namespace vlacpp {
 namespace {
 
-class Pi0Model final : public Model {
+class Pi0Model final : public RuntimeModel {
 public:
     Pi0Model(ModelConfig config, BackendConfig backend, TensorMap tensors)
         : config_(std::move(config)),
@@ -76,8 +76,8 @@ private:
 
 } // namespace
 
-std::unique_ptr<Model> make_pi0_model(ModelConfig config, BackendConfig backend, TensorMap tensors) {
-    return std::unique_ptr<Model>(new Pi0Model(std::move(config), backend, std::move(tensors)));
+std::unique_ptr<RuntimeModel> make_pi0_model(ModelConfig config, BackendConfig backend, TensorMap tensors) {
+    return std::unique_ptr<RuntimeModel>(new Pi0Model(std::move(config), backend, std::move(tensors)));
 }
 
 } // namespace vlacpp

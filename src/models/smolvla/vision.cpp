@@ -916,16 +916,6 @@ std::vector<float> smolvla_vision_encode_bytes(
     return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
-std::vector<float> smolvla_vision_encode_constant(smolvla_vision_ctx * ctx, float pixel_value, int n_threads) {
-    if (!ctx) {
-        LOG_ERR("%s: invalid args\n", __func__);
-        return {};
-    }
-
-    std::vector<float> inp_nchw(3 * ctx->image_size * ctx->image_size, pixel_value);
-    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
-}
-
 std::vector<float> smolvla_vision_encode_raw(
     smolvla_vision_ctx * ctx,
     const uint8_t * data,
