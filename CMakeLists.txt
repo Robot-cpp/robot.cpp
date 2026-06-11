@@ -129,10 +129,14 @@ if(VLACPP_BUILD_SMOLVLA)
     target_link_libraries(smolvla_robot_client_cpp PUBLIC smolvla_robot_common)
     target_compile_features(smolvla_robot_client_cpp PUBLIC cxx_std_17)
 
-    add_executable(smolvla-cli ${SMOLVLA_DIR}/smolvla-cli.cpp)
-    set_target_properties(smolvla-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_link_libraries(smolvla-cli PRIVATE smolvla_static ggml llama)
-    target_compile_features(smolvla-cli PRIVATE cxx_std_17)
+    add_executable(model-cli src/model-cli.cpp)
+    set_target_properties(model-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_include_directories(model-cli PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/vendor/stb
+    )
+    target_link_libraries(model-cli PRIVATE robotcpp ggml llama)
+    target_compile_features(model-cli PRIVATE cxx_std_17)
 
     add_executable(benchmark-smolvla-cpp ${SMOLVLA_DIR}/benchmark-smolvla-cpp.cpp)
     set_target_properties(benchmark-smolvla-cpp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
