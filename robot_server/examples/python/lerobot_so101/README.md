@@ -10,14 +10,18 @@
 
 ```
 lerobot_so101/
-├── sync_client.py              # 通用入口 + observation 构建
-├── local_lerobot_entry.py      # 校准/遥操/录制前注册 camera plugin
-├── other/
-│   ├── client/lerobot_sync.py  # LerobotSyncClient + config_from_env
-│   ├── utils/                  # robot / stdin
-│   └── camera/                 # opencv_crop plugin
+├── so101_client.py             # SO101RobotClient（RobotClientBase 实现）
+├── utils/robot.py              # build_camera_config 等
+├── camera/                     # opencv_crop plugin（pip install -e）
 ├── test/                       # test_camera.py, run_camera_test.sh
 └── shell/                      # local_so101_env.sh, run_robot_client.sh, local_*.sh
+
+robot_server/examples/python/robot_client/
+├── run_sync.py                 # 入口：ROBOT_PLATFORM -> SyncControlLoop
+├── base.py                     # RobotClientBase：sync/async predict + 抽象 robot 钩子
+├── observation.py              # make_predict_observation
+├── sync_loop.py                # 通用 observe -> predict -> act 循环
+└── stdin.py                    # 键盘 R/Q
 ```
 
 ## 安装
@@ -32,7 +36,7 @@ conda activate lerobot-py312
 
 pip install -U pip setuptools wheel
 pip install -e "third_party/lerobot[feetech]"
-pip install -e "robot_server/examples/python/lerobot_so101/other/camera"
+pip install -e "robot_server/examples/python/lerobot_so101/camera"
 
 source local_env.sh   # 设置 PYTHONPATH
 ```
@@ -84,14 +88,14 @@ source local_env.sh
 bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
 ```
 
-真机 client 通过 `sync_client.py` 中的 `make_predict_observation` 构建 observation 并调用 `SmolVLAClient.predict`。配置来自 `local_so101_env.sh` 的环境变量，无需命令行参数。
+真机 client 通过 ``robot_client`` 基类调用 ``SmolVLAClient.predict``，``so101_client.py`` 实现 SO101 硬件对接。配置来自 ``local_so101_env.sh`` 的环境变量，无需命令行参数。
 
 或直接运行（需先 source env）：
 
 ```bash
 source local_env.sh
 source robot_server/examples/python/lerobot_so101/shell/local_so101_env.sh
-python robot_server/examples/python/lerobot_so101/sync_client.py
+python -m robot_client
 ```
 
 按键：**R** 回 home，**Q** 退出。

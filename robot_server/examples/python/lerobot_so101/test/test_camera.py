@@ -25,7 +25,7 @@ from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.import_utils import register_third_party_plugins
 
 from utils.robot import build_camera_config
-from sync_client import make_predict_observation
+from robot_client.observation import make_predict_observation
 
 # Default matches shell/run_robot_client.sh (camera1 + warmup_s).
 DEFAULT_ROBOT_CAMERAS = (

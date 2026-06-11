@@ -39,9 +39,9 @@ server 启动后，robot 侧只需要把当前 observation 传给 client，clien
 最小 TCP 预测例子：
 
 ```text
-robot_server/test/benchmark_latency.py                               # 随机观测 smoke / 压测
-robot_server/examples/python/lerobot_so101/sync_client.py          # 通用入口 + observation 构建
-robot_server/examples/python/lerobot_so101/other/client/lerobot_sync.py  # SO101 真机闭环
+robot_server/test/benchmark_latency.py                          # 随机观测 smoke / 压测
+robot_server/examples/python/robot_client/                     # RobotClientBase + run_sync 入口
+robot_server/examples/python/lerobot_so101/so101_client.py    # SO101 硬件实现
 ```
 
 启动 server 后运行（记得先填写相关环境变量）：

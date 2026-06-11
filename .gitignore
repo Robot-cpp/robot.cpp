@@ -23,5 +23,4 @@ checkpoints/
 ._*
 .vscode/
 
-local_*.sh
-local_*.py
+local_*
