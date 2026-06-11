@@ -13,24 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 
-from client.python.smolvla_client import SmolVLAClient
-
-
-LATENCY_COLUMNS = [
-    "roundtrip_ms",
-    "model_total_ms",
-    "communication_overhead_ms",
-    "vision_ms",
-    "state_proj_ms",
-    "llm_ms",
-    "kv_extract_ms",
-    "phase2_ms",
-    "server_recv_ms",
-    "server_queue_ms",
-    "server_predict_ms",
-]
-
-TSV_COLUMNS = LATENCY_COLUMNS + ["first_action"]
+from client.python.model_client import ModelClient
 
 
 def make_random_rgb_image(width: int, height: int, seed: int) -> np.ndarray:
@@ -45,10 +28,28 @@ def make_random_state(dim: int, seed: int) -> np.ndarray:
 
 def make_random_observation(width: int, height: int, state_dim: int, prompt: str) -> dict:
     return {
-        "image": make_random_rgb_image(width, height, seed=0),
+        "images": [
+            {
+                "name": "image",
+                "image": make_random_rgb_image(width, height, seed=0),
+            }
+        ],
         "state": make_random_state(state_dim, seed=1),
         "prompt": prompt,
     }
+
+
+def ordered_columns(rows: list[dict[str, float]]) -> list[str]:
+    seen = set()
+    columns: list[str] = []
+    for row in rows:
+        for name in row:
+            if name != "first_action" and name not in seen:
+                columns.append(name)
+                seen.add(name)
+    if any("first_action" in row for row in rows):
+        columns.append("first_action")
+    return columns
 
 
 def append_tsv(path: str | None, rows: list[dict[str, float]]) -> None:
@@ -58,12 +59,13 @@ def append_tsv(path: str | None, rows: list[dict[str, float]]) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     write_header = not output.exists()
+    columns = ordered_columns(rows)
 
     with output.open("a", encoding="utf-8") as fout:
         if write_header:
-            fout.write("\t".join(TSV_COLUMNS) + "\n")
+            fout.write("\t".join(columns) + "\n")
         for row in rows:
-            fout.write("\t".join(f"{row[name]:.6f}" for name in TSV_COLUMNS) + "\n")
+            fout.write("\t".join(f"{row.get(name, 0.0):.6f}" for name in columns) + "\n")
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -88,8 +90,12 @@ def print_latency_summary(rows: list[dict[str, float]], result_tsv: str | None) 
         print(f"result_tsv: {result_tsv}")
     print(f"loops: {len(rows)}")
     print("metric                         avg      min      p50      p90      p99      max     last")
-    for col in LATENCY_COLUMNS:
-        values = [float(row[col]) for row in rows]
+    for col in ordered_columns(rows):
+        if col == "first_action":
+            continue
+        values = [float(row[col]) for row in rows if col in row]
+        if not values:
+            continue
         print(
             f"{col:<28}"
             f"{statistics.fmean(values):8.2f}"
@@ -122,7 +128,7 @@ def main() -> int:
         state_dim=args.state_dim,
         prompt=args.prompt,
     )
-    client = SmolVLAClient(host=args.host, port=args.port)
+    client = ModelClient(host=args.host, port=args.port)
 
     rows: list[dict[str, float]] = []
     response = None
@@ -138,21 +144,14 @@ def main() -> int:
         if (i - args.warmup) % 20 == 0:
             print(f"Completed {i-args.warmup}/{total_iters-args.warmup} iterations...")
 
-        model_total_ms = response.timings["model_total_ms"]
-        rows.append({
+        row = {
             "roundtrip_ms": roundtrip_ms,
-            "model_total_ms": model_total_ms,
-            "communication_overhead_ms": roundtrip_ms - model_total_ms,
-            "vision_ms": response.timings["vision_ms"],
-            "state_proj_ms": response.timings["state_proj_ms"],
-            "llm_ms": response.timings["llm_ms"],
-            "kv_extract_ms": response.timings["kv_extract_ms"],
-            "phase2_ms": response.timings["phase2_ms"],
-            "server_recv_ms": response.timings["server_recv_ms"],
-            "server_queue_ms": response.timings["server_queue_ms"],
-            "server_predict_ms": response.timings["server_predict_ms"],
             "first_action": response.actions_flat[0] if response.actions_flat else 0.0,
-        })
+        }
+        row.update(response.timings)
+        if "model_total_ms" in row:
+            row["communication_overhead_ms"] = roundtrip_ms - row["model_total_ms"]
+        rows.append(row)
 
     if response is None:
         raise RuntimeError("benchmark did not run any predict calls")

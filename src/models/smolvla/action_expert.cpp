@@ -468,6 +468,15 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
         int idx = gguf_find_key(gguf_ctx, key);
         return idx >= 0 ? (int) gguf_get_val_u32(gguf_ctx, idx) : def;
     };
+    auto read_required_u32 = [&](const char * key, int & out) -> bool {
+        int idx = gguf_find_key(gguf_ctx, key);
+        if (idx < 0) {
+            LOG_ERR("%s: missing required action expert metadata key '%s'\n", __func__, key);
+            return false;
+        }
+        out = (int) gguf_get_val_u32(gguf_ctx, idx);
+        return true;
+    };
     auto read_f32 = [&](const char * key, float def) -> float {
         int idx = gguf_find_key(gguf_ctx, key);
         return idx >= 0 ? gguf_get_val_f32(gguf_ctx, idx) : def;
@@ -476,9 +485,12 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     ctx->hidden_size       = read_u32("smolvla.expert.hidden_size", 720);
     ctx->intermediate_size = read_u32("smolvla.expert.intermediate_size", 2048);
     ctx->num_layers        = read_u32("smolvla.expert.num_layers", 16);
-    ctx->max_action_dim    = read_u32("smolvla.action_dim", 32);
-    ctx->chunk_size        = read_u32("smolvla.chunk_size", 50);
-    ctx->num_steps         = read_u32("smolvla.num_steps", 10);
+    if (!read_required_u32("smolvla.action_dim", ctx->max_action_dim) ||
+        !read_required_u32("smolvla.chunk_size", ctx->chunk_size) ||
+        !read_required_u32("smolvla.num_steps", ctx->num_steps)) {
+        smolvla_action_expert_free(ctx);
+        return nullptr;
+    }
     ctx->self_attn_every_n = read_u32("smolvla.self_attn_every_n_layers", 2);
     ctx->min_period        = read_f32("smolvla.min_period", 0.004f);
     ctx->max_period        = read_f32("smolvla.max_period", 4.0f);

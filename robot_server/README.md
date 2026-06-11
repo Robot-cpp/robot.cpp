@@ -18,14 +18,14 @@ bash robot_server/shell/launch_robot_server_mac_cpu.sh
 
 这个脚本会做两件事：
 
-1. 从源码 build `smolvla-server`。
+1. 从源码 build `model-server`。
 2. 前台启动真实 SmolVLA robot server。
 
 启动成功后会看到类似：
 
 ```text
 [launch] listening on 127.0.0.1:5555
-[SmolVLA server] listening on 127.0.0.1:5555 policy=smolvla
+[model-server] listening on 127.0.0.1:5555 model=smolvla
 ```
 
 停止 server 直接 `Ctrl-C` 即可
@@ -61,7 +61,7 @@ bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
 C++ 可复用 client 在：
 
 ```text
-robot_server/client/cpp/smolvla_client.{h,cpp}
+robot_server/client/cpp/model_client.{h,cpp}
 ```
 
 最小 C++ example 在：

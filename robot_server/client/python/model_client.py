@@ -5,11 +5,11 @@ from __future__ import annotations
 import socket
 import struct
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 
 MAGIC = 0x414C5653
-VERSION = 1
+VERSION = 3
 HEADER_SIZE = 32
 
 OP_HEALTH = 1
@@ -21,12 +21,14 @@ STATUS_OK = 0
 IMAGE_RAW_RGB_U8 = 1
 
 HEADER = struct.Struct("<IHHHHIIQI")
-PREDICT_REQ_FIXED = struct.Struct("<IIIIIIIQ")
-PREDICT_RESP_FIXED = struct.Struct("<III9d")
+PREDICT_REQ_V2_FIXED = struct.Struct("<III")
+PREDICT_REQ_V2_IMAGE = struct.Struct("<IIIIIIQ")
+PREDICT_RESP_FIXED = struct.Struct("<IIII")
+PREDICT_RESP_METRIC = struct.Struct("<Id")
 
 
 @dataclass
-class SmolVLAResponse:
+class ModelResponse:
     chunk_size: int
     action_dim: int
     actions_flat: list[float]
@@ -71,65 +73,84 @@ def _recv_message(sock: socket.socket) -> tuple[int, int, int, bytes]:
     return op, request_id, status, payload
 
 
-def encode_predict_request(
-    rgb_hwc_u8: bytes,
-    width: int,
-    height: int,
-    state: Sequence[float],
-    prompt: str,
-    stride_bytes: int | None = None,
-) -> bytes:
-    channels = 3
-    stride = stride_bytes if stride_bytes is not None and stride_bytes > 0 else width * channels
+def encode_predict_observation(observation: dict[str, Any]) -> bytes:
+    images = observation["images"]
+    state = state_to_list(observation["state"])
+    prompt = str(observation["prompt"])
+    if not images:
+        raise ValueError("observation.images must contain at least one image")
+
     prompt_bytes = prompt.encode("utf-8")
+    encoded_images: list[tuple[bytes, bytes, int, int, int]] = []
+    for index, image in enumerate(images):
+        rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(image)
+        name = str(image["name"] if "name" in image else f"image{index}").encode("utf-8")
+        encoded_images.append((name, rgb, width, height, stride))
+
     payload = bytearray()
-    payload += PREDICT_REQ_FIXED.pack(
-        IMAGE_RAW_RGB_U8,
-        width,
-        height,
-        channels,
-        stride,
+    payload += PREDICT_REQ_V2_FIXED.pack(
+        len(encoded_images),
         len(state),
         len(prompt_bytes),
-        len(rgb_hwc_u8),
     )
+    for name, rgb, width, height, stride in encoded_images:
+        payload += PREDICT_REQ_V2_IMAGE.pack(
+            IMAGE_RAW_RGB_U8,
+            len(name),
+            width,
+            height,
+            3,
+            stride,
+            len(rgb),
+        )
     for value in state:
         payload += struct.pack("<f", float(value))
     payload += prompt_bytes
-    payload += rgb_hwc_u8
+    for name, rgb, _width, _height, _stride in encoded_images:
+        payload += name
+        payload += rgb
     return bytes(payload)
 
 
-def decode_predict_response(payload: bytes) -> SmolVLAResponse:
+def decode_predict_response(payload: bytes) -> ModelResponse:
     fixed_size = PREDICT_RESP_FIXED.size
-    chunk_size, action_dim, action_count, *timing_values = PREDICT_RESP_FIXED.unpack(payload[:fixed_size])
+    if len(payload) < fixed_size:
+        raise RuntimeError("short predict response")
+    chunk_size, action_dim, action_count, metric_count = PREDICT_RESP_FIXED.unpack(payload[:fixed_size])
     if action_count != chunk_size * action_dim:
         raise RuntimeError("bad action shape in server response")
-    actions_flat = list(struct.unpack(f"<{action_count}f", payload[fixed_size : fixed_size + action_count * 4]))
-    timing_names = [
-        "vision_ms",
-        "state_proj_ms",
-        "llm_ms",
-        "kv_extract_ms",
-        "phase2_ms",
-        "model_total_ms",
-        "server_recv_ms",
-        "server_queue_ms",
-        "server_predict_ms",
-    ]
-    return SmolVLAResponse(chunk_size, action_dim, actions_flat, dict(zip(timing_names, timing_values)))
+    pos = fixed_size
+    timings: dict[str, float] = {}
+    for _ in range(metric_count):
+        metric_end = pos + PREDICT_RESP_METRIC.size
+        if len(payload) < metric_end:
+            raise RuntimeError("short metric in server response")
+        name_len, value = PREDICT_RESP_METRIC.unpack(payload[pos:metric_end])
+        pos = metric_end
+        name_end = pos + name_len
+        if len(payload) < name_end:
+            raise RuntimeError("short metric name in server response")
+        name = payload[pos:name_end].decode("utf-8", errors="replace")
+        pos = name_end
+        timings[name] = value
+    action_bytes = action_count * 4
+    if len(payload) != pos + action_bytes:
+        raise RuntimeError("bad predict response length")
+    actions_flat = list(struct.unpack(f"<{action_count}f", payload[pos : pos + action_bytes]))
+    return ModelResponse(chunk_size, action_dim, actions_flat, timings)
 
 
 def image_to_rgb_hwc_u8_bytes(image: Any) -> tuple[bytes, int, int, int]:
     if isinstance(image, dict):
-        rgb = image.get("rgb_hwc_u8")
-        if rgb is None:
-            rgb = image.get("bytes")
-        width = image.get("width")
-        height = image.get("height")
-        if rgb is None or width is None or height is None:
-            raise ValueError("raw image dict must contain rgb_hwc_u8, width, and height")
-        stride = image.get("stride_bytes", int(width) * 3)
+        if "image" in image:
+            return image_to_rgb_hwc_u8_bytes(image["image"])
+        try:
+            rgb = image["rgb_hwc_u8"]
+            width = int(image["width"])
+            height = int(image["height"])
+        except KeyError as exc:
+            raise ValueError("image dict must contain image, or rgb_hwc_u8 with width and height") from exc
+        stride = int(image["stride_bytes"]) if "stride_bytes" in image else width * 3
         return bytes(rgb), int(width), int(height), int(stride)
 
     if isinstance(image, (bytes, bytearray, memoryview)):
@@ -165,7 +186,7 @@ def state_to_list(state: Any) -> list[float]:
     return [float(x) for x in state]
 
 
-class SmolVLAClient:
+class ModelClient:
     def __init__(self, host: str = "127.0.0.1", port: int = 5555, timeout: float | None = None):
         self.host = host
         self.port = port
@@ -196,40 +217,6 @@ class SmolVLAClient:
     def shutdown(self) -> str:
         return self._call(OP_SHUTDOWN).decode("utf-8", errors="replace")
 
-    def predict_raw_rgb(
-        self,
-        rgb_hwc_u8: bytes,
-        width: int,
-        height: int,
-        state: Iterable[float],
-        prompt: str = "grab the block.",
-        stride_bytes: int | None = None,
-    ) -> SmolVLAResponse:
-        payload = encode_predict_request(rgb_hwc_u8, width, height, list(state), prompt, stride_bytes)
+    def predict(self, observation: dict[str, Any]) -> ModelResponse:
+        payload = encode_predict_observation(observation)
         return decode_predict_response(self._call(OP_PREDICT, payload))
-
-    def predict(self, observation: dict[str, Any], prompt: str | None = None) -> SmolVLAResponse:
-        image = observation.get("image")
-        if image is None:
-            image = observation.get("observation.image")
-        if image is None:
-            raise ValueError("observation must contain 'image' or 'observation.image'")
-
-        state = observation.get("state")
-        if state is None:
-            state = observation.get("observation.state")
-
-        if prompt is None:
-            prompt = observation.get("prompt")
-        if prompt is None:
-            prompt = observation.get("task", "grab the block.")
-
-        rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(image)
-        return self.predict_raw_rgb(
-            rgb,
-            width=width,
-            height=height,
-            stride_bytes=stride,
-            state=state_to_list(state),
-            prompt=prompt,
-        )

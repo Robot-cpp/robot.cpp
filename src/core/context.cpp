@@ -13,7 +13,7 @@
 #include <vector>
 
 struct vlacpp_model {
-    std::unique_ptr<vlacpp::Model> impl;
+    std::unique_ptr<vlacpp::RuntimeModel> impl;
     vlacpp::BackendConfig backend;
 };
 
@@ -51,7 +51,7 @@ vlacpp_status vlacpp_load_model(
     backend.backend = effective.backend;
     backend.n_threads = effective.n_threads;
 
-    std::unique_ptr<vlacpp::Model> impl;
+    std::unique_ptr<vlacpp::RuntimeModel> impl;
     vlacpp_status status = vlacpp::load_model_from_path(path, backend, impl);
     if (status != VLACPP_STATUS_OK) {
         return status;

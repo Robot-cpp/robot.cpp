@@ -1,11 +1,11 @@
-#include "smolvla_client.h"
+#include "model_client.h"
 
 #include "socket.h"
 
 #include <cstring>
 #include <utility>
 
-namespace proto = smolvla::protocol;
+namespace proto = robot_server::protocol;
 namespace sockets = robot_server::sockets;
 
 namespace robot_server {
@@ -57,39 +57,48 @@ bool recv_message(
     return true;
 }
 
-bool make_predict_request(const SmolVLAObservation & obs, proto::predict_request & req, std::string & error) {
-    if (!obs.rgb_hwc_u8 || obs.width == 0 || obs.height == 0) {
-        error = "observation image must be non-empty RAW_RGB_U8";
+bool make_predict_request(const ModelObservation & obs, proto::predict_request & req, std::string & error) {
+    if (obs.images.empty()) {
+        error = "observation.images must contain at least one image";
         return false;
     }
 
-    const uint32_t stride = obs.stride_bytes == 0 ? obs.width * 3 : obs.stride_bytes;
-    if (stride < obs.width * 3) {
-        error = "observation stride_bytes is smaller than width * 3";
-        return false;
-    }
-
-    req.image_format = proto::image_raw_rgb_u8;
-    req.width = obs.width;
-    req.height = obs.height;
-    req.channels = 3;
-    req.stride_bytes = stride;
     req.task = obs.prompt;
-    if (obs.state && obs.state_dim > 0) {
-        req.state.assign(obs.state, obs.state + obs.state_dim);
-    } else {
-        req.state.clear();
-    }
+    req.state = obs.state;
+    req.images.clear();
+    req.images.reserve(obs.images.size());
 
-    const size_t image_size = (size_t) stride * (size_t) obs.height;
-    req.image.resize(image_size);
-    std::memcpy(req.image.data(), obs.rgb_hwc_u8, image_size);
+    for (size_t i = 0; i < obs.images.size(); ++i) {
+        const ModelImage & src = obs.images[i];
+        if (!src.rgb_hwc_u8 || src.width == 0 || src.height == 0) {
+            error = "observation.images[" + std::to_string(i) + "] must be non-empty RAW_RGB_U8";
+            return false;
+        }
+
+        const uint32_t stride = src.stride_bytes == 0 ? src.width * 3 : src.stride_bytes;
+        if (stride < src.width * 3) {
+            error = "observation.images[" + std::to_string(i) + "].stride_bytes is smaller than width * 3";
+            return false;
+        }
+
+        const size_t image_size = (size_t) stride * (size_t) src.height;
+        proto::image_payload image;
+        image.name = src.name.empty() ? "image" + std::to_string(i) : src.name;
+        image.image_format = proto::image_raw_rgb_u8;
+        image.width = src.width;
+        image.height = src.height;
+        image.channels = 3;
+        image.stride_bytes = stride;
+        image.data.resize(image_size);
+        std::memcpy(image.data.data(), src.rgb_hwc_u8, image_size);
+        req.images.push_back(std::move(image));
+    }
     return true;
 }
 
 } // namespace
 
-const float * SmolVLAResponse::action_row(uint32_t index) const {
+const float * ModelResponse::action_row(uint32_t index) const {
     if (action_dim == 0 || index >= chunk_size) {
         return nullptr;
     }
@@ -100,9 +109,18 @@ const float * SmolVLAResponse::action_row(uint32_t index) const {
     return actions_flat.data() + offset;
 }
 
-SmolVLAClient::SmolVLAClient(std::string host, uint16_t port) : host_(std::move(host)), port_(port) {}
+double ModelResponse::metric_value(const std::string & name, double fallback) const {
+    for (const proto::metric & metric : metrics) {
+        if (metric.name == name) {
+            return metric.value;
+        }
+    }
+    return fallback;
+}
 
-bool SmolVLAClient::health(std::string & text, std::string & error) {
+ModelClient::ModelClient(std::string host, uint16_t port) : host_(std::move(host)), port_(port) {}
+
+bool ModelClient::health(std::string & text, std::string & error) {
     std::vector<uint8_t> payload;
     if (!call(proto::op_health, {}, payload, error)) {
         return false;
@@ -110,7 +128,7 @@ bool SmolVLAClient::health(std::string & text, std::string & error) {
     return proto::decode_text_payload(payload, text, error);
 }
 
-bool SmolVLAClient::reset(std::string & text, std::string & error) {
+bool ModelClient::reset(std::string & text, std::string & error) {
     std::vector<uint8_t> payload;
     if (!call(proto::op_reset, {}, payload, error)) {
         return false;
@@ -118,7 +136,7 @@ bool SmolVLAClient::reset(std::string & text, std::string & error) {
     return proto::decode_text_payload(payload, text, error);
 }
 
-bool SmolVLAClient::shutdown(std::string & text, std::string & error) {
+bool ModelClient::shutdown(std::string & text, std::string & error) {
     std::vector<uint8_t> payload;
     if (!call(proto::op_shutdown, {}, payload, error)) {
         return false;
@@ -126,7 +144,7 @@ bool SmolVLAClient::shutdown(std::string & text, std::string & error) {
     return proto::decode_text_payload(payload, text, error);
 }
 
-bool SmolVLAClient::predict(const SmolVLAObservation & obs, SmolVLAResponse & response, std::string & error) {
+bool ModelClient::predict(const ModelObservation & obs, ModelResponse & response, std::string & error) {
     proto::predict_request req;
     if (!make_predict_request(obs, req, error)) {
         return false;
@@ -150,11 +168,11 @@ bool SmolVLAClient::predict(const SmolVLAObservation & obs, SmolVLAResponse & re
     response.chunk_size = resp.chunk_size;
     response.action_dim = resp.action_dim;
     response.actions_flat = std::move(resp.actions);
-    response.timing = resp.timing;
+    response.metrics = std::move(resp.metrics);
     return true;
 }
 
-bool SmolVLAClient::call(
+bool ModelClient::call(
     uint16_t op,
     const std::vector<uint8_t> & request_payload,
     std::vector<uint8_t> & response_payload,

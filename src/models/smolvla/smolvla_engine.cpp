@@ -62,13 +62,6 @@ struct smolvla_context {
     // Vision embedding buffer
     std::vector<float> vision_emb;
 
-    // Task string
-    std::string task;
-    // Number of synthetic empty cameras to match SmolVLA prefix construction.
-    int empty_cameras;
-    // Cached embeddings for deterministic padding paths.
-    std::vector<float> empty_cam_emb_cache;
-    bool empty_cam_emb_cache_ready;
     std::vector<float> lang_pad_emb_cache;
     llama_token lang_pad_emb_cache_id;
     bool lang_pad_emb_cache_ready;
@@ -332,11 +325,7 @@ struct smolvla_params smolvla_default_params(void) {
     params.mmproj_path        = nullptr;
     params.state_proj_path    = nullptr;
     params.action_expert_path = nullptr;
-    params.task               = "grab the block.";
     params.n_threads          = 0;  // auto
-    params.action_dim         = 6;
-    params.chunk_size         = 50;
-    params.num_steps          = 10;
     params.n_batch            = 512;
     params.n_ctx              = 2048;
     params.noise_mode         = SMOLVLA_NOISE_MODE_GAUSSIAN;
@@ -385,11 +374,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         fprintf(stderr, "Vision:        %s\n", params.mmproj_path ? params.mmproj_path : "(none)");
         fprintf(stderr, "State Proj:    %s\n", params.state_proj_path ? params.state_proj_path : "(none)");
         fprintf(stderr, "Action Expert: %s\n", params.action_expert_path ? params.action_expert_path : "(none)");
-        fprintf(stderr, "Task:          %s\n", params.task ? params.task : "(none)");
         fprintf(stderr, "Threads:       %d\n", params.n_threads);
-        fprintf(stderr, "Action dim:    %d\n", params.action_dim);
-        fprintf(stderr, "Chunk size:    %d\n", params.chunk_size);
-        fprintf(stderr, "Denoise steps: %d\n", params.num_steps);
         fprintf(stderr, "Noise mode:    %s\n", smolvla_noise_mode_name(params.noise_mode));
         fprintf(stderr, "Noise seed:    %s\n", params.noise_seed >= 0 ? "(set)" : "auto");
         if (params.noise_seed >= 0) {
@@ -404,9 +389,9 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     ctx->ctx_llama = nullptr;
     ctx->tok_embd  = nullptr;
     ctx->expert    = nullptr;
-    ctx->action_dim = params.action_dim;
-    ctx->chunk_size = params.chunk_size;
-    ctx->num_steps  = params.num_steps;
+    ctx->action_dim = 0;
+    ctx->chunk_size = 0;
+    ctx->num_steps  = 0;
     ctx->n_threads  = params.n_threads > 0 ? params.n_threads : 4;
     ctx->n_batch    = params.n_batch > 0 ? params.n_batch : 512;
     ctx->n_ctx      = params.n_ctx > 0 ? params.n_ctx : 2048;
@@ -421,10 +406,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     }
     ctx->noise_seed = params.noise_seed;
     ctx->verbosity  = params.verbosity;
-    ctx->task       = params.task ? params.task : "";
-    ctx->empty_cameras = 2; // TODO: 这里写死了2个空摄像头，之后应该改成gguf里读
     ctx->fixed_prefix_seq_len = -1;
-    ctx->empty_cam_emb_cache_ready = false;
     ctx->lang_pad_emb_cache_ready = false;
     ctx->lang_pad_emb_cache_id = -1;
 
@@ -439,8 +421,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         ctx->noise_rng.seed(seq);
     }
 
-    // Allocate action buffer
-    ctx->action_buffer.resize(ctx->chunk_size * ctx->action_dim, 0.0f);
     ctx->last_timings = smolvla_empty_stage_timings();
 
     // Load State Projector
@@ -464,23 +444,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         } else {
             int embd_size = smolvla_vision_embd_size(ctx->vision);
             ctx->vision_emb.resize(embd_size, 0.0f);
-
-            if (ctx->empty_cameras > 0) {
-                const int n_tokens_per_cam = smolvla_vision_n_tokens(ctx->vision);
-                const int proj_dim = ctx->vision->proj_dim;
-                const size_t one_cam_size = (size_t) n_tokens_per_cam * proj_dim;
-
-                ctx->empty_cam_emb_cache = smolvla_vision_encode_constant(ctx->vision, -1.0f, ctx->n_threads);
-                if (ctx->empty_cam_emb_cache.size() != one_cam_size) {
-                    if (!ctx->empty_cam_emb_cache.empty()) {
-                        fprintf(stderr, "[SmolVLA] Warning: empty camera embedding size mismatch during init\n");
-                    }
-                    ctx->empty_cam_emb_cache.clear();
-                    ctx->empty_cam_emb_cache_ready = false;
-                } else {
-                    ctx->empty_cam_emb_cache_ready = true;
-                }
-            }
         }
     }
 
@@ -540,11 +503,24 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         ctx->expert = smolvla_action_expert_load(params.action_expert_path, params.verbosity);
         if (!ctx->expert) {
             fprintf(stderr, "[SmolVLA] Warning: Failed to load action expert, continuing without\n");
+        } else {
+            ctx->action_dim = ctx->expert->action_dim;
+            ctx->chunk_size = ctx->expert->chunk_size;
+            ctx->num_steps = ctx->expert->num_steps;
+            if (ctx->action_dim <= 0 || ctx->chunk_size <= 0 || ctx->num_steps <= 0) {
+                fprintf(stderr,
+                        "[SmolVLA] Error: invalid action expert shape from GGUF "
+                        "(action_dim=%d chunk_size=%d num_steps=%d)\n",
+                        ctx->action_dim, ctx->chunk_size, ctx->num_steps);
+                smolvla_free(ctx);
+                return nullptr;
+            }
+            ctx->action_buffer.resize((size_t) ctx->chunk_size * (size_t) ctx->action_dim, 0.0f);
         }
     }
 
     if (ctx->vision && ctx->expert) {
-        const int n_vis = smolvla_vision_n_tokens(ctx->vision) * (1 + std::max(0, ctx->empty_cameras));
+        const int n_vis = smolvla_vision_n_tokens(ctx->vision);
         const int n_state = !ctx->state_emb.empty() ? 1 : 0;
         ctx->fixed_prefix_seq_len = n_vis + ctx->lang_max_len + n_state;
         if (!smolvla_action_expert_init_fixed_prefix_runtime(ctx->expert, ctx->fixed_prefix_seq_len)) {
@@ -569,7 +545,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     return ctx;
 }
 
-// 主相机+空相机的视觉嵌入准备：如果有空相机则用constant encoding填充
+// Prepare the real camera vision embedding for prefix assembly.
 static bool smolvla_prepare_vision_embedding(
     struct smolvla_context * ctx,
     const std::vector<float> & main_cam_emb
@@ -593,21 +569,8 @@ static bool smolvla_prepare_vision_embedding(
     }
 
     ctx->vision_emb.clear();
-    ctx->vision_emb.reserve((size_t) (1 + std::max(0, ctx->empty_cameras)) * one_cam_size);
+    ctx->vision_emb.reserve(one_cam_size);
     ctx->vision_emb.insert(ctx->vision_emb.end(), main_cam_emb.begin(), main_cam_emb.end());
-
-    for (int i = 0; i < ctx->empty_cameras; ++i) {
-        if (!ctx->empty_cam_emb_cache_ready) {
-            ctx->empty_cam_emb_cache = smolvla_vision_encode_constant(ctx->vision, -1.0f, ctx->n_threads);
-            if (ctx->empty_cam_emb_cache.size() != one_cam_size) {
-                fprintf(stderr, "[SmolVLA] Error: empty camera embedding size mismatch\n");
-                ctx->vision_emb.clear();
-                return false;
-            }
-            ctx->empty_cam_emb_cache_ready = true;
-        }
-        ctx->vision_emb.insert(ctx->vision_emb.end(), ctx->empty_cam_emb_cache.begin(), ctx->empty_cam_emb_cache.end());
-    }
 
     // Match SmolVLA Python: img_emb = img_emb * sqrt(hidden_size)
     const float vision_scale = std::sqrt((float) proj_dim);
@@ -616,10 +579,8 @@ static bool smolvla_prepare_vision_embedding(
     }
 
     if (ctx->verbosity >= 1) {
-        const int n_tokens = n_tokens_per_cam * (1 + std::max(0, ctx->empty_cameras));
-        fprintf(stdout, "[SmolVLA] image padding: main=1 empty=%d tokens_per_cam=%d\n",
-                ctx->empty_cameras, n_tokens_per_cam);
-        fprintf(stdout, "[SmolVLA] vision output shape: [%d, %d]\n", n_tokens, proj_dim);
+        fprintf(stdout, "[SmolVLA] vision tokens: cameras=1 tokens_per_camera=%d\n", n_tokens_per_cam);
+        fprintf(stdout, "[SmolVLA] vision output shape: [%d, %d]\n", n_tokens_per_cam, proj_dim);
         fprintf(stdout, "[SmolVLA] vision output (first 10): [");
         for (int i = 0; i < 10 && i < (int) ctx->vision_emb.size(); i++) {
             fprintf(stdout, "%.6f%s", ctx->vision_emb[i], i < 9 ? ", " : "");
@@ -664,7 +625,8 @@ static struct smolvla_result smolvla_predict_impl(
     struct smolvla_context * ctx,
     const char * image_label,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     struct smolvla_result result = smolvla_empty_result();
 
@@ -690,7 +652,7 @@ static struct smolvla_result smolvla_predict_impl(
             if (state_dim > 6) fprintf(stdout, ", ...");
             fprintf(stdout, "]\n");
         }
-        fprintf(stdout, "Task: %s\n", ctx->task.c_str());
+        fprintf(stdout, "Task: %s\n", task ? task : "");
         fprintf(stdout, "===========================================\n\n");
     }
 
@@ -728,7 +690,7 @@ static struct smolvla_result smolvla_predict_impl(
         const auto t_llm_start = smolvla_clock::now();
         // ====1.3 Tokenize task and embed
         // Match SmolVLA preprocessor behavior: ensure trailing newline before tokenization.
-        std::string task_text = ctx->task;
+        std::string task_text = task && task[0] != '\0' ? task : "grab the block.";
         if (task_text.empty() || task_text.back() != '\n') {
             task_text.push_back('\n');
         }
@@ -796,11 +758,9 @@ static struct smolvla_result smolvla_predict_impl(
 
         // 从这里开始，主要是处理pad，position id，attention mask相关设置
         // Build pad_mask to identify valid (non-padded) tokens.
-        // Matches Python: pad_mask = [cam1_valid] + [empty_cam_pad] + ... + [lang_valid+pad] + [state]
-        // TODO: 这里相机设置还是写死了，之后要fix
-        const int n_vis_per_cam = n_vis / (1 + ctx->empty_cameras);
+        // Layout: [real_camera_tokens] + [language raw + language pad] + [state].
         std::vector<bool> pad_mask(n_total, false);
-        for (int i = 0; i < n_vis_per_cam; ++i) pad_mask[i] = true; //vis
+        for (int i = 0; i < n_vis; ++i) pad_mask[i] = true; // vision
         for (int i = 0; i < n_raw; ++i) pad_mask[n_vis + i] = true; //lang 
         if (n_state == 1) pad_mask[n_total - 1] = true; //state
         ctx->prefix_valid_mask = pad_mask; 
@@ -883,6 +843,11 @@ static struct smolvla_result smolvla_predict_impl(
         ctx->last_timings.llm_ms = smolvla_elapsed_ms(t_llm_start, smolvla_clock::now());
     }
 
+    if (!ctx->expert) {
+        fprintf(stderr, "[SmolVLA] FATAL: missing action expert for prediction\n");
+        return result;
+    }
+
     // Extract LLM KV cache for Action Expert
     const auto t_kv0 = smolvla_clock::now();
     if (!extract_llm_kv_cache(ctx)) {
@@ -897,7 +862,7 @@ static struct smolvla_result smolvla_predict_impl(
 
     const auto t_phase20 = smolvla_clock::now();
     {
-        const int chunk = ctx->expert->chunk_size;
+        const int chunk = ctx->chunk_size;
         const int padded_action_dim = ctx->expert->max_action_dim;
         const int hidden = ctx->expert->hidden_size;
         const float dt = -1.0f / (float) ctx->num_steps;
@@ -996,7 +961,8 @@ struct smolvla_result smolvla_predict(
     struct smolvla_context * ctx,
     const char * image_path,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     if (!ctx) {
         return smolvla_empty_result();
@@ -1019,7 +985,7 @@ struct smolvla_result smolvla_predict(
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, image_path, state, state_dim), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, image_path, state, state_dim, task), t_total0);
 }
 
 struct smolvla_result smolvla_predict_bytes(
@@ -1027,7 +993,8 @@ struct smolvla_result smolvla_predict_bytes(
     const unsigned char * image_bytes,
     int image_len,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     if (!ctx) {
         return smolvla_empty_result();
@@ -1054,7 +1021,7 @@ struct smolvla_result smolvla_predict_bytes(
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(bytes)", state, state_dim), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(bytes)", state, state_dim, task), t_total0);
 }
 
 struct smolvla_result smolvla_predict_raw_rgb(
@@ -1065,7 +1032,8 @@ struct smolvla_result smolvla_predict_raw_rgb(
     int channels,
     int stride_bytes,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     if (!ctx) {
         return smolvla_empty_result();
@@ -1108,7 +1076,7 @@ struct smolvla_result smolvla_predict_raw_rgb(
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb)", state, state_dim), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb)", state, state_dim, task), t_total0);
 }
 
 struct smolvla_stage_timings smolvla_get_last_stage_timings(const struct smolvla_context * ctx) {

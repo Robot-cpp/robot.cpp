@@ -52,7 +52,7 @@ echo "== configure =="
 
 echo "== build =="
 "${CMAKE_BIN}" --build "${BUILD_DIR}" \
-    --target smolvla-server \
+    --target model-server \
     -j8
 
 echo "== prepare outputs =="

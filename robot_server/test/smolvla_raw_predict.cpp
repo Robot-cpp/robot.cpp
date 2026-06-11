@@ -31,9 +31,6 @@ struct args_t {
     int channels = 3;
     int stride_bytes = 0;
     int threads = 0;
-    int action_dim = 6;
-    int chunk_size = 50;
-    int num_steps = 10;
     int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
     int verbosity = 0;
@@ -138,9 +135,6 @@ static void print_usage(const char * prog) {
         "  --channels <n>           Must be 3 (default: 3)\n"
         "  --stride-bytes <n>       Row stride, <=0 means width*3\n"
         "  --threads <n>            CPU threads\n"
-        "  --action-dim <n>         Action dimension\n"
-        "  --chunk-size <n>         Action chunk size\n"
-        "  --num-steps <n>          Denoising steps\n"
         "  --noise-mode <mode>      gaussian|debug-sin\n"
         "  --noise-seed <n>         RNG seed\n"
         "  --dump-dir <path>        Write meta.txt and final_actions.bin\n"
@@ -178,12 +172,6 @@ static bool parse_args(int argc, char ** argv, args_t & args) {
             args.task = argv[++i];
         } else if (arg == "--threads" && i + 1 < argc) {
             args.threads = std::atoi(argv[++i]);
-        } else if (arg == "--action-dim" && i + 1 < argc) {
-            args.action_dim = std::atoi(argv[++i]);
-        } else if (arg == "--chunk-size" && i + 1 < argc) {
-            args.chunk_size = std::atoi(argv[++i]);
-        } else if (arg == "--num-steps" && i + 1 < argc) {
-            args.num_steps = std::atoi(argv[++i]);
         } else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], args.noise_mode)) {
                 std::fprintf(stderr, "Error: invalid noise mode '%s'\n", argv[i]);
@@ -240,11 +228,7 @@ int main(int argc, char ** argv) {
     params.mmproj_path = args.mmproj_path.c_str();
     params.state_proj_path = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
-    params.task = args.task.c_str();
     params.n_threads = args.threads;
-    params.action_dim = args.action_dim;
-    params.chunk_size = args.chunk_size;
-    params.num_steps = args.num_steps;
     params.noise_mode = args.noise_mode;
     params.noise_seed = args.noise_seed;
     params.verbosity = args.verbosity;
@@ -263,7 +247,8 @@ int main(int argc, char ** argv) {
         args.channels,
         args.stride_bytes,
         state.empty() ? nullptr : state.data(),
-        (int) state.size());
+        (int) state.size(),
+        args.task.c_str());
     if (!result.actions) {
         std::fprintf(stderr, "Error: raw predict failed\n");
         smolvla_free(ctx);
