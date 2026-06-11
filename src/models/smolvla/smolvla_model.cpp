@@ -3,6 +3,7 @@
 #include "models/smolvla/smolvla_engine.h"
 
 #include <cstddef>
+#include <cstdio>
 #include <memory>
 #include <new>
 
@@ -16,7 +17,7 @@ void add_metric(model_result & out, const char * name, double value) {
     out.metrics.push_back(metric);
 }
 
-bool validate_options(const smolvla_model_options & options, std::string & error) {
+bool validate_options(const model_args & options, std::string & error) {
     if (options.llm_path.empty()) {
         error = "SmolVLA llm_path is required";
         return false;
@@ -38,23 +39,19 @@ bool validate_options(const smolvla_model_options & options, std::string & error
 
 } // namespace
 
-SmolVLAModel::SmolVLAModel(const smolvla_model_options & options, const common_options & common)
-    : options_(options), common_(common) {
+SmolVLAModel::SmolVLAModel(const model_args & args)
+    : args_(args) {
     smolvla_params params = smolvla_default_params();
-    params.llm_path = options_.llm_path.c_str();
-    params.mmproj_path = options_.mmproj_path.c_str();
-    params.state_proj_path = options_.state_proj_path.c_str();
-    params.action_expert_path = options_.action_expert_path.c_str();
-    params.task = options_.task.c_str();
-    params.n_threads = common_.threads;
-    params.n_batch = options_.n_batch;
-    params.n_ctx = options_.n_ctx;
-    params.action_dim = options_.action_dim;
-    params.chunk_size = options_.chunk_size;
-    params.num_steps = options_.num_steps;
-    params.noise_mode = options_.noise_mode;
-    params.noise_seed = options_.noise_seed;
-    params.verbosity = common_.verbosity;
+    params.llm_path = args_.llm_path.c_str();
+    params.mmproj_path = args_.mmproj_path.c_str();
+    params.state_proj_path = args_.state_proj_path.c_str();
+    params.action_expert_path = args_.action_expert_path.c_str();
+    params.n_threads = args_.threads;
+    params.n_batch = args_.n_batch;
+    params.n_ctx = args_.n_ctx;
+    params.noise_mode = args_.noise_mode;
+    params.noise_seed = args_.noise_seed;
+    params.verbosity = args_.verbosity;
 
     ctx_ = smolvla_init(params);
 }
@@ -76,19 +73,10 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
         return false;
     }
     if (obs.images.size() != 1) {
-        error = "SmolVLA currently requires exactly one image";
+        error = "SmolVLA currently requires exactly one image; received " + std::to_string(obs.images.size()) + " images";
         return false;
     }
-    if (!obs.task.empty() && obs.task != options_.task) {
-        error = "SmolVLA dynamic per-request task is not supported yet";
-        return false;
-    }
-
     const model_image & image = obs.images[0];
-    if (image.data == nullptr || image.width <= 0 || image.height <= 0 || image.channels != 3) {
-        error = "SmolVLA requires one valid RGB uint8 image";
-        return false;
-    }
 
     const smolvla_result result = smolvla_predict_raw_rgb(
         ctx_,
@@ -98,7 +86,8 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
         image.channels,
         image.stride_bytes,
         obs.state.empty() ? nullptr : obs.state.data(),
-        static_cast<int>(obs.state.size()));
+        static_cast<int>(obs.state.size()),
+        obs.task.empty() ? "grab the block." : obs.task.c_str());
     if (result.actions == nullptr) {
         error = "smolvla_predict_raw_rgb failed";
         return false;
@@ -127,16 +116,15 @@ bool SmolVLAModel::is_ready() const {
 }
 
 bool make_smolvla_model(
-    const smolvla_model_options & options,
-    const common_options & common,
+    const model_args & args,
     std::unique_ptr<Model> & out,
     std::string & error) {
     out.reset();
-    if (!validate_options(options, error)) {
+    if (!validate_options(args, error)) {
         return false;
     }
 
-    std::unique_ptr<SmolVLAModel> model(new (std::nothrow) SmolVLAModel(options, common));
+    std::unique_ptr<SmolVLAModel> model(new (std::nothrow) SmolVLAModel(args));
     if (!model) {
         error = "failed to allocate SmolVLA model";
         return false;

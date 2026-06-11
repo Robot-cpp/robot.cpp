@@ -42,16 +42,23 @@ struct model_result {
     std::vector<model_metric> metrics;
 };
 
-struct common_options {
+
+struct model_args {
+    model_type type = model_type::smolvla;
     int threads = 0;
     int verbosity = 1;
+
+    // smolvla
+    std::string llm_path;
+    std::string mmproj_path;
+    std::string state_proj_path;
+    std::string action_expert_path;
+    int n_batch = 512;
+    int n_ctx = 2048;
+    int noise_mode = 0;
+    int64_t noise_seed = -1;
 };
 
-struct model_options {
-    model_type type = model_type::smolvla;
-    common_options common;
-    std::any config;
-};
 
 class Model {
 public:
@@ -65,7 +72,7 @@ public:
 };
 
 bool make_model(
-    const model_options & options,
+    const model_args & args,
     std::unique_ptr<Model> & out,
     std::string & error);
 

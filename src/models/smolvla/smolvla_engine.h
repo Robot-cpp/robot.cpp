@@ -37,7 +37,6 @@ struct smolvla_params {
     const char * mmproj_path;         // Vision GGUF path (mmproj-smolvla-f16.gguf, includes connector weight)
     const char * state_proj_path;     // State projector GGUF path (state-proj-smolvla-f16.gguf)
     const char * action_expert_path;  // Action expert GGUF path (action-expert-smolvla-f16.gguf)
-    const char * task;                // Language instruction (e.g., "grab the block.")
     int n_threads;                    // Number of CPU threads (0 = auto)
     int n_batch;                      // Batch size for token eval (default 512)
     int n_ctx;                        // Context size (default 2048)
@@ -93,6 +92,7 @@ SMOLVLA_API struct smolvla_context * smolvla_init(struct smolvla_params params);
  * @param image_path Path to image file (JPEG/PNG, will be resized to 512x512)
  * @param state      Proprio/state array [state_dim], or NULL if no state
  * @param state_dim  Number of state dimensions (typically 6)
+ * @param task       Language instruction
  * @return Prediction result with action array [chunk_size * action_dim].
  *         The result is valid until the next call to smolvla_predict() or smolvla_free().
  *         Returns result with actions=NULL on failure.
@@ -101,7 +101,8 @@ SMOLVLA_API struct smolvla_result smolvla_predict(
     struct smolvla_context * ctx,
     const char * image_path,
     const float * state,
-    int state_dim);
+    int state_dim,
+    const char * task);
 
 /**
  * Run one prediction with raw image bytes (for pybind11/C API use).
@@ -111,6 +112,7 @@ SMOLVLA_API struct smolvla_result smolvla_predict(
  * @param image_len   Length of image_bytes
  * @param state       State array, or NULL
  * @param state_dim   Number of state dimensions
+ * @param task        Language instruction
  * @return Prediction result
  */
 SMOLVLA_API struct smolvla_result smolvla_predict_bytes(
@@ -118,7 +120,8 @@ SMOLVLA_API struct smolvla_result smolvla_predict_bytes(
     const unsigned char * image_bytes,
     int image_len,
     const float * state,
-    int state_dim);
+    int state_dim,
+    const char * task);
 
 /**
  * Run one prediction with raw RGB image memory.
@@ -134,6 +137,7 @@ SMOLVLA_API struct smolvla_result smolvla_predict_bytes(
  * @param stride_bytes Row stride in bytes. <=0 means width * 3.
  * @param state        State array, or NULL
  * @param state_dim    Number of state dimensions
+ * @param task         Language instruction
  * @return Prediction result
  */
 SMOLVLA_API struct smolvla_result smolvla_predict_raw_rgb(
@@ -144,7 +148,8 @@ SMOLVLA_API struct smolvla_result smolvla_predict_raw_rgb(
     int channels,
     int stride_bytes,
     const float * state,
-    int state_dim);
+    int state_dim,
+    const char * task);
 
 /**
  * Return the stage timings captured by the most recent successful or failed

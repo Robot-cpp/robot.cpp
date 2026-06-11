@@ -62,8 +62,6 @@ struct smolvla_context {
     // Vision embedding buffer
     std::vector<float> vision_emb;
 
-    // Task string
-    std::string task;
     std::vector<float> lang_pad_emb_cache;
     llama_token lang_pad_emb_cache_id;
     bool lang_pad_emb_cache_ready;
@@ -327,7 +325,6 @@ struct smolvla_params smolvla_default_params(void) {
     params.mmproj_path        = nullptr;
     params.state_proj_path    = nullptr;
     params.action_expert_path = nullptr;
-    params.task               = "grab the block.";
     params.n_threads          = 0;  // auto
     params.n_batch            = 512;
     params.n_ctx              = 2048;
@@ -377,7 +374,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         fprintf(stderr, "Vision:        %s\n", params.mmproj_path ? params.mmproj_path : "(none)");
         fprintf(stderr, "State Proj:    %s\n", params.state_proj_path ? params.state_proj_path : "(none)");
         fprintf(stderr, "Action Expert: %s\n", params.action_expert_path ? params.action_expert_path : "(none)");
-        fprintf(stderr, "Task:          %s\n", params.task ? params.task : "(none)");
         fprintf(stderr, "Threads:       %d\n", params.n_threads);
         fprintf(stderr, "Noise mode:    %s\n", smolvla_noise_mode_name(params.noise_mode));
         fprintf(stderr, "Noise seed:    %s\n", params.noise_seed >= 0 ? "(set)" : "auto");
@@ -410,7 +406,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     }
     ctx->noise_seed = params.noise_seed;
     ctx->verbosity  = params.verbosity;
-    ctx->task       = params.task ? params.task : "";
     ctx->fixed_prefix_seq_len = -1;
     ctx->lang_pad_emb_cache_ready = false;
     ctx->lang_pad_emb_cache_id = -1;
@@ -630,7 +625,8 @@ static struct smolvla_result smolvla_predict_impl(
     struct smolvla_context * ctx,
     const char * image_label,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     struct smolvla_result result = smolvla_empty_result();
 
@@ -656,7 +652,7 @@ static struct smolvla_result smolvla_predict_impl(
             if (state_dim > 6) fprintf(stdout, ", ...");
             fprintf(stdout, "]\n");
         }
-        fprintf(stdout, "Task: %s\n", ctx->task.c_str());
+        fprintf(stdout, "Task: %s\n", task ? task : "");
         fprintf(stdout, "===========================================\n\n");
     }
 
@@ -694,7 +690,7 @@ static struct smolvla_result smolvla_predict_impl(
         const auto t_llm_start = smolvla_clock::now();
         // ====1.3 Tokenize task and embed
         // Match SmolVLA preprocessor behavior: ensure trailing newline before tokenization.
-        std::string task_text = ctx->task;
+        std::string task_text = task && task[0] != '\0' ? task : "grab the block.";
         if (task_text.empty() || task_text.back() != '\n') {
             task_text.push_back('\n');
         }
@@ -965,7 +961,8 @@ struct smolvla_result smolvla_predict(
     struct smolvla_context * ctx,
     const char * image_path,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     if (!ctx) {
         return smolvla_empty_result();
@@ -988,7 +985,7 @@ struct smolvla_result smolvla_predict(
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, image_path, state, state_dim), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, image_path, state, state_dim, task), t_total0);
 }
 
 struct smolvla_result smolvla_predict_bytes(
@@ -996,7 +993,8 @@ struct smolvla_result smolvla_predict_bytes(
     const unsigned char * image_bytes,
     int image_len,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     if (!ctx) {
         return smolvla_empty_result();
@@ -1023,7 +1021,7 @@ struct smolvla_result smolvla_predict_bytes(
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(bytes)", state, state_dim), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(bytes)", state, state_dim, task), t_total0);
 }
 
 struct smolvla_result smolvla_predict_raw_rgb(
@@ -1034,7 +1032,8 @@ struct smolvla_result smolvla_predict_raw_rgb(
     int channels,
     int stride_bytes,
     const float * state,
-    int state_dim)
+    int state_dim,
+    const char * task)
 {
     if (!ctx) {
         return smolvla_empty_result();
@@ -1077,7 +1076,7 @@ struct smolvla_result smolvla_predict_raw_rgb(
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb)", state, state_dim), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb)", state, state_dim, task), t_total0);
 }
 
 struct smolvla_stage_timings smolvla_get_last_stage_timings(const struct smolvla_context * ctx) {

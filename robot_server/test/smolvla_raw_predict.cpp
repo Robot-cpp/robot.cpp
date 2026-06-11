@@ -228,7 +228,6 @@ int main(int argc, char ** argv) {
     params.mmproj_path = args.mmproj_path.c_str();
     params.state_proj_path = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
-    params.task = args.task.c_str();
     params.n_threads = args.threads;
     params.noise_mode = args.noise_mode;
     params.noise_seed = args.noise_seed;
@@ -248,7 +247,8 @@ int main(int argc, char ** argv) {
         args.channels,
         args.stride_bytes,
         state.empty() ? nullptr : state.data(),
-        (int) state.size());
+        (int) state.size(),
+        args.task.c_str());
     if (!result.actions) {
         std::fprintf(stderr, "Error: raw predict failed\n");
         smolvla_free(ctx);
