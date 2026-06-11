@@ -101,8 +101,8 @@ if(VLACPP_BUILD_SMOLVLA)
     target_compile_features(robotcpp PUBLIC cxx_std_17)
 
     add_library(smolvla_robot_common STATIC
-        ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla_protocol.cpp
-        ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla_protocol.h
+        ${SMOLVLA_ROBOT_SERVER_DIR}/protocol.cpp
+        ${SMOLVLA_ROBOT_SERVER_DIR}/protocol.h
         ${SMOLVLA_ROBOT_SERVER_DIR}/socket.cpp
         ${SMOLVLA_ROBOT_SERVER_DIR}/socket.h
     )
@@ -138,19 +138,14 @@ if(VLACPP_BUILD_SMOLVLA)
     target_link_libraries(model-cli PRIVATE robotcpp ggml llama)
     target_compile_features(model-cli PRIVATE cxx_std_17)
 
-    add_executable(benchmark-smolvla-cpp ${SMOLVLA_DIR}/benchmark-smolvla-cpp.cpp)
-    set_target_properties(benchmark-smolvla-cpp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_link_libraries(benchmark-smolvla-cpp PRIVATE smolvla_static ggml llama)
-    target_compile_features(benchmark-smolvla-cpp PRIVATE cxx_std_17)
-
-    add_executable(smolvla-server
-        ${SMOLVLA_ROBOT_SERVER_DIR}/smolvla-server.cpp
+    add_executable(model-server
+        ${SMOLVLA_ROBOT_SERVER_DIR}/model-server.cpp
         ${SMOLVLA_ROBOT_SERVER_DIR}/model_adapter.cpp
     )
-    set_target_properties(smolvla-server PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_include_directories(smolvla-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMOLVLA_DIR})
-    target_link_libraries(smolvla-server PRIVATE robotcpp smolvla_robot_server ggml llama)
-    target_compile_features(smolvla-server PRIVATE cxx_std_17)
+    set_target_properties(model-server PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_include_directories(model-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMOLVLA_DIR})
+    target_link_libraries(model-server PRIVATE robotcpp smolvla_robot_server ggml llama)
+    target_compile_features(model-server PRIVATE cxx_std_17)
 
     add_executable(smolvla-cpp-client-example ${SMOLVLA_ROBOT_SERVER_DIR}/examples/cpp/minimal_predict.cpp)
     set_target_properties(smolvla-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
