@@ -69,8 +69,6 @@ static void print_usage(const char * prog) {
         "  --threads <n>            CPU threads (default: auto)\n"
         "  --n-batch <n>            LLM batch size (default: 512)\n"
         "  --n-ctx <n>              LLM context size (default: 2048)\n"
-        "  --action-dim <n>         Action dimension (default: 6)\n"
-        "  --chunk-size <n>         Action chunk size (default: 50)\n"
         "  --noise-mode <mode>      gaussian|debug-sin (default: gaussian)\n"
         "  --noise-seed <n>         RNG seed, <0 means auto (default: -1)\n"
         "  --verbosity <n>          Log verbosity (default: 1)\n"

@@ -8,7 +8,6 @@
 
 namespace robotcpp {
 class Model;
-struct model_result;
 }
 
 namespace robot_server {
@@ -30,8 +29,6 @@ public:
     void set_task(std::string task);
 
 private:
-    static double metric_value(const robotcpp::model_result & result, const char * name);
-
     std::unique_ptr<robotcpp::Model> model_;
     std::string task_;
 };

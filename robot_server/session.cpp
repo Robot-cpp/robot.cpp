@@ -8,7 +8,7 @@
 // - health:   text payload, "ok policy=<name>"
 // - reset:    text payload, "ok"
 // - shutdown: text payload, "ok", then asks the outer server loop to exit
-// - predict:  binary predict_response payload with action chunk and timings
+// - predict:  binary predict_response payload with action chunk and metrics
 //
 // Errors are returned as text payloads with a non-OK protocol status. The policy
 // engine itself is shared by the server, so predict/reset calls are serialized by
@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstdio>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace proto = smolvla::protocol;
@@ -27,6 +28,13 @@ namespace {
 
 static double elapsed_ms(const clock_type::time_point & a, const clock_type::time_point & b) {
     return std::chrono::duration<double, std::milli>(b - a).count();
+}
+
+static void add_metric(proto::predict_response & resp, const char * name, double value) {
+    proto::metric metric;
+    metric.name = name;
+    metric.value = value;
+    resp.metrics.push_back(std::move(metric));
 }
 
 static bool send_message(
@@ -126,21 +134,23 @@ bool handle_client(
             }
 
             proto::predict_response resp;
-            resp.timing.server_recv_ms = recv_ms;
+            add_metric(resp, "server_recv_ms", recv_ms);
 
             const auto t_queue0 = clock_type::now();
             std::unique_lock<std::mutex> lock(predict_mutex);
-            resp.timing.server_queue_ms = elapsed_ms(t_queue0, clock_type::now());
+            const double server_queue_ms = elapsed_ms(t_queue0, clock_type::now());
 
             const auto t_predict0 = clock_type::now();
             const bool ok = policy.predict(req, resp, error);
-            resp.timing.server_predict_ms = elapsed_ms(t_predict0, clock_type::now());
+            const double server_predict_ms = elapsed_ms(t_predict0, clock_type::now());
             lock.unlock();
 
             if (!ok) {
                 send_text(fd, h.op, h.request_id, proto::status_internal_error, error);
                 continue;
             }
+            add_metric(resp, "server_queue_ms", server_queue_ms);
+            add_metric(resp, "server_predict_ms", server_predict_ms);
 
             std::vector<uint8_t> out;
             if (!proto::encode_predict_response(resp, out, error)) {

@@ -19,14 +19,18 @@ bool model_adapter::predict(const proto::predict_request & req, proto::predict_r
     }
 
     robotcpp::observation obs;
-    robotcpp::model_image image;
-    image.name = "image";
-    image.data = req.image.empty() ? nullptr : req.image.data();
-    image.width = static_cast<int>(req.width);
-    image.height = static_cast<int>(req.height);
-    image.channels = static_cast<int>(req.channels);
-    image.stride_bytes = static_cast<int>(req.stride_bytes);
-    obs.images.push_back(image);
+    obs.images.reserve(req.images.size());
+    for (const proto::image_payload & src : req.images) {
+        robotcpp::model_image image;
+        image.name = src.name.empty() ? "image" : src.name;
+        image.data = src.data.empty() ? nullptr : src.data.data();
+        image.width = static_cast<int>(src.width);
+        image.height = static_cast<int>(src.height);
+        image.channels = static_cast<int>(src.channels);
+        image.stride_bytes = static_cast<int>(src.stride_bytes);
+        image.data_size = src.data.size();
+        obs.images.push_back(image);
+    }
     obs.state = req.state;
     obs.task = task_;
 
@@ -38,13 +42,13 @@ bool model_adapter::predict(const proto::predict_request & req, proto::predict_r
     resp.chunk_size = static_cast<uint32_t>(result.chunk_size);
     resp.action_dim = static_cast<uint32_t>(result.action_dim);
     resp.actions = std::move(result.actions);
-
-    resp.timing.vision_ms = metric_value(result, "vision_ms");
-    resp.timing.state_proj_ms = metric_value(result, "state_proj_ms");
-    resp.timing.llm_ms = metric_value(result, "llm_ms");
-    resp.timing.kv_extract_ms = metric_value(result, "kv_extract_ms");
-    resp.timing.phase2_ms = metric_value(result, "phase2_ms");
-    resp.timing.model_total_ms = metric_value(result, "model_total_ms");
+    resp.metrics.reserve(result.metrics.size());
+    for (const robotcpp::model_metric & src : result.metrics) {
+        proto::metric dst;
+        dst.name = src.name;
+        dst.value = src.value;
+        resp.metrics.push_back(std::move(dst));
+    }
     return true;
 }
 
@@ -60,15 +64,6 @@ const char * model_adapter::name() const {
 
 void model_adapter::set_task(std::string task) {
     task_ = std::move(task);
-}
-
-double model_adapter::metric_value(const robotcpp::model_result & result, const char * name) {
-    for (const robotcpp::model_metric & metric : result.metrics) {
-        if (metric.name == name) {
-            return metric.value;
-        }
-    }
-    return 0.0;
 }
 
 } // namespace robot_server

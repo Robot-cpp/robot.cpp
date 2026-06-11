@@ -9,7 +9,7 @@ namespace smolvla {
 namespace protocol {
 
 static constexpr uint32_t k_magic = 0x414c5653u; // "SVLA" in little-endian bytes.
-static constexpr uint16_t k_version = 1;
+static constexpr uint16_t k_version = 3;
 static constexpr uint16_t k_header_size = 32;
 static constexpr uint64_t k_default_max_payload = 256ull * 1024ull * 1024ull;
 
@@ -33,6 +33,16 @@ enum image_format : uint32_t {
     image_raw_rgb_u8 = 1,
 };
 
+struct image_payload {
+    uint32_t image_format = image_raw_rgb_u8;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t channels = 0;
+    uint32_t stride_bytes = 0;
+    std::string name;
+    std::vector<uint8_t> data;
+};
+
 struct header {
     uint32_t magic = k_magic;
     uint16_t version = k_version;
@@ -45,34 +55,22 @@ struct header {
     uint32_t reserved = 0;
 };
 
-struct timings {
-    double vision_ms = 0.0;
-    double state_proj_ms = 0.0;
-    double llm_ms = 0.0;
-    double kv_extract_ms = 0.0;
-    double phase2_ms = 0.0;
-    double model_total_ms = 0.0;
-    double server_recv_ms = 0.0;
-    double server_queue_ms = 0.0;
-    double server_predict_ms = 0.0;
+struct metric {
+    std::string name;
+    double value = 0.0;
 };
 
 struct predict_request {
-    uint32_t image_format = image_raw_rgb_u8;
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t channels = 0;
-    uint32_t stride_bytes = 0;
+    std::vector<image_payload> images;
     std::vector<float> state;
     std::string task;
-    std::vector<uint8_t> image;
 };
 
 struct predict_response {
     uint32_t chunk_size = 0;
     uint32_t action_dim = 0;
     std::vector<float> actions;
-    timings timing;
+    std::vector<metric> metrics;
 };
 
 void encode_header(const header & h, std::vector<uint8_t> & out);
