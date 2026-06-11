@@ -1,6 +1,6 @@
 #include "session.h"
 
-#include "smolvla_protocol.h"
+#include "protocol.h"
 
 // Session owns the request/response conversation for one connected client.
 //
@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace proto = smolvla::protocol;
+namespace proto = robot_server::protocol;
 using clock_type = std::chrono::steady_clock;
 
 namespace robot_server {
@@ -66,7 +66,7 @@ static bool send_text(
     proto::encode_text_payload(text, payload);
     std::string error;
     if (!send_message(fd, op, request_id, status, payload, error)) {
-        std::fprintf(stderr, "[SmolVLA server] failed to send response: %s\n", error.c_str());
+        std::fprintf(stderr, "[model-server] failed to send response: %s\n", error.c_str());
         return false;
     }
     return true;
@@ -111,7 +111,7 @@ bool handle_client(
         std::string error;
         if (!read_message(fd, h, payload, recv_ms, error)) {
             if (error != "peer closed connection") {
-                std::fprintf(stderr, "[SmolVLA server] read failed: %s\n", error.c_str());
+                std::fprintf(stderr, "[model-server] read failed: %s\n", error.c_str());
             }
             return false;
         }
@@ -158,7 +158,7 @@ bool handle_client(
                 continue;
             }
             if (!send_message(fd, h.op, h.request_id, proto::status_ok, out, error)) {
-                std::fprintf(stderr, "[SmolVLA server] send failed: %s\n", error.c_str());
+                std::fprintf(stderr, "[model-server] send failed: %s\n", error.c_str());
                 return false;
             }
         } else {

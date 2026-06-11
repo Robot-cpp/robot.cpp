@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace proto = smolvla::protocol;
+namespace proto = robot_server::protocol;
 
 namespace robot_server {
 
@@ -28,11 +28,10 @@ bool model_adapter::predict(const proto::predict_request & req, proto::predict_r
         image.height = static_cast<int>(src.height);
         image.channels = static_cast<int>(src.channels);
         image.stride_bytes = static_cast<int>(src.stride_bytes);
-        image.data_size = src.data.size();
         obs.images.push_back(image);
     }
     obs.state = req.state;
-    obs.task = task_;
+    obs.task = req.task;
 
     robotcpp::model_result result;
     if (!model_->predict(obs, result, error)) {
@@ -60,10 +59,6 @@ void model_adapter::reset() {
 
 const char * model_adapter::name() const {
     return model_ ? model_->type() : "invalid";
-}
-
-void model_adapter::set_task(std::string task) {
-    task_ = std::move(task);
 }
 
 } // namespace robot_server

@@ -1,7 +1,7 @@
 #ifndef ROBOT_SERVER_MODEL_ADAPTER_H
 #define ROBOT_SERVER_MODEL_ADAPTER_H
 
-#include "smolvla_protocol.h"
+#include "protocol.h"
 
 #include <memory>
 #include <string>
@@ -21,16 +21,14 @@ public:
     model_adapter & operator=(const model_adapter &) = delete;
 
     bool predict(
-        const smolvla::protocol::predict_request & req,
-        smolvla::protocol::predict_response & resp,
+        const robot_server::protocol::predict_request & req,
+        robot_server::protocol::predict_response & resp,
         std::string & error);
     void reset();
     const char * name() const;
-    void set_task(std::string task);
 
 private:
     std::unique_ptr<robotcpp::Model> model_;
-    std::string task_;
 };
 
 } // namespace robot_server

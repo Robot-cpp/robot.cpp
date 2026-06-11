@@ -1,11 +1,11 @@
-#ifndef SMOLVLA_PROTOCOL_H
-#define SMOLVLA_PROTOCOL_H
+#ifndef ROBOT_SERVER_PROTOCOL_H
+#define ROBOT_SERVER_PROTOCOL_H
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace smolvla {
+namespace robot_server {
 namespace protocol {
 
 static constexpr uint32_t k_magic = 0x414c5653u; // "SVLA" in little-endian bytes.
@@ -87,6 +87,6 @@ bool encode_predict_response(const predict_response & resp, std::vector<uint8_t>
 bool decode_predict_response(const std::vector<uint8_t> & payload, predict_response & resp, std::string & error);
 
 } // namespace protocol
-} // namespace smolvla
+} // namespace robot_server
 
-#endif // SMOLVLA_PROTOCOL_H
+#endif // ROBOT_SERVER_PROTOCOL_H

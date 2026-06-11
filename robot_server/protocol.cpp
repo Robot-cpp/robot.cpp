@@ -1,9 +1,9 @@
-#include "smolvla_protocol.h"
+#include "protocol.h"
 
 #include <cstring>
 #include <limits>
 
-namespace smolvla {
+namespace robot_server {
 namespace protocol {
 namespace {
 
@@ -406,4 +406,4 @@ bool decode_predict_response(const std::vector<uint8_t> & payload, predict_respo
 }
 
 } // namespace protocol
-} // namespace smolvla
+} // namespace robot_server
