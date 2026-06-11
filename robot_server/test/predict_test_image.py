@@ -10,7 +10,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from client.python.smolvla_client import SmolVLAClient
+import numpy as np
+
+from client.python.model_client import ModelClient
 
 
 DEFAULT_STATE = (
@@ -25,6 +27,14 @@ def parse_state(text: str) -> list[float]:
 
 def load_raw_rgb(path: str) -> bytes:
     return Path(path).read_bytes()
+
+
+def load_raw_rgb_image(path: str, width: int, height: int) -> np.ndarray:
+    data = np.frombuffer(load_raw_rgb(path), dtype=np.uint8)
+    expected = width * height * 3
+    if data.size != expected:
+        raise ValueError(f"raw RGB size mismatch: got {data.size}, expected {expected}")
+    return data.reshape((height, width, 3))
 
 
 def dump_final_actions(response, dump_dir: str | None) -> None:
@@ -54,14 +64,18 @@ def main() -> int:
     parser.add_argument("--dump-dir", default=os.environ.get("SMOLVLA_DUMP_DIR"))
     args = parser.parse_args()
 
-    client = SmolVLAClient(host=args.host, port=args.port)
-    response = client.predict_raw_rgb(
-        load_raw_rgb(args.raw_rgb),
-        width=args.width,
-        height=args.height,
-        state=parse_state(args.state),
-        prompt=args.prompt,
-    )
+    client = ModelClient(host=args.host, port=args.port)
+    observation = {
+        "images": [
+            {
+                "name": "image",
+                "image": load_raw_rgb_image(args.raw_rgb, args.width, args.height),
+            }
+        ],
+        "state": parse_state(args.state),
+        "prompt": args.prompt,
+    }
+    response = client.predict(observation)
 
     dump_final_actions(response, args.dump_dir)
 

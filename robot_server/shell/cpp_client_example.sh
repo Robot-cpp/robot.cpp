@@ -9,7 +9,7 @@ PORT="${PORT:-5555}"
 BUILD_CLIENT="${BUILD_CLIENT:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 
-CLIENT_BIN="${BUILD_DIR}/bin/smolvla-cpp-client-example"
+CLIENT_BIN="${BUILD_DIR}/bin/model-cpp-client-example"
 
 if [ "${BUILD_CLIENT}" = "1" ] || [ ! -x "${CLIENT_BIN}" ]; then
     echo "== configure =="
@@ -25,7 +25,7 @@ if [ "${BUILD_CLIENT}" = "1" ] || [ ! -x "${CLIENT_BIN}" ]; then
 
     echo "== build cpp client example =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
-        --target smolvla-cpp-client-example \
+        --target model-cpp-client-example \
         -j8
 fi
 

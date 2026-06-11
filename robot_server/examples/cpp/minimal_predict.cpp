@@ -1,4 +1,4 @@
-#include "client/cpp/smolvla_client.h"
+#include "client/cpp/model_client.h"
 
 #include <cstdint>
 #include <iomanip>
@@ -50,19 +50,21 @@ int main(int argc, char ** argv) {
     std::vector<uint8_t> image = make_random_rgb_image(width, height);
     std::vector<float> state = make_random_state(6);
 
-    client::SmolVLAObservation obs;
-    obs.rgb_hwc_u8 = image.data();
-    obs.width = width;
-    obs.height = height;
-    obs.stride_bytes = width * 3;
-    obs.state = state.data();
-    obs.state_dim = (uint32_t) state.size();
+    client::ModelObservation obs;
+    client::ModelImage camera;
+    camera.name = "image";
+    camera.rgb_hwc_u8 = image.data();
+    camera.width = width;
+    camera.height = height;
+    camera.stride_bytes = width * 3;
+    obs.images.push_back(camera);
+    obs.state = state;
     obs.prompt = "grab the block.";
 
-    client::SmolVLAClient smolvla(host, port);
-    client::SmolVLAResponse response;
+    client::ModelClient model(host, port);
+    client::ModelResponse response;
     std::string error;
-    if (!smolvla.predict(obs, response, error)) {
+    if (!model.predict(obs, response, error)) {
         std::cerr << "predict failed: " << error << "\n";
         return 1;
     }
@@ -76,6 +78,6 @@ int main(int argc, char ** argv) {
     }
     std::cout << "\n";
     std::cout << "model_total_ms: " << std::fixed << std::setprecision(2)
-              << response.timing.model_total_ms << "\n";
+              << response.metric_value("model_total_ms") << "\n";
     return 0;
 }
