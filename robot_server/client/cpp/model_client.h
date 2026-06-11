@@ -1,7 +1,7 @@
-#ifndef ROBOT_SERVER_CLIENT_CPP_SMOLVLA_CLIENT_H
-#define ROBOT_SERVER_CLIENT_CPP_SMOLVLA_CLIENT_H
+#ifndef ROBOT_SERVER_CLIENT_CPP_MODEL_CLIENT_H
+#define ROBOT_SERVER_CLIENT_CPP_MODEL_CLIENT_H
 
-#include "smolvla_protocol.h"
+#include "protocol.h"
 
 #include <cstdint>
 #include <string>
@@ -10,33 +10,38 @@
 namespace robot_server {
 namespace client {
 
-struct SmolVLAObservation {
+struct ModelImage {
     const uint8_t * rgb_hwc_u8 = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t stride_bytes = 0;
-    const float * state = nullptr;
-    uint32_t state_dim = 0;
+    std::string name = "image";
+};
+
+struct ModelObservation {
+    std::vector<ModelImage> images;
+    std::vector<float> state;
     std::string prompt = "grab the block.";
 };
 
-struct SmolVLAResponse {
+struct ModelResponse {
     uint32_t chunk_size = 0;
     uint32_t action_dim = 0;
     std::vector<float> actions_flat;
-    smolvla::protocol::timings timing;
+    std::vector<robot_server::protocol::metric> metrics;
 
     const float * action_row(uint32_t index) const;
+    double metric_value(const std::string & name, double fallback = 0.0) const;
 };
 
-class SmolVLAClient {
+class ModelClient {
 public:
-    SmolVLAClient(std::string host = "127.0.0.1", uint16_t port = 5555);
+    ModelClient(std::string host = "127.0.0.1", uint16_t port = 5555);
 
     bool health(std::string & text, std::string & error);
     bool reset(std::string & text, std::string & error);
     bool shutdown(std::string & text, std::string & error);
-    bool predict(const SmolVLAObservation & obs, SmolVLAResponse & response, std::string & error);
+    bool predict(const ModelObservation & obs, ModelResponse & response, std::string & error);
 
 private:
     bool call(uint16_t op, const std::vector<uint8_t> & request_payload, std::vector<uint8_t> & response_payload, std::string & error);
@@ -49,4 +54,4 @@ private:
 } // namespace client
 } // namespace robot_server
 
-#endif // ROBOT_SERVER_CLIENT_CPP_SMOLVLA_CLIENT_H
+#endif // ROBOT_SERVER_CLIENT_CPP_MODEL_CLIENT_H
