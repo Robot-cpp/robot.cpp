@@ -11,7 +11,7 @@ class smolvla_policy : public vla_policy {
 public:
     explicit smolvla_policy(const smolvla_policy_options & options) {
         smolvla_params params = smolvla_default_params();
-        params.vlm_path = options.vlm_path.c_str();
+        params.llm_path = options.llm_path.c_str();
         params.mmproj_path = options.mmproj_path.c_str();
         params.state_proj_path = options.state_proj_path.empty() ? nullptr : options.state_proj_path.c_str();
         params.action_expert_path = options.action_expert_path.empty() ? nullptr : options.action_expert_path.c_str();
@@ -64,7 +64,7 @@ public:
         const smolvla_stage_timings t = smolvla_get_last_stage_timings(ctx_);
         resp.timing.vision_ms = t.vision_ms;
         resp.timing.state_proj_ms = t.state_proj_ms;
-        resp.timing.vlm_ms = t.vlm_ms;
+        resp.timing.llm_ms = t.llm_ms;
         resp.timing.kv_extract_ms = t.kv_extract_ms;
         resp.timing.phase2_ms = t.phase2_ms;
         resp.timing.model_total_ms = t.total_ms;

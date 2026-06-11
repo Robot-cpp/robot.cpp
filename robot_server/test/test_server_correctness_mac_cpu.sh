@@ -16,12 +16,13 @@ STATE="${STATE:-0.5479121208190918,-0.12224312126636505,0.7171958684921265,0.394
 PYTHON="${PYTHON:-python3}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_correctness}"
+DTYPE="${DTYPE:-f32}"
 # ====================================
 
-VLM_GGUF="${GGUF_DIR}/smolvla-vlm-f32.gguf"
-VISION_GGUF="${GGUF_DIR}/mmproj-smolvla-f32.gguf"
-STATE_PROJ_GGUF="${GGUF_DIR}/state-proj-smolvla-f32.gguf"
-ACTION_EXPERT_GGUF="${GGUF_DIR}/action-expert-smolvla-f32.gguf"
+LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
+VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}"
+STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
+ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
 
 RAW_PREDICT_BIN="${BUILD_DIR}/bin/smolvla-raw-predict"
 LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
@@ -78,7 +79,7 @@ RAW_STRIDE="$(awk '$1 == "stride_bytes" { print $2 }' "${RAW_META_FILE}")"
 
 echo "== run raw reference =="
 "${RAW_PREDICT_BIN}" \
-    --vlm "${VLM_GGUF}" \
+    --llm "${LLM_GGUF}" \
     --mmproj "${VISION_GGUF}" \
     --state-proj "${STATE_PROJ_GGUF}" \
     --action-expert "${ACTION_EXPERT_GGUF}" \
@@ -98,6 +99,11 @@ echo "== launch server =="
 VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
 BUILD_DIR="${BUILD_DIR}" \
 GGUF_DIR="${GGUF_DIR}" \
+DTYPE="${DTYPE}" \
+LLM_GGUF="${LLM_GGUF}" \
+VISION_GGUF="${VISION_GGUF}" \
+STATE_PROJ_GGUF="${STATE_PROJ_GGUF}" \
+ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF}" \
 HOST="${HOST}" \
 PORT="${PORT}" \
 THREADS="${THREADS}" \

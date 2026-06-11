@@ -33,7 +33,7 @@ enum smolvla_noise_mode {
 // Initialization parameters
 // ============================================================================
 struct smolvla_params {
-    const char * vlm_path;            // VLM GGUF path (smolvla-vlm-f16.gguf)
+    const char * llm_path;            // LLM GGUF path (smolvla-llm-f16.gguf)
     const char * mmproj_path;         // Vision GGUF path (mmproj-smolvla-f16.gguf, includes connector weight)
     const char * state_proj_path;     // State projector GGUF path (state-proj-smolvla-f16.gguf)
     const char * action_expert_path;  // Action expert GGUF path (action-expert-smolvla-f16.gguf)
@@ -61,8 +61,8 @@ struct smolvla_result {
 struct smolvla_stage_timings {
     double vision_ms;                 // Image encode + vision model forward
     double state_proj_ms;             // State normalization + state projection
-    double vlm_ms;                    // Prefix/token prep + VLM forward
-    double kv_extract_ms;             // Extract VLM KV cache for Phase 2
+    double llm_ms;                    // Prefix/token prep + LLM forward
+    double kv_extract_ms;             // Extract LLM KV cache for Phase 2
     double phase2_ms;                 // Full denoising loop + final unnormalization
     double total_ms;                  // End-to-end predict(...) time inside C++
 };
@@ -89,7 +89,7 @@ SMOLVLA_API struct smolvla_context * smolvla_init(struct smolvla_params params);
  * Run one prediction: image + state + task → actions.
  *
  * SmolVLA uses Flow Matching with denoising iterations:
- * 1. Encode image + state + task → VLM hidden states (KV cache)
+ * 1. Encode image + state + task → LLM hidden states (KV cache)
  * 2. Denoise random noise → actions (10 steps by default)
  *
  * @param ctx        Engine context (from smolvla_init)

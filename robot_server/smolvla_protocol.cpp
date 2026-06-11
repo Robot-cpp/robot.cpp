@@ -279,7 +279,7 @@ bool encode_predict_response(const predict_response & resp, std::vector<uint8_t>
     put_u32(out, (uint32_t) resp.actions.size());
     put_f64(out, resp.timing.vision_ms);
     put_f64(out, resp.timing.state_proj_ms);
-    put_f64(out, resp.timing.vlm_ms);
+    put_f64(out, resp.timing.llm_ms);
     put_f64(out, resp.timing.kv_extract_ms);
     put_f64(out, resp.timing.phase2_ms);
     put_f64(out, resp.timing.model_total_ms);
@@ -297,7 +297,7 @@ bool decode_predict_response(const std::vector<uint8_t> & payload, predict_respo
     uint32_t action_count = 0;
     if (!r.u32(resp.chunk_size) || !r.u32(resp.action_dim) || !r.u32(action_count) ||
         !r.f64(resp.timing.vision_ms) || !r.f64(resp.timing.state_proj_ms) ||
-        !r.f64(resp.timing.vlm_ms) || !r.f64(resp.timing.kv_extract_ms) ||
+        !r.f64(resp.timing.llm_ms) || !r.f64(resp.timing.kv_extract_ms) ||
         !r.f64(resp.timing.phase2_ms) || !r.f64(resp.timing.model_total_ms) ||
         !r.f64(resp.timing.server_recv_ms) || !r.f64(resp.timing.server_queue_ms) ||
         !r.f64(resp.timing.server_predict_ms)) {

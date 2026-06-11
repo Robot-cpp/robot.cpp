@@ -16,12 +16,13 @@ NOISE_SEED="${NOISE_SEED:--1}"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
+DTYPE="${DTYPE:-f32}"
 # ====================================
 
-VLM_GGUF="${GGUF_DIR}/smolvla-vlm-f32.gguf"
-VISION_GGUF="${GGUF_DIR}/mmproj-smolvla-f32.gguf"
-STATE_PROJ_GGUF="${GGUF_DIR}/state-proj-smolvla-f32.gguf"
-ACTION_EXPERT_GGUF="${GGUF_DIR}/action-expert-smolvla-f32.gguf"
+LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
+VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}"
+STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
+ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
 SERVER_BIN="${BUILD_DIR}/bin/smolvla-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
@@ -48,7 +49,7 @@ echo "port: ${PORT}"
 echo "task: ${TASK}"
 
 exec "${SERVER_BIN}" \
-    --vlm "${VLM_GGUF}" \
+    --llm "${LLM_GGUF}" \
     --mmproj "${VISION_GGUF}" \
     --state-proj "${STATE_PROJ_GGUF}" \
     --action-expert "${ACTION_EXPERT_GGUF}" \
