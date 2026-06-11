@@ -3,7 +3,6 @@
 #include "core/types.h"
 #include "vlacpp.h"
 
-#include <any>
 #include <cstdint>
 #include <memory>
 #include <string>

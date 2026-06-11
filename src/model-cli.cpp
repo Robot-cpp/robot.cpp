@@ -196,7 +196,6 @@ int main(int argc, char ** argv) {
     model_image.height = image.height;
     model_image.channels = image.channels;
     model_image.stride_bytes = image.stride_bytes;
-    model_image.data_size = image.data.size();
     obs.images.push_back(model_image);
     obs.state = state_vec;
     obs.task = task;
