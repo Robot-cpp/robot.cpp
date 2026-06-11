@@ -39,9 +39,6 @@ struct smolvla_params {
     const char * action_expert_path;  // Action expert GGUF path (action-expert-smolvla-f16.gguf)
     const char * task;                // Language instruction (e.g., "grab the block.")
     int n_threads;                    // Number of CPU threads (0 = auto)
-    int action_dim;                   // Action dimension (default 6)
-    int chunk_size;                   // Action chunk size (default 50)
-    int num_steps;                    // Denoising steps (default 10)
     int n_batch;                      // Batch size for token eval (default 512)
     int n_ctx;                        // Context size (default 2048)
     int noise_mode;                   // 0=gaussian (default), 1=debug_sin

@@ -52,9 +52,6 @@ struct bench_args {
     std::string result_tsv;
 
     int threads = 0;
-    int action_dim = 6;
-    int chunk_size = 50;
-    int num_steps = 10;
     int warmup = 5;
     int loops = 100;
     int verbosity = 0;
@@ -147,9 +144,6 @@ static void print_usage(const char * prog) {
         "  --task <str>            Task instruction (default: \"grab the block.\")\n"
         "  --mode <path|bytes>     Benchmark predict() or predict_bytes() (default: bytes)\n"
         "  --threads <n>           CPU threads (default: auto)\n"
-        "  --action-dim <n>        Action dimension (default: 6)\n"
-        "  --chunk-size <n>        Action chunk size (default: 50)\n"
-        "  --num-steps <n>         Denoising steps (default: 10)\n"
         "  --noise-mode <mode>     gaussian|debug-sin (default: gaussian)\n"
         "  --noise-seed <n>        RNG seed, <0 means auto (default: -1)\n"
         "  --warmup <n>            Warmup iterations (default: 5)\n"
@@ -186,12 +180,6 @@ static bool parse_args(int argc, char ** argv, bench_args & args) {
             args.mode = argv[++i];
         } else if (arg == "--threads" && i + 1 < argc) {
             args.threads = std::atoi(argv[++i]);
-        } else if (arg == "--action-dim" && i + 1 < argc) {
-            args.action_dim = std::atoi(argv[++i]);
-        } else if (arg == "--chunk-size" && i + 1 < argc) {
-            args.chunk_size = std::atoi(argv[++i]);
-        } else if (arg == "--num-steps" && i + 1 < argc) {
-            args.num_steps = std::atoi(argv[++i]);
         } else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], args.noise_mode)) {
                 std::fprintf(stderr, "Error: invalid noise mode '%s'\n", argv[i]);
@@ -311,9 +299,6 @@ int main(int argc, char ** argv) {
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
     params.task               = args.task.c_str();
     params.n_threads          = args.threads;
-    params.action_dim         = args.action_dim;
-    params.chunk_size         = args.chunk_size;
-    params.num_steps          = args.num_steps;
     params.noise_mode         = args.noise_mode;
     params.noise_seed         = static_cast<int64_t>(args.noise_seed);
     params.verbosity          = args.verbosity;

@@ -329,9 +329,6 @@ struct smolvla_params smolvla_default_params(void) {
     params.action_expert_path = nullptr;
     params.task               = "grab the block.";
     params.n_threads          = 0;  // auto
-    params.action_dim         = 6;
-    params.chunk_size         = 50;
-    params.num_steps          = 10;
     params.n_batch            = 512;
     params.n_ctx              = 2048;
     params.noise_mode         = SMOLVLA_NOISE_MODE_GAUSSIAN;
@@ -382,9 +379,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         fprintf(stderr, "Action Expert: %s\n", params.action_expert_path ? params.action_expert_path : "(none)");
         fprintf(stderr, "Task:          %s\n", params.task ? params.task : "(none)");
         fprintf(stderr, "Threads:       %d\n", params.n_threads);
-        fprintf(stderr, "Action dim:    %d\n", params.action_dim);
-        fprintf(stderr, "Chunk size:    %d\n", params.chunk_size);
-        fprintf(stderr, "Denoise steps: %d\n", params.num_steps);
         fprintf(stderr, "Noise mode:    %s\n", smolvla_noise_mode_name(params.noise_mode));
         fprintf(stderr, "Noise seed:    %s\n", params.noise_seed >= 0 ? "(set)" : "auto");
         if (params.noise_seed >= 0) {
@@ -399,9 +393,9 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     ctx->ctx_llama = nullptr;
     ctx->tok_embd  = nullptr;
     ctx->expert    = nullptr;
-    ctx->action_dim = params.action_dim;
-    ctx->chunk_size = params.chunk_size;
-    ctx->num_steps  = params.num_steps;
+    ctx->action_dim = 0;
+    ctx->chunk_size = 0;
+    ctx->num_steps  = 0;
     ctx->n_threads  = params.n_threads > 0 ? params.n_threads : 4;
     ctx->n_batch    = params.n_batch > 0 ? params.n_batch : 512;
     ctx->n_ctx      = params.n_ctx > 0 ? params.n_ctx : 2048;
@@ -432,8 +426,6 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         ctx->noise_rng.seed(seq);
     }
 
-    // Allocate action buffer
-    ctx->action_buffer.resize(ctx->chunk_size * ctx->action_dim, 0.0f);
     ctx->last_timings = smolvla_empty_stage_timings();
 
     // Load State Projector
@@ -516,6 +508,19 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         ctx->expert = smolvla_action_expert_load(params.action_expert_path, params.verbosity);
         if (!ctx->expert) {
             fprintf(stderr, "[SmolVLA] Warning: Failed to load action expert, continuing without\n");
+        } else {
+            ctx->action_dim = ctx->expert->action_dim;
+            ctx->chunk_size = ctx->expert->chunk_size;
+            ctx->num_steps = ctx->expert->num_steps;
+            if (ctx->action_dim <= 0 || ctx->chunk_size <= 0 || ctx->num_steps <= 0) {
+                fprintf(stderr,
+                        "[SmolVLA] Error: invalid action expert shape from GGUF "
+                        "(action_dim=%d chunk_size=%d num_steps=%d)\n",
+                        ctx->action_dim, ctx->chunk_size, ctx->num_steps);
+                smolvla_free(ctx);
+                return nullptr;
+            }
+            ctx->action_buffer.resize((size_t) ctx->chunk_size * (size_t) ctx->action_dim, 0.0f);
         }
     }
 
@@ -842,6 +847,11 @@ static struct smolvla_result smolvla_predict_impl(
         ctx->last_timings.llm_ms = smolvla_elapsed_ms(t_llm_start, smolvla_clock::now());
     }
 
+    if (!ctx->expert) {
+        fprintf(stderr, "[SmolVLA] FATAL: missing action expert for prediction\n");
+        return result;
+    }
+
     // Extract LLM KV cache for Action Expert
     const auto t_kv0 = smolvla_clock::now();
     if (!extract_llm_kv_cache(ctx)) {
@@ -856,7 +866,7 @@ static struct smolvla_result smolvla_predict_impl(
 
     const auto t_phase20 = smolvla_clock::now();
     {
-        const int chunk = ctx->expert->chunk_size;
+        const int chunk = ctx->chunk_size;
         const int padded_action_dim = ctx->expert->max_action_dim;
         const int hidden = ctx->expert->hidden_size;
         const float dt = -1.0f / (float) ctx->num_steps;

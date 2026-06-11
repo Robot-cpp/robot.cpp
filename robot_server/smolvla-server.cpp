@@ -28,9 +28,6 @@ struct server_args {
     int threads = 0;
     int n_batch = 512;
     int n_ctx = 2048;
-    int action_dim = 6;
-    int chunk_size = 50;
-    int num_steps = 10;
     int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
     int verbosity = 1;
@@ -108,12 +105,6 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
             args.n_batch = std::atoi(argv[++i]);
         } else if (arg == "--n-ctx" && i + 1 < argc) {
             args.n_ctx = std::atoi(argv[++i]);
-        } else if (arg == "--action-dim" && i + 1 < argc) {
-            args.action_dim = std::atoi(argv[++i]);
-        } else if (arg == "--chunk-size" && i + 1 < argc) {
-            args.chunk_size = std::atoi(argv[++i]);
-        } else if (arg == "--num-steps" && i + 1 < argc) {
-            args.num_steps = std::atoi(argv[++i]);
         } else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], args.noise_mode)) {
                 std::fprintf(stderr, "Error: invalid noise mode '%s'\n", argv[i]);
@@ -152,9 +143,6 @@ static robotcpp::model_options make_model_options(const server_args & args) {
     smolvla_options.task = args.task;
     smolvla_options.n_batch = args.n_batch;
     smolvla_options.n_ctx = args.n_ctx;
-    smolvla_options.action_dim = args.action_dim;
-    smolvla_options.chunk_size = args.chunk_size;
-    smolvla_options.num_steps = args.num_steps;
     smolvla_options.noise_mode = args.noise_mode;
     smolvla_options.noise_seed = args.noise_seed;
 

@@ -49,9 +49,6 @@ static void print_usage(const char * prog) {
     fprintf(stderr, "   --state <csv>          Proprio/state values (comma-separated)\n");
     fprintf(stderr, "   --task <str>           Task instruction (default: \"grab the block.\")\n");
     fprintf(stderr, "   --threads <n>          Number of threads (default: auto)\n");
-    fprintf(stderr, "   --action-dim <n>       Action dimension (default: 6)\n");
-    fprintf(stderr, "   --chunk-size <n>       Action chunk size (default: 50)\n");
-    fprintf(stderr, "   --num-steps <n>        Denoising steps (default: 10)\n");
     fprintf(stderr, "   --noise-mode <mode>    gaussian|debug-sin (default: gaussian)\n");
     fprintf(stderr, "   --noise-seed <n>       Noise RNG seed, <0 means auto (default: -1)\n");
     fprintf(stderr, "   -v, --verbose          Increase verbosity\n");
@@ -118,9 +115,6 @@ int main(int argc, char ** argv) {
     std::string state_csv;
     std::string task = "grab the block.";
     int n_threads   = 0;
-    int action_dim  = 6;
-    int chunk_size  = 50;
-    int num_steps   = 10;
     int noise_mode  = SMOLVLA_NOISE_MODE_GAUSSIAN;
     long long noise_seed = -1;
     int verbosity   = 1;
@@ -159,15 +153,6 @@ int main(int argc, char ** argv) {
         }
         else if (arg == "--threads" && i + 1 < argc) {
             n_threads = std::atoi(argv[++i]);
-        }
-        else if (arg == "--action-dim" && i + 1 < argc) {
-            action_dim = std::atoi(argv[++i]);
-        }
-        else if (arg == "--chunk-size" && i + 1 < argc) {
-            chunk_size = std::atoi(argv[++i]);
-        }
-        else if (arg == "--num-steps" && i + 1 < argc) {
-            num_steps = std::atoi(argv[++i]);
         }
         else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], noise_mode)) {
@@ -209,9 +194,6 @@ int main(int argc, char ** argv) {
     smolvla_options.state_proj_path = state_proj_path;
     smolvla_options.action_expert_path = action_expert_path;
     smolvla_options.task = task;
-    smolvla_options.action_dim = action_dim;
-    smolvla_options.chunk_size = chunk_size;
-    smolvla_options.num_steps = num_steps;
     smolvla_options.noise_mode = noise_mode;
     smolvla_options.noise_seed = (int64_t) noise_seed;
 

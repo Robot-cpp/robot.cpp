@@ -18,9 +18,6 @@ struct smolvla_model_options {
     std::string task = "grab the block.";
     int n_batch = 512;
     int n_ctx = 2048;
-    int action_dim = 6;
-    int chunk_size = 50;
-    int num_steps = 10;
     int noise_mode = 0;
     int64_t noise_seed = -1;
 };

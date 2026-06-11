@@ -59,9 +59,6 @@ exec "${SERVER_BIN}" \
     --threads "${THREADS}" \
     --n-batch 512 \
     --n-ctx 2048 \
-    --action-dim 6 \
-    --chunk-size 50 \
-    --num-steps 10 \
     --noise-mode "${NOISE_MODE}" \
     --noise-seed "${NOISE_SEED}" \
     --verbosity 0
