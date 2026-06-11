@@ -79,7 +79,7 @@ class SyncControlLoop:
 
         image = obs[camera_key]
         proprio = [float(obs[k]) for k in self.robot.action_keys if k in obs]
-        response = self.robot.predict(image, proprio, self.cfg.task)
+        response = self.robot.predict(image, proprio, self.cfg.task, image_name=self.robot.camera_key)
         logging.info(
             "chunk_size=%d action_dim=%d first_action=%s timings=%s",
             response.chunk_size,

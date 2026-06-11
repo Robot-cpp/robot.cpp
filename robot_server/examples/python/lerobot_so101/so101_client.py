@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
-from client.python.smolvla_client import SmolVLAClient
+from client.python.model_client import ModelClient
 from robot_client.base import RobotClientBase
 from robot_client.observation import DEFAULT_PROMPT
 from utils.robot import build_camera_config, extract_home_action
@@ -58,7 +58,7 @@ def config_from_env() -> SO101ClientConfig:
 class SO101RobotClient(RobotClientBase):
     """SO101 follower arm wired through LeRobot ``SOFollower``."""
 
-    def __init__(self, policy: SmolVLAClient, cfg: SO101ClientConfig | None = None):
+    def __init__(self, policy: ModelClient, cfg: SO101ClientConfig | None = None):
         super().__init__(policy)
         self.cfg = cfg or config_from_env()
         self._robot: SOFollower | None = None
@@ -78,7 +78,7 @@ class SO101RobotClient(RobotClientBase):
     def connect(self) -> None:
         health = self._policy.health()
         logging.info(
-            "Connected to vla.cpp SmolVLA server at %s:%s (%s)",
+            "Connected to vla.cpp model server at %s:%s (%s)",
             self._policy.host,
             self._policy.port,
             health,
@@ -126,5 +126,5 @@ class SO101RobotClient(RobotClientBase):
             time.sleep(max(0.01, self._dt))
 
 
-def create_robot_client(policy: SmolVLAClient, cfg: SO101ClientConfig | None = None) -> SO101RobotClient:
+def create_robot_client(policy: ModelClient, cfg: SO101ClientConfig | None = None) -> SO101RobotClient:
     return SO101RobotClient(policy, cfg)

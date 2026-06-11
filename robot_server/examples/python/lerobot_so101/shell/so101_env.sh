@@ -13,7 +13,7 @@ fi
 export LEROBOT_SO101_ROOT="${LEROBOT_SO101_ROOT:-${ROOT}}"
 export CONDA_ENV="${CONDA_ENV:-mini-client}"
 
-export PYTHONPATH="${LEROBOT_SO101_ROOT}:${LEROBOT_SO101_ROOT}/..:${LEROBOT_SO101_ROOT}/camera:${VLA_CPP_ROOT}/robot_server"
+export PYTHONPATH="${LEROBOT_SO101_ROOT}:${LEROBOT_SO101_ROOT}/..:${LEROBOT_SO101_ROOT}/camera:${VLA_CPP_ROOT}/robot_server:${VLA_CPP_ROOT}/robot_server/examples/python"
 
 # --- Robot serial ports ---
 export ROBOT_PORT="${ROBOT_PORT:?ROBOT_PORT must be set}"

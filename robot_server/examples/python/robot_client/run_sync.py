@@ -18,7 +18,7 @@ if str(_EXAMPLES_PYTHON) not in sys.path:
 if str(_ROBOT_SERVER) not in sys.path:
     sys.path.insert(0, str(_ROBOT_SERVER))
 
-from client.python.smolvla_client import SmolVLAClient
+from client.python.model_client import ModelClient
 from robot_client.observation import server_from_env
 from robot_client.sync_loop import SyncControlLoop, SyncLoopConfig
 
@@ -42,7 +42,7 @@ def main() -> int:
 
     platform = load_platform_module()
     host, port, timeout = server_from_env()
-    policy = SmolVLAClient(host=host, port=port, timeout=timeout)
+    policy = ModelClient(host=host, port=port, timeout=timeout)
     cfg = platform.config_from_env()
     robot = platform.create_robot_client(policy, cfg)
     SyncControlLoop(

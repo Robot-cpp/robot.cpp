@@ -241,7 +241,12 @@ def validate_observation_payload(
     expected_hw: tuple[int, int],
 ) -> None:
     expected_h, expected_w = expected_hw
-    img = observation["image"]
+    images = observation.get("images")
+    if not images:
+        raise ValueError(f"{camera_key}: observation.images is empty")
+    img = images[0]
+    if img.get("name") not in (None, camera_key):
+        raise ValueError(f"{camera_key}: image name mismatch: {img.get('name')!r}")
     expected_bytes = expected_w * expected_h * 3
     rgb = img["rgb_hwc_u8"]
     if len(rgb) != expected_bytes:
@@ -327,7 +332,7 @@ def run_camera_test(
             read_ms = (time.perf_counter() - t0) * 1000.0
 
             validate_frame(image, camera_key, expected_hw)
-            observation = make_predict_observation(image, dummy_state)
+            observation = make_predict_observation(image, dummy_state, image_name=camera_key)
             validate_observation_payload(observation, camera_key=camera_key, expected_hw=expected_hw)
             captured += 1
 

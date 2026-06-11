@@ -88,7 +88,7 @@ source local_env.sh
 bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
 ```
 
-真机 client 通过 ``robot_client`` 基类调用 ``SmolVLAClient.predict``，``so101_client.py`` 实现 SO101 硬件对接。配置来自 ``local_so101_env.sh`` 的环境变量，无需命令行参数。
+真机 client 通过 ``robot_client`` 基类调用 ``ModelClient.predict``，``so101_client.py`` 实现 SO101 硬件对接。配置来自 ``local_so101_env.sh`` 的环境变量，无需命令行参数。
 
 或直接运行（需先 source env）：
 

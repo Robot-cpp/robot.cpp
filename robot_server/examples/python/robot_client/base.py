@@ -6,7 +6,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
-from client.python.smolvla_client import SmolVLAClient, SmolVLAResponse
+from client.python.model_client import ModelClient, ModelResponse
 
 from robot_client.observation import make_predict_observation
 
@@ -15,24 +15,31 @@ class RobotClientBase(ABC):
     """Base class for vla.cpp robot clients.
 
     Subclasses implement hardware connect/observe/act hooks. This layer owns
-    synchronous and asynchronous SmolVLA ``predict`` calls.
+    synchronous and asynchronous ``ModelClient.predict`` calls.
     """
 
-    def __init__(self, policy: SmolVLAClient):
+    def __init__(self, policy: ModelClient):
         self._policy = policy
 
     @property
-    def policy(self) -> SmolVLAClient:
+    def policy(self) -> ModelClient:
         return self._policy
 
-    def predict(self, image: Any, state: Any, prompt: str) -> SmolVLAResponse:
+    def predict(self, image: Any, state: Any, prompt: str, *, image_name: str = "camera1") -> ModelResponse:
         """Synchronous policy inference."""
-        observation = make_predict_observation(image, state, prompt)
+        observation = make_predict_observation(image, state, prompt, image_name=image_name)
         return self._policy.predict(observation)
 
-    async def predict_async(self, image: Any, state: Any, prompt: str) -> SmolVLAResponse:
+    async def predict_async(
+        self,
+        image: Any,
+        state: Any,
+        prompt: str,
+        *,
+        image_name: str = "camera1",
+    ) -> ModelResponse:
         """Asynchronous policy inference (non-blocking TCP call)."""
-        observation = make_predict_observation(image, state, prompt)
+        observation = make_predict_observation(image, state, prompt, image_name=image_name)
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._policy.predict, observation)
 

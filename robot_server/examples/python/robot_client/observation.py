@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from client.python.smolvla_client import image_to_rgb_hwc_u8_bytes, state_to_list
+from client.python.model_client import image_to_rgb_hwc_u8_bytes, state_to_list
 
 DEFAULT_PROMPT = "grab the block."
 
@@ -14,16 +14,21 @@ def make_predict_observation(
     image: Any,
     state: Any,
     prompt: str = DEFAULT_PROMPT,
+    *,
+    image_name: str = "camera1",
 ) -> dict[str, Any]:
-    """Build the observation dict consumed by ``SmolVLAClient.predict``."""
+    """Build the observation dict consumed by ``ModelClient.predict``."""
     rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(image)
     return {
-        "image": {
-            "rgb_hwc_u8": rgb,
-            "width": width,
-            "height": height,
-            "stride_bytes": stride,
-        },
+        "images": [
+            {
+                "name": image_name,
+                "rgb_hwc_u8": rgb,
+                "width": width,
+                "height": height,
+                "stride_bytes": stride,
+            }
+        ],
         "state": state_to_list(state),
         "prompt": prompt,
     }
