@@ -4,7 +4,7 @@ set -euo pipefail
 # Calibrate SO101 follower arm. Run robot and teleop calibration separately.
 # Usage: ./shell/local_calibrate_follower.sh
 
-source "$(dirname "$0")/local_so101_env.sh"
+source "$(dirname "$0")/so101_env.sh"
 
 require_robot_port
 

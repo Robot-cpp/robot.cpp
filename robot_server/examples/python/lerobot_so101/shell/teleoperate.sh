@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./shell/local_teleoperate.sh
 # Override: ROBOT_PORT, TELEOP_PORT, ROBOT_CAMERAS, DISPLAY_DATA=false
 
-source "$(dirname "$0")/local_so101_env.sh"
+source "$(dirname "$0")/so101_env.sh"
 
 require_robot_port
 require_teleop_port

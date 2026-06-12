@@ -4,7 +4,7 @@ set -euo pipefail
 # Calibrate SO101 leader (teleop) arm.
 # Usage: ./shell/local_calibrate_leader.sh
 
-source "$(dirname "$0")/local_so101_env.sh"
+source "$(dirname "$0")/so101_env.sh"
 
 require_teleop_port
 
