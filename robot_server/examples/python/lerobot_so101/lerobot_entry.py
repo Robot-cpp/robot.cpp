@@ -7,5 +7,5 @@ import sys
 import camera  # noqa: F401  # registers opencv_crop with CameraConfig
 
 module_name = sys.argv[1]
-sys.argv = sys.argv[2:]
+sys.argv = [sys.argv[0], *sys.argv[2:]]
 importlib.import_module(module_name).main()
