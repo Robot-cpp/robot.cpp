@@ -12,33 +12,64 @@ import subprocess
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", required=True)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--vit", required=True)
+    parser.add_argument("--mmproj", required=True)
+    parser.add_argument("--llm", required=True)
+    parser.add_argument("--tokenizer", required=True)
+    parser.add_argument("--state-gguf", required=True)
+    parser.add_argument("--action-decoder", required=True)
     parser.add_argument("--state", required=True)
-    parser.add_argument("--prompt", default="pick up the fork")
+    parser.add_argument("--prompt", default="")
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--horizon", type=int, required=True)
     parser.add_argument("--action-dim", type=int, required=True)
-    parser.add_argument("--capability")
-    parser.add_argument("--graph-action-width", type=int)
+    parser.add_argument("--info-action-dim", type=int)
     args = parser.parse_args()
 
-    if args.capability or args.graph_action_width is not None:
+    if args.info_action_dim is not None:
         info = json.loads(
-            subprocess.check_output([args.binary, "--model", args.model, "--info"], text=True)
+            subprocess.check_output(
+            [
+                args.binary,
+                "--vit",
+                args.vit,
+                    "--mmproj",
+                    args.mmproj,
+                    "--llm",
+                    args.llm,
+                    "--tokenizer",
+                    args.tokenizer,
+                    "--state-gguf",
+                    args.state_gguf,
+                    "--action-decoder",
+                    args.action_decoder,
+                    "--info",
+                ],
+                text=True,
+            )
         )
-        if args.capability and info["capability"] != args.capability:
-            raise SystemExit(f"unexpected capability: {info['capability']}")
-        if args.graph_action_width is not None:
-            actual = info["openpi_graph"]["action_width"]
-            if actual != args.graph_action_width:
-                raise SystemExit(f"unexpected graph action_width: {actual}")
+        model_info = info["model_info"]
+        if args.info_action_dim is not None:
+            actual = model_info["action_dim"]
+            if actual != args.info_action_dim:
+                raise SystemExit(f"unexpected model action_dim: {actual}")
 
     output = subprocess.check_output(
         [
             args.binary,
-            "--model",
-            args.model,
+            "--vit",
+            args.vit,
+            "--mmproj",
+            args.mmproj,
+            "--llm",
+            args.llm,
+            "--tokenizer",
+            args.tokenizer,
+            "--state-gguf",
+            args.state_gguf,
+            "--action-decoder",
+            args.action_decoder,
             "--state",
             args.state,
             "--prompt",

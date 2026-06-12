@@ -11,7 +11,12 @@ namespace {
 
 void usage(const char * argv0) {
     std::cerr << "usage: " << argv0
-              << " --model model.gguf [--prompt text] [--state v0,v1,...] [--steps n] [--seed n] [--info] [--require-full]\n";
+              << " --vit vit.gguf --mmproj mmproj.gguf --llm llm.gguf --tokenizer tokenizer.gguf"
+              << " --state-gguf state.gguf --action-decoder action_decoder.gguf"
+              << " [--prompt text] [--state v0,v1,...] [--steps n] [--seed n]"
+              << " [--backend cpu|cuda] [--vit-dtype fp32|f16|bf16] [--mmproj-dtype fp32|f16|bf16]"
+              << " [--llm-dtype fp32|f16|bf16] [--state-dtype fp32|f16|bf16]"
+              << " [--action-decoder-dtype fp32|f16|bf16] [--info]\n";
 }
 
 std::vector<float> parse_state(const std::string & text) {
@@ -32,17 +37,37 @@ std::vector<float> parse_state(const std::string & text) {
 } // namespace
 
 int main(int argc, char ** argv) {
-    std::string model_path;
-    std::string prompt = "pick up the fork";
+    std::string vit_path;
+    std::string mmproj_path;
+    std::string llm_path;
+    std::string tokenizer_path;
+    std::string state_path;
+    std::string action_decoder_path;
+    std::string prompt;
     std::string state_text;
+    std::string vit_dtype;
+    std::string mmproj_dtype;
+    std::string llm_dtype;
+    std::string state_dtype;
+    std::string action_decoder_dtype;
     int steps = 10;
     uint32_t seed = 1;
+    vlacpp_backend backend = VLACPP_BACKEND_CPU;
     bool info = false;
-    bool require_full = false;
 
     for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
-            model_path = argv[++i];
+        if (std::strcmp(argv[i], "--vit") == 0 && i + 1 < argc) {
+            vit_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--mmproj") == 0 && i + 1 < argc) {
+            mmproj_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--llm") == 0 && i + 1 < argc) {
+            llm_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--tokenizer") == 0 && i + 1 < argc) {
+            tokenizer_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--state-gguf") == 0 && i + 1 < argc) {
+            state_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--action-decoder") == 0 && i + 1 < argc) {
+            action_decoder_path = argv[++i];
         } else if (std::strcmp(argv[i], "--prompt") == 0 && i + 1 < argc) {
             prompt = argv[++i];
         } else if (std::strcmp(argv[i], "--state") == 0 && i + 1 < argc) {
@@ -51,70 +76,102 @@ int main(int argc, char ** argv) {
             steps = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--seed") == 0 && i + 1 < argc) {
             seed = static_cast<uint32_t>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (std::strcmp(argv[i], "--backend") == 0 && i + 1 < argc) {
+            const char * value = argv[++i];
+            if (std::strcmp(value, "cpu") == 0) {
+                backend = VLACPP_BACKEND_CPU;
+            } else if (std::strcmp(value, "cuda") == 0) {
+                backend = VLACPP_BACKEND_CUDA;
+            } else {
+                usage(argv[0]);
+                return 2;
+            }
+        } else if (std::strcmp(argv[i], "--vit-dtype") == 0 && i + 1 < argc) {
+            vit_dtype = argv[++i];
+        } else if (std::strcmp(argv[i], "--mmproj-dtype") == 0 && i + 1 < argc) {
+            mmproj_dtype = argv[++i];
+        } else if (std::strcmp(argv[i], "--llm-dtype") == 0 && i + 1 < argc) {
+            llm_dtype = argv[++i];
+        } else if (std::strcmp(argv[i], "--state-dtype") == 0 && i + 1 < argc) {
+            state_dtype = argv[++i];
+        } else if (std::strcmp(argv[i], "--action-decoder-dtype") == 0 && i + 1 < argc) {
+            action_decoder_dtype = argv[++i];
         } else if (std::strcmp(argv[i], "--info") == 0) {
             info = true;
-        } else if (std::strcmp(argv[i], "--require-full") == 0) {
-            require_full = true;
         } else {
             usage(argv[0]);
             return 2;
         }
     }
 
-    if (model_path.empty()) {
+    if (vit_path.empty() ||
+        mmproj_path.empty() ||
+        llm_path.empty() ||
+        tokenizer_path.empty() ||
+        state_path.empty() ||
+        action_decoder_path.empty()) {
         usage(argv[0]);
         return 2;
     }
 
     vlacpp_model_params model_params = vlacpp_default_model_params();
+    model_params.backend = backend;
+    std::vector<vlacpp_component_dtype_override> dtype_overrides;
+    if (!vit_dtype.empty()) {
+        dtype_overrides.push_back({"vit", vit_dtype.c_str()});
+    }
+    if (!mmproj_dtype.empty()) {
+        dtype_overrides.push_back({"mmproj", mmproj_dtype.c_str()});
+    }
+    if (!llm_dtype.empty()) {
+        dtype_overrides.push_back({"llm", llm_dtype.c_str()});
+    }
+    if (!state_dtype.empty()) {
+        dtype_overrides.push_back({"state", state_dtype.c_str()});
+    }
+    if (!action_decoder_dtype.empty()) {
+        dtype_overrides.push_back({"action_decoder", action_decoder_dtype.c_str()});
+    }
+    model_params.dtype_overrides = dtype_overrides.empty() ? nullptr : dtype_overrides.data();
+    model_params.dtype_override_count = dtype_overrides.size();
+    vlacpp_model_artifact artifact_items[] = {
+        {"vit", vit_path.c_str()},
+        {"mmproj", mmproj_path.c_str()},
+        {"llm", llm_path.c_str()},
+        {"tokenizer", tokenizer_path.c_str()},
+        {"state", state_path.c_str()},
+        {"action_decoder", action_decoder_path.c_str()},
+    };
+    vlacpp_model_artifacts artifacts{};
+    artifacts.items = artifact_items;
+    artifacts.count = sizeof(artifact_items) / sizeof(artifact_items[0]);
     vlacpp_model * model = nullptr;
-    vlacpp_status status = vlacpp_load_model(model_path.c_str(), &model_params, &model);
+    vlacpp_status status = vlacpp_load_model(&artifacts, &model_params, &model);
     if (status != VLACPP_STATUS_OK) {
         std::cerr << "load failed: " << vlacpp_last_error() << "\n";
         return 1;
     }
 
     if (info) {
-        vlacpp_openpi_graph_info graph{};
-        status = vlacpp_model_openpi_graph_info(model, &graph);
+        vlacpp_model_info model_info{};
+        status = vlacpp_get_model_info(model, &model_info);
         if (status != VLACPP_STATUS_OK) {
             std::cerr << "info failed: " << vlacpp_last_error() << "\n";
             vlacpp_free_model(model);
             return 1;
         }
-        std::cout << "{\n  \"capability\": \"" << vlacpp_model_capability(model)
-                  << "\",\n  \"openpi_graph\": {"
-                  << "\n    \"action_width\": " << graph.action_width
-                  << ",\n    \"vision_width\": " << graph.vision_width
-                  << ",\n    \"vision_patch_height\": " << graph.vision_patch_height
-                  << ",\n    \"vision_patch_width\": " << graph.vision_patch_width
-                  << ",\n    \"vision_layers\": " << graph.vision_layers
-                  << ",\n    \"language_width\": " << graph.language_width
-                  << ",\n    \"language_q_out\": " << graph.language_q_out
-                  << ",\n    \"language_kv_out\": " << graph.language_kv_out
-                  << ",\n    \"language_mlp_width\": " << graph.language_mlp_width
-                  << ",\n    \"language_layers\": " << graph.language_layers
-                  << ",\n    \"action_expert_width\": " << graph.action_expert_width
-                  << ",\n    \"action_expert_q_out\": " << graph.action_expert_q_out
-                  << ",\n    \"action_expert_kv_out\": " << graph.action_expert_kv_out
-                  << ",\n    \"action_expert_mlp_width\": " << graph.action_expert_mlp_width
-                  << ",\n    \"action_expert_layers\": " << graph.action_expert_layers
-                  << ",\n    \"full_weights_present\": " << (graph.full_weights_present ? "true" : "false")
+        std::cout << "{\n  \"model_info\": {"
+                  << "\n    \"model_type\": \"" << (model_info.model_type ? model_info.model_type : "")
+                  << "\",\n    \"image_width\": " << model_info.image_width
+                  << ",\n    \"image_height\": " << model_info.image_height
+                  << ",\n    \"state_dim\": " << model_info.state_dim
+                  << ",\n    \"action_dim\": " << model_info.action_dim
+                  << ",\n    \"action_horizon\": " << model_info.action_horizon
+                  << ",\n    \"max_token_len\": " << model_info.max_token_len
                   << "\n  }\n}\n";
         vlacpp_free_model(model);
         return 0;
     }
-    if (require_full) {
-        vlacpp_openpi_graph_info graph{};
-        status = vlacpp_model_openpi_graph_info(model, &graph);
-        if (status != VLACPP_STATUS_OK || !graph.full_weights_present) {
-            std::cerr << "model capability is " << vlacpp_model_capability(model)
-                      << ", but full OpenPI weights are not present\n";
-            vlacpp_free_model(model);
-            return 1;
-        }
-    }
-
     vlacpp_context_params context_params = vlacpp_default_context_params();
     context_params.flow_steps = steps;
     context_params.seed = seed;
@@ -127,18 +184,26 @@ int main(int argc, char ** argv) {
     }
 
     std::vector<uint8_t> image(static_cast<size_t>(224) * 224 * 3, 127);
-    vlacpp_image_view view;
-    view.name = "base_0_rgb";
-    view.data = image.data();
-    view.width = 224;
-    view.height = 224;
-    view.channels = 3;
-    view.stride_bytes = 224 * 3;
+    const char * image_names[] = {
+        "base_0_rgb",
+        "observation.images.image",
+        "observation.images.image2",
+        "observation.images.empty_camera_0",
+    };
+    std::vector<vlacpp_image_view> views(sizeof(image_names) / sizeof(image_names[0]));
+    for (size_t i = 0; i < views.size(); ++i) {
+        views[i].name = image_names[i];
+        views[i].data = image.data();
+        views[i].width = 224;
+        views[i].height = 224;
+        views[i].channels = 3;
+        views[i].stride_bytes = 224 * 3;
+    }
 
     std::vector<float> state = parse_state(state_text);
     vlacpp_observation obs{};
-    obs.images = &view;
-    obs.image_count = 1;
+    obs.images = views.data();
+    obs.image_count = views.size();
     obs.state = state.empty() ? nullptr : state.data();
     obs.state_count = state.size();
     obs.prompt = prompt.c_str();

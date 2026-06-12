@@ -6,12 +6,14 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace robotcpp {
 
 enum class model_type {
     smolvla,
+    pi0,
 };
 
 struct model_image {
@@ -41,7 +43,6 @@ struct model_result {
     std::vector<model_metric> metrics;
 };
 
-
 struct model_args {
     model_type type = model_type::smolvla;
     int threads = 0;
@@ -56,8 +57,13 @@ struct model_args {
     int n_ctx = 2048;
     int noise_mode = 0;
     int64_t noise_seed = -1;
-};
 
+    // pi0
+    std::string vit_path;
+    std::string tokenizer_path;
+    std::string state_path;
+    std::string action_decoder_path;
+};
 
 class Model {
 public:
@@ -79,8 +85,27 @@ bool make_model(
 
 namespace vlacpp {
 
-vlacpp_status load_model_from_path(
-    const std::string & path,
+struct ModelArtifact {
+    std::string role;
+    std::string path;
+};
+
+using ModelArtifacts = std::vector<ModelArtifact>;
+
+inline const Tensor * find_tensor(const TensorMap & tensors, const std::string & name) {
+    auto it = tensors.find(name);
+    if (it == tensors.end()) {
+        return nullptr;
+    }
+    return &it->second;
+}
+
+inline bool starts_with(std::string_view value, std::string_view prefix) {
+    return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
+}
+
+vlacpp_status load_model_from_artifacts(
+    const ModelArtifacts & artifacts,
     const BackendConfig & backend,
     std::unique_ptr<RuntimeModel> & out);
 

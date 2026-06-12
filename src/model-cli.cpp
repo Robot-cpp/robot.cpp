@@ -31,6 +31,10 @@ bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
         out = robotcpp::model_type::smolvla;
         return true;
     }
+    if (value == "pi0") {
+        out = robotcpp::model_type::pi0;
+        return true;
+    }
     return false;
 }
 
@@ -49,7 +53,8 @@ bool parse_noise_mode(const std::string & value, int & out_mode) {
 void print_usage(const char * prog) {
     std::fprintf(stderr, "\nModel CLI - robotcpp::Model frontend\n\n");
     std::fprintf(stderr, "Usage:\n");
-    std::fprintf(stderr, "  %s --model-type smolvla [options]\n\n", prog);
+    std::fprintf(stderr, "  %s --model-type smolvla [options]\n", prog);
+    std::fprintf(stderr, "  %s --model-type pi0 [options]\n\n", prog);
     std::fprintf(stderr, "Common options:\n");
     std::fprintf(stderr, "  --model-type <type>      Model type (default: smolvla)\n");
     std::fprintf(stderr, "  --image <path>           Input image (JPEG/PNG)\n");
@@ -67,6 +72,13 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "  --n-ctx <n>              LLM context size (default: 2048)\n");
     std::fprintf(stderr, "  --noise-mode <mode>      gaussian|debug-sin (default: gaussian)\n");
     std::fprintf(stderr, "  --noise-seed <n>         Noise RNG seed, <0 means auto (default: -1)\n");
+    std::fprintf(stderr, "\nPi0 options:\n");
+    std::fprintf(stderr, "  --vit <path>             ViT GGUF path\n");
+    std::fprintf(stderr, "  --mmproj <path>          Merger GGUF path\n");
+    std::fprintf(stderr, "  --llm <path>             LLM GGUF path\n");
+    std::fprintf(stderr, "  --tokenizer <path>       Tokenizer GGUF path\n");
+    std::fprintf(stderr, "  --state-gguf <path>      State projector GGUF path\n");
+    std::fprintf(stderr, "  --action-decoder <path>  Action decoder GGUF path\n");
 }
 
 bool parse_state(const char * csv, std::vector<float> & out) {
@@ -112,7 +124,7 @@ int main(int argc, char ** argv) {
     robotcpp::model_args args;
     std::string image_path;
     std::string state_csv;
-    std::string task = "grab the block.";
+    std::string task;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -131,6 +143,14 @@ int main(int argc, char ** argv) {
             args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
+        } else if (arg == "--vit" && i + 1 < argc) {
+            args.vit_path = argv[++i];
+        } else if (arg == "--tokenizer" && i + 1 < argc) {
+            args.tokenizer_path = argv[++i];
+        } else if (arg == "--state-gguf" && i + 1 < argc) {
+            args.state_path = argv[++i];
+        } else if (arg == "--action-decoder" && i + 1 < argc) {
+            args.action_decoder_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
             args.state_proj_path = argv[++i];
         } else if (arg == "--action-expert" && i + 1 < argc) {
@@ -190,7 +210,7 @@ int main(int argc, char ** argv) {
 
     robotcpp::observation obs;
     robotcpp::model_image model_image;
-    model_image.name = "image";
+    model_image.name = args.type == robotcpp::model_type::pi0 ? "base_0_rgb" : "image";
     model_image.data = image.data.data();
     model_image.width = image.width;
     model_image.height = image.height;

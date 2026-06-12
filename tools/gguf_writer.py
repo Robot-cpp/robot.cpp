@@ -79,6 +79,24 @@ def add_tokenizer_metadata(writer: gguf.GGUFWriter, metadata: dict[str, Any]) ->
         writer.add_bool("tokenizer.ggml.add_space_prefix", bool(metadata["tokenizer.ggml.add_space_prefix"]))
 
 
+def convert_tensor_data(data: Any, dtype: str | None) -> tuple[np.ndarray, gguf.GGMLQuantizationType]:
+    canonical = "fp32" if dtype is None else str(dtype)
+    array = np.asarray(data, dtype=np.float32)
+    if canonical == "fp32":
+        return array, gguf.GGMLQuantizationType.F32
+    if canonical == "f16":
+        return array.astype(np.float16), gguf.GGMLQuantizationType.F16
+    if canonical == "bf16":
+        return gguf.quantize(array, gguf.GGMLQuantizationType.BF16), gguf.GGMLQuantizationType.BF16
+    raise ValueError(f"unsupported GGUF tensor dtype: {dtype}")
+
+
+def writer_raw_shape(shape: list[int], data: np.ndarray, raw_dtype: gguf.GGMLQuantizationType) -> list[int]:
+    if data.dtype == np.uint8:
+        return [int(dim) for dim in gguf.quant_shape_to_byte_shape(shape, raw_dtype)]
+    return shape
+
+
 def write_gguf(path: Path, metadata: dict[str, Any], tensors: dict[str, dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     writer = gguf.GGUFWriter(path, arch=str(metadata.get("general.architecture", "vlacpp")))
@@ -86,8 +104,8 @@ def write_gguf(path: Path, metadata: dict[str, Any], tensors: dict[str, dict[str
     add_tokenizer_metadata(writer, metadata)
     for name, tensor in tensors.items():
         shape = [int(dim) for dim in tensor["shape"]]
-        data = np.asarray(tensor["data"], dtype=np.float32)
-        writer.add_tensor(name, data, raw_shape=shape)
+        data, raw_dtype = convert_tensor_data(tensor["data"], tensor.get("dtype"))
+        writer.add_tensor(name, data, raw_shape=writer_raw_shape(shape, data, raw_dtype), raw_dtype=raw_dtype)
     writer.write_header_to_file()
     writer.write_kv_data_to_file()
     writer.write_tensors_to_file()
@@ -99,8 +117,17 @@ def write_gguf_arrays(path: Path, metadata: dict[str, Any], tensors: Any) -> Non
     writer = gguf.GGUFWriter(path, arch=str(metadata.get("general.architecture", "vlacpp")), use_temp_file=True)
     add_metadata(writer, metadata)
     add_tokenizer_metadata(writer, metadata)
-    for name, shape, array in tensors:
-        writer.add_tensor(name, np.asarray(array, dtype=np.float32), raw_shape=[int(dim) for dim in shape])
+    for item in tensors:
+        if len(item) == 3:
+            name, shape, array = item
+            dtype = None
+        elif len(item) == 4:
+            name, shape, array, dtype = item
+        else:
+            raise ValueError(f"expected tensor tuple with 3 or 4 fields, got {len(item)}")
+        data, raw_dtype = convert_tensor_data(array, dtype)
+        raw_shape = [int(dim) for dim in shape]
+        writer.add_tensor(name, data, raw_shape=writer_raw_shape(raw_shape, data, raw_dtype), raw_dtype=raw_dtype)
     writer.write_header_to_file()
     writer.write_kv_data_to_file()
     writer.write_tensors_to_file()

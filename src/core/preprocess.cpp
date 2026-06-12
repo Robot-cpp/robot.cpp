@@ -42,27 +42,27 @@ vlacpp_status validate_and_preprocess(
     ObservationData & out) {
     out = {};
 
-    if (config.state_dim > 0) {
+    if (config.common.state_dim > 0) {
         if (raw.state == nullptr) {
             return fail(VLACPP_STATUS_INVALID_ARGUMENT, "observation state is required");
         }
-        if (raw.state_count != static_cast<size_t>(config.state_dim)) {
+        if (raw.state_count != static_cast<size_t>(config.common.state_dim)) {
             return fail(VLACPP_STATUS_INVALID_ARGUMENT, "observation state dimension mismatch");
         }
         out.state.assign(raw.state, raw.state + raw.state_count);
-        if (config.state_mean.size() == static_cast<size_t>(config.state_dim) ||
-            config.state_std.size() == static_cast<size_t>(config.state_dim)) {
-            if (config.state_mean.size() != static_cast<size_t>(config.state_dim) ||
-                config.state_std.size() != static_cast<size_t>(config.state_dim)) {
+        if (config.common.state_mean.size() == static_cast<size_t>(config.common.state_dim) ||
+            config.common.state_std.size() == static_cast<size_t>(config.common.state_dim)) {
+            if (config.common.state_mean.size() != static_cast<size_t>(config.common.state_dim) ||
+                config.common.state_std.size() != static_cast<size_t>(config.common.state_dim)) {
                 return fail(VLACPP_STATUS_PARSE_ERROR, "state_mean and state_std must both match state_dim");
             }
-            for (int i = 0; i < config.state_dim; ++i) {
-                const float std = config.state_std[static_cast<size_t>(i)];
+            for (int i = 0; i < config.common.state_dim; ++i) {
+                const float std = config.common.state_std[static_cast<size_t>(i)];
                 if (std == 0.0f) {
                     return fail(VLACPP_STATUS_PARSE_ERROR, "state_std contains zero");
                 }
                 out.state[static_cast<size_t>(i)] =
-                    (out.state[static_cast<size_t>(i)] - config.state_mean[static_cast<size_t>(i)]) / std;
+                    (out.state[static_cast<size_t>(i)] - config.common.state_mean[static_cast<size_t>(i)]) / std;
             }
         }
     }
@@ -80,14 +80,19 @@ vlacpp_status validate_and_preprocess(
     }
     if (raw.noise != nullptr && raw.noise_count > 0) {
         const size_t expected_noise =
-            static_cast<size_t>(config.action_horizon) * static_cast<size_t>(config.action_dim);
+            static_cast<size_t>(config.common.action_horizon) * static_cast<size_t>(config.common.action_dim);
         if (raw.noise_count != expected_noise) {
             return fail(VLACPP_STATUS_INVALID_ARGUMENT, "observation noise dimension mismatch");
         }
         out.noise.assign(raw.noise, raw.noise + raw.noise_count);
     }
 
-    std::set<std::string> required(config.image_keys.begin(), config.image_keys.end());
+    std::set<std::string> required;
+    for (const std::string & key : config.common.image_keys) {
+        if (key.find(".empty_camera_") == std::string::npos) {
+            required.insert(key);
+        }
+    }
     for (size_t i = 0; i < raw.image_count; ++i) {
         const vlacpp_image_view & image = raw.images[i];
         if (image.name == nullptr || image.data == nullptr) {
@@ -104,8 +109,8 @@ vlacpp_status validate_and_preprocess(
 
         ImageTensor tensor;
         tensor.name = image.name;
-        tensor.width = config.image_width;
-        tensor.height = config.image_height;
+        tensor.width = config.common.image_width;
+        tensor.height = config.common.image_height;
         tensor.channels = 3;
         tensor.data.resize(static_cast<size_t>(tensor.width) * tensor.height * tensor.channels);
 

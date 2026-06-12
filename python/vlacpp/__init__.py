@@ -1,14 +1,13 @@
-"""Small ctypes API for vlacpp pi0 inference."""
+"""Small ctypes API for vlacpp inference."""
 
 from __future__ import annotations
 
 import ctypes
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
 
 import numpy as np
-
 
 VLACPP_BACKEND_CPU = 0
 VLACPP_BACKEND_CUDA = 1
@@ -19,10 +18,33 @@ class VlaCppError(RuntimeError):
     pass
 
 
+class _DtypeOverride(ctypes.Structure):
+    _fields_ = [
+        ("role", ctypes.c_char_p),
+        ("dtype", ctypes.c_char_p),
+    ]
+
+
 class _ModelParams(ctypes.Structure):
     _fields_ = [
         ("backend", ctypes.c_int),
         ("n_threads", ctypes.c_int32),
+        ("dtype_overrides", ctypes.POINTER(_DtypeOverride)),
+        ("dtype_override_count", ctypes.c_size_t),
+    ]
+
+
+class _ModelArtifact(ctypes.Structure):
+    _fields_ = [
+        ("role", ctypes.c_char_p),
+        ("path", ctypes.c_char_p),
+    ]
+
+
+class _ModelArtifacts(ctypes.Structure):
+    _fields_ = [
+        ("items", ctypes.POINTER(_ModelArtifact)),
+        ("count", ctypes.c_size_t),
     ]
 
 
@@ -66,45 +88,48 @@ class _ActionChunk(ctypes.Structure):
     ]
 
 
-class _OpenPiGraphInfo(ctypes.Structure):
+class _ModelInfo(ctypes.Structure):
     _fields_ = [
-        ("action_width", ctypes.c_int32),
-        ("vision_width", ctypes.c_int32),
-        ("vision_patch_height", ctypes.c_int32),
-        ("vision_patch_width", ctypes.c_int32),
-        ("vision_layers", ctypes.c_int32),
-        ("language_width", ctypes.c_int32),
-        ("language_q_out", ctypes.c_int32),
-        ("language_kv_out", ctypes.c_int32),
-        ("language_mlp_width", ctypes.c_int32),
-        ("language_layers", ctypes.c_int32),
-        ("action_expert_width", ctypes.c_int32),
-        ("action_expert_q_out", ctypes.c_int32),
-        ("action_expert_kv_out", ctypes.c_int32),
-        ("action_expert_mlp_width", ctypes.c_int32),
-        ("action_expert_layers", ctypes.c_int32),
-        ("full_weights_present", ctypes.c_int32),
+        ("model_type", ctypes.c_char_p),
+        ("image_width", ctypes.c_int32),
+        ("image_height", ctypes.c_int32),
+        ("state_dim", ctypes.c_int32),
+        ("action_dim", ctypes.c_int32),
+        ("action_horizon", ctypes.c_int32),
+        ("max_token_len", ctypes.c_int32),
+    ]
+
+
+class _InferTimings(ctypes.Structure):
+    _fields_ = [
+        ("preprocess_ms", ctypes.c_double),
+        ("prefix_ms", ctypes.c_double),
+        ("state_ms", ctypes.c_double),
+        ("denoise_ms", ctypes.c_double),
+        ("output_ms", ctypes.c_double),
+        ("total_ms", ctypes.c_double),
     ]
 
 
 @dataclass(frozen=True)
-class OpenPiGraphInfo:
-    action_width: int
-    vision_width: int
-    vision_patch_height: int
-    vision_patch_width: int
-    vision_layers: int
-    language_width: int
-    language_q_out: int
-    language_kv_out: int
-    language_mlp_width: int
-    language_layers: int
-    action_expert_width: int
-    action_expert_q_out: int
-    action_expert_kv_out: int
-    action_expert_mlp_width: int
-    action_expert_layers: int
-    full_weights_present: bool
+class ModelInfo:
+    model_type: str
+    image_width: int
+    image_height: int
+    state_dim: int
+    action_dim: int
+    action_horizon: int
+    max_token_len: int
+
+
+@dataclass(frozen=True)
+class InferTimings:
+    preprocess_ms: float
+    prefix_ms: float
+    state_ms: float
+    denoise_ms: float
+    output_ms: float
+    total_ms: float
 
 
 def _default_library_path() -> Path:
@@ -127,16 +152,14 @@ def _load_library(path: str | Path | None) -> ctypes.CDLL:
     lib.vlacpp_default_model_params.restype = _ModelParams
     lib.vlacpp_default_context_params.restype = _ContextParams
     lib.vlacpp_load_model.argtypes = [
-        ctypes.c_char_p,
+        ctypes.POINTER(_ModelArtifacts),
         ctypes.POINTER(_ModelParams),
         ctypes.POINTER(ctypes.c_void_p),
     ]
     lib.vlacpp_load_model.restype = ctypes.c_int
     lib.vlacpp_free_model.argtypes = [ctypes.c_void_p]
-    lib.vlacpp_model_capability.argtypes = [ctypes.c_void_p]
-    lib.vlacpp_model_capability.restype = ctypes.c_char_p
-    lib.vlacpp_model_openpi_graph_info.argtypes = [ctypes.c_void_p, ctypes.POINTER(_OpenPiGraphInfo)]
-    lib.vlacpp_model_openpi_graph_info.restype = ctypes.c_int
+    lib.vlacpp_get_model_info.argtypes = [ctypes.c_void_p, ctypes.POINTER(_ModelInfo)]
+    lib.vlacpp_get_model_info.restype = ctypes.c_int
     lib.vlacpp_create_context.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(_ContextParams),
@@ -152,6 +175,8 @@ def _load_library(path: str | Path | None) -> ctypes.CDLL:
         ctypes.POINTER(_ActionChunk),
     ]
     lib.vlacpp_infer_actions.restype = ctypes.c_int
+    lib.vlacpp_context_last_timings.argtypes = [ctypes.c_void_p, ctypes.POINTER(_InferTimings)]
+    lib.vlacpp_context_last_timings.restype = ctypes.c_int
     lib.vlacpp_free_action_chunk.argtypes = [ctypes.POINTER(_ActionChunk)]
     lib.vlacpp_last_error.restype = ctypes.c_char_p
     return lib
@@ -162,11 +187,17 @@ class Pi0Policy:
 
     def __init__(
         self,
-        model_path: str | Path,
         *,
+        vit_path: str | Path,
+        mmproj_path: str | Path,
+        llm_path: str | Path,
+        tokenizer_path: str | Path,
+        state_path: str | Path,
+        action_decoder_path: str | Path,
         library_path: str | Path | None = None,
         backend: int = VLACPP_BACKEND_CPU,
         n_threads: int = 0,
+        dtype_overrides: Mapping[str, str] | None = None,
         seed: int = 1,
         flow_steps: int = 10,
     ) -> None:
@@ -175,9 +206,31 @@ class Pi0Policy:
         model_params = self._lib.vlacpp_default_model_params()
         model_params.backend = backend
         model_params.n_threads = n_threads
+        dtype_override_strings = [
+            (str(role).encode("utf-8"), str(dtype).encode("utf-8"))
+            for role, dtype in (dtype_overrides or {}).items()
+        ]
+        dtype_override_items = (_DtypeOverride * len(dtype_override_strings))(
+            *(_DtypeOverride(role, dtype) for role, dtype in dtype_override_strings)
+        )
+        if dtype_override_strings:
+            model_params.dtype_overrides = dtype_override_items
+            model_params.dtype_override_count = len(dtype_override_strings)
+        artifact_items = (_ModelArtifact * 6)(
+            _ModelArtifact(b"vit", str(vit_path).encode("utf-8")),
+            _ModelArtifact(b"mmproj", str(mmproj_path).encode("utf-8")),
+            _ModelArtifact(b"llm", str(llm_path).encode("utf-8")),
+            _ModelArtifact(b"tokenizer", str(tokenizer_path).encode("utf-8")),
+            _ModelArtifact(b"state", str(state_path).encode("utf-8")),
+            _ModelArtifact(b"action_decoder", str(action_decoder_path).encode("utf-8")),
+        )
+        artifacts = _ModelArtifacts(
+            artifact_items,
+            len(artifact_items),
+        )
         self._check(
             self._lib.vlacpp_load_model(
-                str(model_path).encode("utf-8"),
+                ctypes.byref(artifacts),
                 ctypes.byref(model_params),
                 ctypes.byref(self._model),
             )
@@ -203,7 +256,7 @@ class Pi0Policy:
             self._lib.vlacpp_free_model(self._model)
             self._model = ctypes.c_void_p()
 
-    def __enter__(self) -> "Pi0Policy":
+    def __enter__(self) -> Pi0Policy:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -213,35 +266,34 @@ class Pi0Policy:
         self.close()
 
     @property
-    def capability(self) -> str:
-        raw = self._lib.vlacpp_model_capability(self._model)
-        return raw.decode("utf-8") if raw else "invalid"
-
-    @property
-    def openpi_graph_info(self) -> OpenPiGraphInfo:
-        raw = _OpenPiGraphInfo()
-        self._check(self._lib.vlacpp_model_openpi_graph_info(self._model, ctypes.byref(raw)))
-        return OpenPiGraphInfo(
-            action_width=raw.action_width,
-            vision_width=raw.vision_width,
-            vision_patch_height=raw.vision_patch_height,
-            vision_patch_width=raw.vision_patch_width,
-            vision_layers=raw.vision_layers,
-            language_width=raw.language_width,
-            language_q_out=raw.language_q_out,
-            language_kv_out=raw.language_kv_out,
-            language_mlp_width=raw.language_mlp_width,
-            language_layers=raw.language_layers,
-            action_expert_width=raw.action_expert_width,
-            action_expert_q_out=raw.action_expert_q_out,
-            action_expert_kv_out=raw.action_expert_kv_out,
-            action_expert_mlp_width=raw.action_expert_mlp_width,
-            action_expert_layers=raw.action_expert_layers,
-            full_weights_present=bool(raw.full_weights_present),
+    def model_info(self) -> ModelInfo:
+        raw = _ModelInfo()
+        self._check(self._lib.vlacpp_get_model_info(self._model, ctypes.byref(raw)))
+        return ModelInfo(
+            model_type=raw.model_type.decode("utf-8") if raw.model_type else "",
+            image_width=raw.image_width,
+            image_height=raw.image_height,
+            state_dim=raw.state_dim,
+            action_dim=raw.action_dim,
+            action_horizon=raw.action_horizon,
+            max_token_len=raw.max_token_len,
         )
 
     def reset_cache(self) -> None:
         self._check(self._lib.vlacpp_reset_cache(self._context))
+
+    @property
+    def last_timings(self) -> InferTimings:
+        raw = _InferTimings()
+        self._check(self._lib.vlacpp_context_last_timings(self._context, ctypes.byref(raw)))
+        return InferTimings(
+            preprocess_ms=float(raw.preprocess_ms),
+            prefix_ms=float(raw.prefix_ms),
+            state_ms=float(raw.state_ms),
+            denoise_ms=float(raw.denoise_ms),
+            output_ms=float(raw.output_ms),
+            total_ms=float(raw.total_ms),
+        )
 
     def infer(
         self,

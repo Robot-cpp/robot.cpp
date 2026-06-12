@@ -1,5 +1,6 @@
 #include "models/model.h"
 
+#include "models/pi0/pi0_model.h"
 #include "models/smolvla/smolvla_model.h"
 
 #include <any>
@@ -13,6 +14,9 @@ bool make_model(
     out.reset();
     if (args.type == model_type::smolvla) {
         return make_smolvla_model(args, out, error);
+    }
+    if (args.type == model_type::pi0) {
+        return make_pi0_model(args, out, error);
     }
 
     error = "unsupported model type";

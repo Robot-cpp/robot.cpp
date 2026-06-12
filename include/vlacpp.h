@@ -35,10 +35,28 @@ typedef enum vlacpp_backend {
     VLACPP_BACKEND_CUDA = 1,
 } vlacpp_backend;
 
+typedef struct vlacpp_component_dtype_override {
+    const char * role;
+    const char * dtype;
+} vlacpp_component_dtype_override;
+
 typedef struct vlacpp_model_params {
     vlacpp_backend backend;
+    /* 0 selects a runtime default for the active backend. */
     int32_t n_threads;
+    const vlacpp_component_dtype_override * dtype_overrides;
+    size_t dtype_override_count;
 } vlacpp_model_params;
+
+typedef struct vlacpp_model_artifact {
+    const char * role;
+    const char * path;
+} vlacpp_model_artifact;
+
+typedef struct vlacpp_model_artifacts {
+    const vlacpp_model_artifact * items;
+    size_t count;
+} vlacpp_model_artifacts;
 
 typedef struct vlacpp_context_params {
     uint32_t seed;
@@ -72,38 +90,37 @@ typedef struct vlacpp_action_chunk {
     int32_t action_dim;
 } vlacpp_action_chunk;
 
-typedef struct vlacpp_openpi_graph_info {
-    int32_t action_width;
-    int32_t vision_width;
-    int32_t vision_patch_height;
-    int32_t vision_patch_width;
-    int32_t vision_layers;
-    int32_t language_width;
-    int32_t language_q_out;
-    int32_t language_kv_out;
-    int32_t language_mlp_width;
-    int32_t language_layers;
-    int32_t action_expert_width;
-    int32_t action_expert_q_out;
-    int32_t action_expert_kv_out;
-    int32_t action_expert_mlp_width;
-    int32_t action_expert_layers;
-    int32_t full_weights_present;
-} vlacpp_openpi_graph_info;
+typedef struct vlacpp_model_info {
+    const char * model_type;
+    int32_t image_width;
+    int32_t image_height;
+    int32_t state_dim;
+    int32_t action_dim;
+    int32_t action_horizon;
+    int32_t max_token_len;
+} vlacpp_model_info;
+
+typedef struct vlacpp_infer_timings {
+    double preprocess_ms;
+    double prefix_ms;
+    double state_ms;
+    double denoise_ms;
+    double output_ms;
+    double total_ms;
+} vlacpp_infer_timings;
 
 VLACPP_API vlacpp_model_params vlacpp_default_model_params(void);
 VLACPP_API vlacpp_context_params vlacpp_default_context_params(void);
 
 VLACPP_API vlacpp_status vlacpp_load_model(
-    const char * path,
+    const vlacpp_model_artifacts * artifacts,
     const vlacpp_model_params * params,
     vlacpp_model ** out_model);
 
 VLACPP_API void vlacpp_free_model(vlacpp_model * model);
-VLACPP_API const char * vlacpp_model_capability(vlacpp_model * model);
-VLACPP_API vlacpp_status vlacpp_model_openpi_graph_info(
+VLACPP_API vlacpp_status vlacpp_get_model_info(
     vlacpp_model * model,
-    vlacpp_openpi_graph_info * out_info);
+    vlacpp_model_info * out_info);
 
 VLACPP_API vlacpp_status vlacpp_create_context(
     vlacpp_model * model,
@@ -117,6 +134,10 @@ VLACPP_API vlacpp_status vlacpp_infer_actions(
     vlacpp_context * context,
     const vlacpp_observation * observation,
     vlacpp_action_chunk * out_actions);
+
+VLACPP_API vlacpp_status vlacpp_context_last_timings(
+    vlacpp_context * context,
+    vlacpp_infer_timings * out_timings);
 
 VLACPP_API void vlacpp_free_action_chunk(vlacpp_action_chunk * actions);
 VLACPP_API const char * vlacpp_last_error(void);
