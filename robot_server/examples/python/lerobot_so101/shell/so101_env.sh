@@ -76,5 +76,5 @@ run_python() {
 run_lerobot_script() {
   local module="$1"
   shift
-  run_python "${ROOT}/local_lerobot_entry.py" "${module}" "$@"
+  run_python "${ROOT}/lerobot_entry.py" "${module}" "$@"
 }
