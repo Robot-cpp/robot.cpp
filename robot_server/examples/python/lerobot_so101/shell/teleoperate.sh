@@ -18,4 +18,4 @@ run_lerobot_script lerobot.scripts.lerobot_teleoperate \
   --robot.cameras="${ROBOT_CAMERAS}" \
   --teleop.type="${TELEOP_TYPE}" \
   --teleop.port="${TELEOP_PORT}" \
-  --display_data="${DISPLAY_DATA}"
+  --display_data=true
