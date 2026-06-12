@@ -43,7 +43,7 @@ echo "== configure =="
 "${CMAKE_BIN}" -S "${VLA_CPP_ROOT}" -B "${BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGGML_NATIVE=OFF \
-    -DGGML_BLAS=ON \
+    -DGGML_BLAS=OFF \
     -DGGML_BLAS_VENDOR=Apple \
     -DGGML_OPENMP=OFF \
     -DGGML_METAL=OFF \

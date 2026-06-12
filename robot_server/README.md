@@ -36,16 +36,20 @@ server 启动后，robot 侧只需要把当前 observation 传给 client，clien
 
 ### python client
 
-最适合作为用户入口的最小例子是：
+最小 TCP 预测例子：
 
 ```text
-robot_server/examples/python/minimal_predict.py
+robot_server/test/benchmark_latency.py                          # 随机观测 smoke / 压测
+robot_server/examples/python/robot_client/                     # RobotClientBase + run_sync 入口
+robot_server/examples/python/lerobot_so101/so101_client.py    # SO101 硬件实现
 ```
 
 启动 server 后运行（记得先填写相关环境变量）：
 
 ```bash
 bash robot_server/shell/client_example.sh
+# SO101 真机
+bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
 ```
 
 - `response.actions`：二维 list，形状是 `[chunk_size][action_dim]`。

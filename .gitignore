@@ -15,3 +15,12 @@ __pycache__/
 .pytest_cache/
 build_*/
 debug/
+checkpoint/
+checkpoints/
+*.safetensors
+
+# macOS resource forks
+._*
+.vscode/
+
+local_*
