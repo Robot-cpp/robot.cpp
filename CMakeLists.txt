@@ -58,6 +58,10 @@ if(VLACPP_BUILD_SMOLVLA)
     set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
     set(SMOLVLA_ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
     add_library(smolvla OBJECT
+        src/models/ggml_backend.cpp
+        src/models/ggml_backend.h
+        src/models/gguf_loader.cpp
+        src/models/gguf_loader.h
         ${SMOLVLA_DIR}/smolvla_engine.cpp
         ${SMOLVLA_DIR}/smolvla_engine.h
         ${SMOLVLA_DIR}/state_proj.cpp
@@ -71,6 +75,7 @@ if(VLACPP_BUILD_SMOLVLA)
         PUBLIC
             ${SMOLVLA_DIR}
         PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/src
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/vendor/stb
