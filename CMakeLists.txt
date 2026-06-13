@@ -58,6 +58,8 @@ if(VLACPP_BUILD_SMOLVLA)
     set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
     set(SMOLVLA_ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
     add_library(smolvla OBJECT
+        src/models/ggml_backend.cpp
+        src/models/ggml_backend.h
         src/models/gguf_loader.cpp
         src/models/gguf_loader.h
         ${SMOLVLA_DIR}/smolvla_engine.cpp
