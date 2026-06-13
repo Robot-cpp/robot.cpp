@@ -22,12 +22,7 @@
 #include <vector>
 #include <chrono>
 #include <cstring>
-#include <cstdarg>
-#include <sstream>
-#include <climits>
 #include <algorithm>
-#include <iostream>
-#include <stdexcept>
 
 // ============================================================================
 // Logging (similar to bitvla)
@@ -35,25 +30,6 @@
 
 #define LOG_INF(...) fprintf(stderr, __VA_ARGS__)
 #define LOG_ERR(...) fprintf(stderr, __VA_ARGS__)
-
-// ============================================================================
-// Helper functions (from proprio.cpp)
-// ============================================================================
-
-static std::string format(const char * fmt, ...) {
-    va_list ap;
-    va_list ap2;
-    va_start(ap, fmt);
-    va_copy(ap2, ap);
-    int size = vsnprintf(NULL, 0, fmt, ap);
-    GGML_ASSERT(size >= 0 && size < INT_MAX);
-    std::vector<char> buf(size + 1);
-    int size2 = vsnprintf(buf.data(), size + 1, fmt, ap2);
-    GGML_ASSERT(size2 == size);
-    va_end(ap2);
-    va_end(ap);
-    return std::string(buf.data(), buf.size());
-}
 
 // ============================================================================
 // Build State Projector Compute Graph

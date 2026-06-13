@@ -20,9 +20,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdarg>
-#include <fstream>
 #include <string>
-#include <stdexcept>
 #include <climits>
 #include <chrono>
 #include <cmath>
@@ -118,48 +116,6 @@ static void smolvla_free_model_contexts(std::vector<ggml_context *> & ctxs) {
         }
     }
     ctxs.clear();
-}
-
-static struct ggml_tensor * get_tensor(struct ggml_context * ctx, const std::string & name) {
-    struct ggml_tensor * t = ggml_get_tensor(ctx, name.c_str());
-    if (!t) {
-        throw std::runtime_error(fmt("%s: tensor not found: %s\n", __func__, name.c_str()));
-    }
-    return t;
-}
-
-static struct ggml_tensor * get_tensor_or_null(struct ggml_context * ctx, const std::string & name) {
-    return ggml_get_tensor(ctx, name.c_str());
-}
-
-// Read float array from backend tensor
-static std::vector<float> read_f32_from_backend(struct ggml_tensor * t) {
-    if (!t) return {};
-
-    const int64_t n = ggml_nelements(t);
-    std::vector<float> out(n);
-    const size_t nb = ggml_nbytes(t);
-    std::vector<uint8_t> raw(nb);
-    ggml_backend_tensor_get(t, raw.data(), 0, nb);
-
-    if (t->type == GGML_TYPE_F32) {
-        memcpy(out.data(), raw.data(), n * sizeof(float));
-    } else if (t->type == GGML_TYPE_F16) {
-        const ggml_fp16_t * src = (const ggml_fp16_t *) raw.data();
-        for (int64_t i = 0; i < n; i++) {
-            out[i] = ggml_fp16_to_fp32(src[i]);
-        }
-    } else {
-        LOG_ERR("%s: unsupported tensor type %d\n", __func__, t->type);
-        return {};
-    }
-    return out;
-}
-
-static std::vector<float> read_f32_from_backend(struct ggml_context * ctx, const char * name) {
-    struct ggml_tensor * t = ggml_get_tensor(ctx, name);
-    if (!t) return {};
-    return read_f32_from_backend(t);
 }
 
 static size_t smolvla_graph_meta_size(size_t max_nodes) {
