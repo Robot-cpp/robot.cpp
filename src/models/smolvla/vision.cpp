@@ -13,6 +13,7 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
+#include "models/ggml_backend.h"
 #include "models/gguf_loader.h"
 #include "smolvla_compat.h"
 
@@ -118,68 +119,6 @@ static void smolvla_vision_log_backend_plan(const smolvla_vision_ctx * ctx, int 
     }
 }
 
-static ggml_backend_buffer_type_t smolvla_vision_default_host_buffer_type() {
-#if defined(GGML_USE_CUDA) || defined(GGML_USE_METAL)
-    const char * target_reg_name =
-#if defined(GGML_USE_CUDA)
-        "CUDA";
-#else
-        "Metal";
-#endif
-// TODO: not tested yet, need a CUDA/Metal device with host buffer support
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        const enum ggml_backend_dev_type dev_type = ggml_backend_dev_type(dev);
-        if (dev_type != GGML_BACKEND_DEVICE_TYPE_GPU &&
-            dev_type != GGML_BACKEND_DEVICE_TYPE_GPU_FULL) {
-            continue;
-        }
-
-        ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(dev);
-        if (!reg || strcmp(ggml_backend_reg_name(reg), target_reg_name) != 0) {
-            continue;
-        }
-
-        ggml_backend_buffer_type_t buft = ggml_backend_dev_host_buffer_type(dev);
-        if (buft) {
-            return buft;
-        }
-    }
-#endif
-
-    return ggml_backend_cpu_buffer_type();
-}
-
-static ggml_backend_buffer_type_t smolvla_vision_default_model_buffer_type() {
-#ifdef GGML_USE_CUDA
-    // TODO: do not tested yet, need a CUDA device with host buffer support
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        const enum ggml_backend_dev_type dev_type = ggml_backend_dev_type(dev);
-        if (dev_type != GGML_BACKEND_DEVICE_TYPE_GPU &&
-            dev_type != GGML_BACKEND_DEVICE_TYPE_GPU_FULL) {
-            continue;
-        }
-
-        ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(dev);
-        if (!reg || strcmp(ggml_backend_reg_name(reg), "CUDA") != 0) {
-            continue;
-        }
-
-        ggml_backend_buffer_type_t buft = ggml_backend_dev_buffer_type(dev);
-        return buft ? buft : smolvla_vision_default_host_buffer_type();
-    }
-#elif defined(GGML_USE_METAL)
-    // TODO: do not tested yet, need a Metal device with host buffer support 
-    ggml_backend_buffer_type_t buft = ggml_backend_metal_buffer_type();
-    if (buft) {
-        return buft;
-    }
-#endif
-
-    return smolvla_vision_default_host_buffer_type();
-}
-
 static void smolvla_free_model_buffers(std::vector<ggml_backend_buffer_t> & bufs) {
     for (ggml_backend_buffer_t buf : bufs) {
         if (buf) {
@@ -205,124 +144,6 @@ static void smolvla_free_scheduler_backends(std::vector<ggml_backend_t> & backen
         }
     }
     backends.clear();
-}
-
-static bool smolvla_vision_init_backends(
-    smolvla_vision_ctx * ctx,
-    int verbosity
-) {
-    if (!ctx) {
-        return false;
-    }
-
-    ctx->backend_cpu = nullptr;
-    ctx->backends.clear();
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        const enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
-        if (type == GGML_BACKEND_DEVICE_TYPE_CPU) {
-            continue;
-        }
-
-        ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
-        if (backend) {
-            ctx->backends.push_back(backend);
-        }
-    }
-
-    ctx->backend_cpu = ggml_backend_cpu_init();
-    if (!ctx->backend_cpu) {
-        smolvla_free_scheduler_backends(ctx->backends);
-        return false;
-    }
-    ctx->backends.push_back(ctx->backend_cpu);
-
-    if (verbosity >= 1) {
-        LOG_INF("%s: enabled %zu backend(s)\n", __func__, ctx->backends.size());
-        smolvla_vision_log_backend_plan(ctx, verbosity);
-    }
-
-    return true;
-}
-
-static bool smolvla_vision_init_scheduler(
-    smolvla_vision_ctx * ctx,
-    int verbosity
-) {
-    if (!ctx || ctx->backends.empty() || !ctx->backend_cpu) {
-        return false;
-    }
-
-    std::vector<ggml_backend_buffer_type_t> backend_buft;
-    backend_buft.reserve(ctx->backends.size());
-    const ggml_backend_buffer_type_t host_buft = smolvla_vision_default_host_buffer_type();
-    for (ggml_backend_t backend : ctx->backends) {
-        backend_buft.push_back(
-            ggml_backend_is_cpu(backend)
-                ? host_buft
-                : ggml_backend_get_default_buffer_type(backend));
-    }
-
-    ctx->sched = ggml_backend_sched_new(
-        ctx->backends.data(),
-        backend_buft.data(),
-        ctx->backends.size(),
-        GGML_DEFAULT_GRAPH_SIZE,
-        false,
-        false);
-
-    if (!ctx->sched) {
-        smolvla_free_scheduler_backends(ctx->backends);
-        ctx->backend_cpu = nullptr;
-        return false;
-    }
-
-    if (verbosity >= 1) {
-        LOG_INF("%s: host_buft=%s\n", __func__, smolvla_buft_name(host_buft));
-        for (size_t i = 0; i < ctx->backends.size(); ++i) {
-            LOG_INF("%s: scheduler backend_buft[%zu]: backend=%s buft=%s\n",
-                __func__,
-                i,
-                smolvla_backend_name(ctx->backends[i]),
-                smolvla_buft_name(backend_buft[i]));
-        }
-        LOG_INF("%s: enabled scheduler with %zu backend(s)\n", __func__, ctx->backends.size());
-    }
-
-    return true;
-}
-
-static void smolvla_vision_set_backend_threads(smolvla_vision_ctx * ctx, int n_threads) {
-    if (!ctx || n_threads <= 0) {
-        return;
-    }
-
-    auto apply_n_threads = [n_threads](ggml_backend_t backend) {
-        if (!backend || !ggml_backend_is_cpu(backend)) {
-            return;
-        }
-
-        ggml_backend_dev_t dev = ggml_backend_get_device(backend);
-        ggml_backend_reg_t reg = dev ? ggml_backend_dev_backend_reg(dev) : nullptr;
-        if (!reg) {
-            return;
-        }
-
-        auto set_n_threads_fn = (ggml_backend_set_n_threads_t)
-            ggml_backend_reg_get_proc_address(reg, "ggml_backend_set_n_threads");
-        if (set_n_threads_fn) {
-            set_n_threads_fn(backend, n_threads);
-        }
-    };
-
-    if (!ctx->backends.empty()) {
-        for (ggml_backend_t backend : ctx->backends) {
-            apply_n_threads(backend);
-        }
-        return;
-    }
-
-    apply_n_threads(ctx->backend_cpu);
 }
 
 static void preprocess_loaded_image(
@@ -654,21 +475,29 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     ctx->patch_embd_w = ctx->patch_embd_b = ctx->pos_embd = ctx->post_ln_w = ctx->post_ln_b = nullptr;
     ctx->connector_w = nullptr;
 
-    const ggml_backend_buffer_type_t model_buft = smolvla_vision_default_model_buffer_type();
-    if (verbosity >= 1) {
-        LOG_INF("%s: resolved model_buft=%s\n", __func__, smolvla_buft_name(model_buft));
-    }
-
-    if (!smolvla_vision_init_backends(ctx, verbosity)) {
-        LOG_ERR("%s: failed to initialize vision backends\n", __func__);
+    backend_scheduler_config scheduler_config;
+    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel = false;
+    scheduler_config.op_offload = false;
+    backend_loader backend;
+    if (!backend.load(
+            ctx->backend_cpu,
+            ctx->backends,
+            ctx->sched,
+            ctx->buft_policy,
+            true,
+            scheduler_config,
+            verbosity)) {
+        LOG_ERR("%s: failed to initialize vision backend: %s\n", __func__, backend.error().c_str());
         smolvla_vision_free(ctx);
         return nullptr;
     }
+    smolvla_vision_log_backend_plan(ctx, verbosity);
 
     gguf_load_result loaded;
     {
         smolvla_vision_loader loader(ctx, verbosity);
-        if (!loader.load(mmproj_path, model_buft, loaded, verbosity)) {
+        if (!loader.load(mmproj_path, ctx->buft_policy.model_buft, loaded, verbosity)) {
             LOG_ERR("%s: failed to load vision tensors: %s\n", __func__, loader.error().c_str());
             smolvla_vision_free(ctx);
             return nullptr;
@@ -684,12 +513,6 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
             __func__,
             ggml_backend_buffer_name(loaded.model_buffer),
             ggml_backend_buffer_is_host(loaded.model_buffer) ? 1 : 0);
-    }
-
-    if (!smolvla_vision_init_scheduler(ctx, verbosity)) {
-        LOG_ERR("%s: failed to initialize vision scheduler\n", __func__);
-        smolvla_vision_free(ctx);
-        return nullptr;
     }
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
@@ -804,7 +627,7 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     ggml_backend_tensor_set(positions, ctx->patch_positions.data(), 0,
                             ctx->patch_positions.size() * sizeof(int32_t));
 
-    smolvla_vision_set_backend_threads(ctx, n_threads);
+    set_backend_threads(ctx->backends, n_threads);
     auto t_compute_start = std::chrono::high_resolution_clock::now();
     ggml_backend_sched_graph_compute(ctx->sched, graph);
     auto t_compute_end = std::chrono::high_resolution_clock::now();

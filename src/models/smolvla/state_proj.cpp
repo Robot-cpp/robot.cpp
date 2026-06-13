@@ -12,13 +12,6 @@
 #include "models/gguf_loader.h"
 #include "smolvla_compat.h"
 
-#ifdef GGML_USE_CUDA
-#include "ggml-cuda.h"
-#endif
-#ifdef GGML_USE_METAL
-#include "ggml-metal.h"
-#endif
-
 #include <vector>
 #include <chrono>
 #include <cstring>
@@ -148,30 +141,27 @@ struct smolvla_state_proj * smolvla_state_proj_load(const char * fname, int verb
     // Create context
     smolvla_state_proj * ctx = new smolvla_state_proj();
 
-    // Initialize backend
-#ifdef GGML_USE_CUDA
-    ctx->backend = ggml_backend_cuda_init(0);
-    if (ctx->backend && verbosity >= 1) {
-        LOG_INF("%s: state_proj using CUDA backend\n", __func__);
+    backend_scheduler_config scheduler_config;
+    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel = false;
+    scheduler_config.op_offload = false;
+    backend_loader backend;
+    if (!backend.load(
+            ctx->backend_cpu,
+            ctx->backends,
+            ctx->sched,
+            ctx->buft_policy,
+            false,
+            scheduler_config,
+            verbosity)) {
+        LOG_ERR("%s: failed to initialize state_proj backend: %s\n", __func__, backend.error().c_str());
+        smolvla_state_proj_free(ctx);
+        return nullptr;
     }
-#elif defined(GGML_USE_METAL)
-    ctx->backend = ggml_backend_metal_init();
-    if (ctx->backend && verbosity >= 1) {
-        LOG_INF("%s: state_proj using Metal backend\n", __func__);
-    }
-#endif
-
-    if (!ctx->backend) {
-        ctx->backend = ggml_backend_cpu_init();
-        if (verbosity >= 1) {
-            LOG_INF("%s: state_proj using CPU backend\n", __func__);
-        }
-    }
-
     gguf_load_result loaded;
     {
         smolvla_state_proj_loader loader(ctx, verbosity);
-        if (!loader.load(fname, ggml_backend_get_default_buffer_type(ctx->backend), loaded, verbosity)) {
+        if (!loader.load(fname, ctx->buft_policy.model_buft, loaded, verbosity)) {
             LOG_ERR("%s: failed to load state_proj tensors: %s\n", __func__, loader.error().c_str());
             smolvla_state_proj_free(ctx);
             return nullptr;
@@ -201,17 +191,15 @@ struct smolvla_state_proj * smolvla_state_proj_load(const char * fname, int verb
         }
     }
 
-    // Initialize compute allocator
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
-    ctx->compute_alloc = ggml_gallocr_new(ggml_backend_get_default_buffer_type(ctx->backend));
-
-    // Pre-build graph to reserve memory
-    ggml_cgraph * gf = state_proj_build_graph(ctx);
-    ggml_gallocr_reserve(ctx->compute_alloc, gf);
-    size_t compute_memory_buffer_size = ggml_gallocr_get_buffer_size(ctx->compute_alloc, 0);
+    ggml_cgraph * reserve_graph = state_proj_build_graph(ctx);
+    if (!reserve_graph || !ggml_backend_sched_reserve(ctx->sched, reserve_graph)) {
+        LOG_ERR("%s: failed to reserve state_proj graph\n", __func__);
+        smolvla_state_proj_free(ctx);
+        return nullptr;
+    }
     
     if (verbosity >= 1) {
-        LOG_INF("%s: compute allocated memory: %.2f KB\n", __func__, compute_memory_buffer_size / 1024.0);
         LOG_INF("%s: state_proj loaded successfully: Linear(%d, %d)\n", 
                 __func__, ctx->max_state_dim, ctx->hidden_size);
     }
@@ -255,7 +243,11 @@ bool smolvla_state_proj_encode(
     // Build compute graph
     auto t_build_start = std::chrono::high_resolution_clock::now();
     ggml_cgraph * gf = state_proj_build_graph(ctx);
-    ggml_gallocr_alloc_graph(ctx->compute_alloc, gf);
+    ggml_backend_sched_reset(ctx->sched);
+    if (!gf || !ggml_backend_sched_alloc_graph(ctx->sched, gf)) {
+        LOG_ERR("%s: failed to allocate state_proj graph\n", __func__);
+        return false;
+    }
     auto t_build_end = std::chrono::high_resolution_clock::now();
 
     // Set input data
@@ -268,12 +260,10 @@ bool smolvla_state_proj_encode(
     ggml_backend_tensor_set(inp, normalized_state.data(), 0, ctx->max_state_dim * sizeof(float));
 
     // Execute graph
-    if (ggml_backend_is_cpu(ctx->backend)) {
-        ggml_backend_cpu_set_n_threads(ctx->backend, n_threads);
-    }
+    set_backend_threads(ctx->backends, n_threads);
 
     auto t_compute_start = std::chrono::high_resolution_clock::now();
-    ggml_backend_graph_compute(ctx->backend, gf);
+    ggml_backend_sched_graph_compute(ctx->sched, gf);
     auto t_compute_end = std::chrono::high_resolution_clock::now();
 
     LOG_INF("%s: graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
@@ -300,15 +290,19 @@ bool smolvla_state_proj_encode(
 void smolvla_state_proj_free(struct smolvla_state_proj * ctx) {
     if (!ctx) return;
 
-    if (ctx->compute_alloc) {
-        ggml_gallocr_free(ctx->compute_alloc);
-    }
     if (ctx->params_buffer) {
         ggml_backend_buffer_free(ctx->params_buffer);
     }
-    if (ctx->backend) {
-        ggml_backend_free(ctx->backend);
+    if (ctx->sched) {
+        ggml_backend_sched_free(ctx->sched);
     }
+    for (ggml_backend_t backend : ctx->backends) {
+        if (backend) {
+            ggml_backend_free(backend);
+        }
+    }
+    ctx->backend_cpu = nullptr;
+    ctx->backends.clear();
     if (ctx->ctx_data) {
         ggml_free(ctx->ctx_data);
     }
