@@ -15,6 +15,7 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
+#include "models/ggml_backend.h"
 
 #ifdef LLAMA_SHARED
 #    if defined(_WIN32) && !defined(__MINGW32__)
@@ -39,9 +40,11 @@ struct smolvla_state_proj {
     struct ggml_context * ctx_data = nullptr;
 
     // Backend
-    ggml_backend_t backend = nullptr;
+    ggml_backend_t backend_cpu = nullptr;
+    ggml_backend_sched_t sched = nullptr;
+    std::vector<ggml_backend_t> backends;
+    backend_buft_policy buft_policy;
     ggml_backend_buffer_t params_buffer = nullptr;
-    ggml_gallocr_t compute_alloc = nullptr;
 
     // Model parameters
     int state_dim = 6;         // Actual input dimension (from dataset)

@@ -13,6 +13,8 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
+#include "models/ggml_backend.h"
+#include "models/gguf_loader.h"
 #include "smolvla_compat.h"
 
 #ifdef GGML_USE_CUDA
@@ -30,7 +32,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -81,35 +82,6 @@ static bool smolvla_vision_build_each_run_enabled() {
     return build_each_run;
 }
 
-static ggml_tensor * get_tensor(ggml_context * ctx, const std::string & name) {
-    ggml_tensor * t = ggml_get_tensor(ctx, name.c_str());
-    if (!t) {
-        throw std::runtime_error(format("%s: unable to find tensor %s\n", __func__, name.c_str()));
-    }
-    return t;
-}
-
-static uint32_t get_u32_or(gguf_context * gctx, const char * key, uint32_t fallback) {
-    const int idx = gguf_find_key(gctx, key);
-    return idx >= 0 ? gguf_get_val_u32(gctx, idx) : fallback;
-}
-
-static float get_f32_or(gguf_context * gctx, const char * key, float fallback) {
-    const int idx = gguf_find_key(gctx, key);
-    return idx >= 0 ? gguf_get_val_f32(gctx, idx) : fallback;
-}
-
-static void get_f32_arr3_or(gguf_context * gctx, const char * key, float out[3], const float fallback[3]) {
-    const int idx = gguf_find_key(gctx, key);
-    if (idx < 0 || gguf_get_arr_n(gctx, idx) < 3) {
-        out[0] = fallback[0]; out[1] = fallback[1]; out[2] = fallback[2];
-        return;
-    }
-    out[0] = gguf_get_arr_data(gctx, idx) ? ((const float *) gguf_get_arr_data(gctx, idx))[0] : fallback[0];
-    out[1] = gguf_get_arr_data(gctx, idx) ? ((const float *) gguf_get_arr_data(gctx, idx))[1] : fallback[1];
-    out[2] = gguf_get_arr_data(gctx, idx) ? ((const float *) gguf_get_arr_data(gctx, idx))[2] : fallback[2];
-}
-
 static const char * smolvla_buft_name(ggml_backend_buffer_type_t buft) {
     return buft ? ggml_backend_buft_name(buft) : "(null)";
 }
@@ -147,68 +119,6 @@ static void smolvla_vision_log_backend_plan(const smolvla_vision_ctx * ctx, int 
     }
 }
 
-static ggml_backend_buffer_type_t smolvla_vision_default_host_buffer_type() {
-#if defined(GGML_USE_CUDA) || defined(GGML_USE_METAL)
-    const char * target_reg_name =
-#if defined(GGML_USE_CUDA)
-        "CUDA";
-#else
-        "Metal";
-#endif
-// TODO: not tested yet, need a CUDA/Metal device with host buffer support
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        const enum ggml_backend_dev_type dev_type = ggml_backend_dev_type(dev);
-        if (dev_type != GGML_BACKEND_DEVICE_TYPE_GPU &&
-            dev_type != GGML_BACKEND_DEVICE_TYPE_GPU_FULL) {
-            continue;
-        }
-
-        ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(dev);
-        if (!reg || strcmp(ggml_backend_reg_name(reg), target_reg_name) != 0) {
-            continue;
-        }
-
-        ggml_backend_buffer_type_t buft = ggml_backend_dev_host_buffer_type(dev);
-        if (buft) {
-            return buft;
-        }
-    }
-#endif
-
-    return ggml_backend_cpu_buffer_type();
-}
-
-static ggml_backend_buffer_type_t smolvla_vision_default_model_buffer_type() {
-#ifdef GGML_USE_CUDA
-    // TODO: do not tested yet, need a CUDA device with host buffer support
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        const enum ggml_backend_dev_type dev_type = ggml_backend_dev_type(dev);
-        if (dev_type != GGML_BACKEND_DEVICE_TYPE_GPU &&
-            dev_type != GGML_BACKEND_DEVICE_TYPE_GPU_FULL) {
-            continue;
-        }
-
-        ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(dev);
-        if (!reg || strcmp(ggml_backend_reg_name(reg), "CUDA") != 0) {
-            continue;
-        }
-
-        ggml_backend_buffer_type_t buft = ggml_backend_dev_buffer_type(dev);
-        return buft ? buft : smolvla_vision_default_host_buffer_type();
-    }
-#elif defined(GGML_USE_METAL)
-    // TODO: do not tested yet, need a Metal device with host buffer support 
-    ggml_backend_buffer_type_t buft = ggml_backend_metal_buffer_type();
-    if (buft) {
-        return buft;
-    }
-#endif
-
-    return smolvla_vision_default_host_buffer_type();
-}
-
 static void smolvla_free_model_buffers(std::vector<ggml_backend_buffer_t> & bufs) {
     for (ggml_backend_buffer_t buf : bufs) {
         if (buf) {
@@ -234,124 +144,6 @@ static void smolvla_free_scheduler_backends(std::vector<ggml_backend_t> & backen
         }
     }
     backends.clear();
-}
-
-static bool smolvla_vision_init_backends(
-    smolvla_vision_ctx * ctx,
-    int verbosity
-) {
-    if (!ctx) {
-        return false;
-    }
-
-    ctx->backend_cpu = nullptr;
-    ctx->backends.clear();
-    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        const enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
-        if (type == GGML_BACKEND_DEVICE_TYPE_CPU) {
-            continue;
-        }
-
-        ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
-        if (backend) {
-            ctx->backends.push_back(backend);
-        }
-    }
-
-    ctx->backend_cpu = ggml_backend_cpu_init();
-    if (!ctx->backend_cpu) {
-        smolvla_free_scheduler_backends(ctx->backends);
-        return false;
-    }
-    ctx->backends.push_back(ctx->backend_cpu);
-
-    if (verbosity >= 1) {
-        LOG_INF("%s: enabled %zu backend(s)\n", __func__, ctx->backends.size());
-        smolvla_vision_log_backend_plan(ctx, verbosity);
-    }
-
-    return true;
-}
-
-static bool smolvla_vision_init_scheduler(
-    smolvla_vision_ctx * ctx,
-    int verbosity
-) {
-    if (!ctx || ctx->backends.empty() || !ctx->backend_cpu) {
-        return false;
-    }
-
-    std::vector<ggml_backend_buffer_type_t> backend_buft;
-    backend_buft.reserve(ctx->backends.size());
-    const ggml_backend_buffer_type_t host_buft = smolvla_vision_default_host_buffer_type();
-    for (ggml_backend_t backend : ctx->backends) {
-        backend_buft.push_back(
-            ggml_backend_is_cpu(backend)
-                ? host_buft
-                : ggml_backend_get_default_buffer_type(backend));
-    }
-
-    ctx->sched = ggml_backend_sched_new(
-        ctx->backends.data(),
-        backend_buft.data(),
-        ctx->backends.size(),
-        GGML_DEFAULT_GRAPH_SIZE,
-        false,
-        false);
-
-    if (!ctx->sched) {
-        smolvla_free_scheduler_backends(ctx->backends);
-        ctx->backend_cpu = nullptr;
-        return false;
-    }
-
-    if (verbosity >= 1) {
-        LOG_INF("%s: host_buft=%s\n", __func__, smolvla_buft_name(host_buft));
-        for (size_t i = 0; i < ctx->backends.size(); ++i) {
-            LOG_INF("%s: scheduler backend_buft[%zu]: backend=%s buft=%s\n",
-                __func__,
-                i,
-                smolvla_backend_name(ctx->backends[i]),
-                smolvla_buft_name(backend_buft[i]));
-        }
-        LOG_INF("%s: enabled scheduler with %zu backend(s)\n", __func__, ctx->backends.size());
-    }
-
-    return true;
-}
-
-static void smolvla_vision_set_backend_threads(smolvla_vision_ctx * ctx, int n_threads) {
-    if (!ctx || n_threads <= 0) {
-        return;
-    }
-
-    auto apply_n_threads = [n_threads](ggml_backend_t backend) {
-        if (!backend || !ggml_backend_is_cpu(backend)) {
-            return;
-        }
-
-        ggml_backend_dev_t dev = ggml_backend_get_device(backend);
-        ggml_backend_reg_t reg = dev ? ggml_backend_dev_backend_reg(dev) : nullptr;
-        if (!reg) {
-            return;
-        }
-
-        auto set_n_threads_fn = (ggml_backend_set_n_threads_t)
-            ggml_backend_reg_get_proc_address(reg, "ggml_backend_set_n_threads");
-        if (set_n_threads_fn) {
-            set_n_threads_fn(backend, n_threads);
-        }
-    };
-
-    if (!ctx->backends.empty()) {
-        for (ggml_backend_t backend : ctx->backends) {
-            apply_n_threads(backend);
-        }
-        return;
-    }
-
-    apply_n_threads(ctx->backend_cpu);
 }
 
 static void preprocess_loaded_image(
@@ -583,19 +375,95 @@ static ggml_cgraph * vision_build_graph(smolvla_vision_ctx * ctx) {
     return gf;
 }
 
-smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity) {
-    ggml_context * meta = nullptr;
-    gguf_init_params params = { true, &meta };
-    gguf_context * gctx = gguf_init_from_file(mmproj_path, params);
-    if (!gctx) {
-        LOG_ERR("%s: failed to load vision GGUF: %s\n", __func__, mmproj_path);
-        return nullptr;
+class smolvla_vision_loader : public gguf_loader {
+public:
+    smolvla_vision_loader(
+        smolvla_vision_ctx * ctx,
+        int verbosity)
+        : ctx_(ctx),
+          verbosity_(verbosity) {
     }
 
+protected:
+    bool parse_metadata(gguf_context * gguf) override {
+        ctx_->image_size        = (int) this->u32_or(gguf, "smolvla.vision.image_size", 512);
+        ctx_->patch_size        = (int) this->u32_or(gguf, "smolvla.vision.patch_size", 16);
+        ctx_->hidden_size       = (int) this->u32_or(gguf, "smolvla.vision.hidden_size", 768);
+        ctx_->intermediate_size = (int) this->u32_or(gguf, "smolvla.vision.intermediate_size", 3072);
+        ctx_->n_heads           = (int) this->u32_or(gguf, "smolvla.vision.num_heads", 12);
+        ctx_->n_layers          = (int) this->u32_or(gguf, "smolvla.vision.num_layers", 12);
+        ctx_->eps               = this->f32_or(gguf, "smolvla.vision.layer_norm_eps", 1e-6f);
+        ctx_->num_patches       = (ctx_->image_size / ctx_->patch_size) * (ctx_->image_size / ctx_->patch_size);
+
+        const float default_mean[3] = {0.5f, 0.5f, 0.5f};
+        const float default_std[3] = {0.5f, 0.5f, 0.5f};
+        this->f32_arr3_or(gguf, "smolvla.vision.image_mean", ctx_->image_mean, default_mean);
+        this->f32_arr3_or(gguf, "smolvla.vision.image_std", ctx_->image_std, default_std);
+
+        if (verbosity_ >= 1) {
+            LOG_INF("%s: vision config: image=%d patch=%d hidden=%d layers=%d heads=%d\n",
+                    __func__,
+                    ctx_->image_size,
+                    ctx_->patch_size,
+                    ctx_->hidden_size,
+                    ctx_->n_layers,
+                    ctx_->n_heads);
+        }
+
+        return true;
+    }
+
+    bool bind_tensors(ggml_context * ctx_data) override {
+        ctx_->patch_embd_w = this->require_tensor(ctx_data, "v.patch_embd.weight");
+        ctx_->patch_embd_b = this->require_tensor(ctx_data, "v.patch_embd.bias");
+        ctx_->pos_embd = this->require_tensor(ctx_data, "v.position_embd.weight");
+        ctx_->post_ln_w = this->require_tensor(ctx_data, "v.post_ln.weight");
+        ctx_->post_ln_b = this->require_tensor(ctx_data, "v.post_ln.bias");
+
+        ctx_->layers.resize(ctx_->n_layers);
+        for (int i = 0; i < ctx_->n_layers; ++i) {
+            auto & l = ctx_->layers[i];
+            l.ln1_w = this->require_tensor(ctx_data, format("v.blk.%d.ln1.weight", i));
+            l.ln1_b = this->require_tensor(ctx_data, format("v.blk.%d.ln1.bias", i));
+            l.q_w = this->require_tensor(ctx_data, format("v.blk.%d.attn_q.weight", i));
+            l.q_b = this->require_tensor(ctx_data, format("v.blk.%d.attn_q.bias", i));
+            l.k_w = this->require_tensor(ctx_data, format("v.blk.%d.attn_k.weight", i));
+            l.k_b = this->require_tensor(ctx_data, format("v.blk.%d.attn_k.bias", i));
+            l.v_w = this->require_tensor(ctx_data, format("v.blk.%d.attn_v.weight", i));
+            l.v_b = this->require_tensor(ctx_data, format("v.blk.%d.attn_v.bias", i));
+            l.o_w = this->require_tensor(ctx_data, format("v.blk.%d.attn_out.weight", i));
+            l.o_b = this->require_tensor(ctx_data, format("v.blk.%d.attn_out.bias", i));
+            l.ln2_w = this->require_tensor(ctx_data, format("v.blk.%d.ln2.weight", i));
+            l.ln2_b = this->require_tensor(ctx_data, format("v.blk.%d.ln2.bias", i));
+            l.ffn1_w = this->require_tensor(ctx_data, format("v.blk.%d.ffn_down.weight", i));
+            l.ffn1_b = this->require_tensor(ctx_data, format("v.blk.%d.ffn_down.bias", i));
+            l.ffn2_w = this->require_tensor(ctx_data, format("v.blk.%d.ffn_up.weight", i));
+            l.ffn2_b = this->require_tensor(ctx_data, format("v.blk.%d.ffn_up.bias", i));
+        }
+
+        ggml_tensor * conn = this->require_tensor(ctx_data, "mm.0.weight");
+        // Converter writes numpy shape [out_features, in_features] = [960, 12288].
+        // In ggml tensor dims this appears as ne0=in_features, ne1=out_features.
+        ctx_->connector_in_features = (int) conn->ne[0];
+        ctx_->connector_out_features = (int) conn->ne[1];
+        ctx_->pool_num = 16;
+        ctx_->output_tokens = ctx_->num_patches / ctx_->pool_num;
+        ctx_->connector_w = conn;
+        ctx_->proj_dim = ctx_->connector_out_features;
+
+        return true;
+    }
+
+private:
+    smolvla_vision_ctx * ctx_;
+    int verbosity_;
+};
+
+smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity) {
     auto * ctx = new smolvla_vision_ctx();
     memset(ctx->image_mean, 0, sizeof(ctx->image_mean));
     memset(ctx->image_std, 0, sizeof(ctx->image_std));
-    ctx->ctx_gguf = gctx;
+    ctx->ctx_gguf = nullptr;
     ctx->ctx_data = nullptr;
     ctx->backend_cpu = nullptr;
     ctx->sched = nullptr;
@@ -607,142 +475,44 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     ctx->patch_embd_w = ctx->patch_embd_b = ctx->pos_embd = ctx->post_ln_w = ctx->post_ln_b = nullptr;
     ctx->connector_w = nullptr;
 
-    ctx->image_size = (int) get_u32_or(gctx, "smolvla.vision.image_size", 512);
-    ctx->patch_size = (int) get_u32_or(gctx, "smolvla.vision.patch_size", 16);
-    ctx->hidden_size = (int) get_u32_or(gctx, "smolvla.vision.hidden_size", 768);
-    ctx->intermediate_size = (int) get_u32_or(gctx, "smolvla.vision.intermediate_size", 3072);
-    ctx->n_heads = (int) get_u32_or(gctx, "smolvla.vision.num_heads", 12);
-    ctx->n_layers = (int) get_u32_or(gctx, "smolvla.vision.num_layers", 12);
-    ctx->eps = get_f32_or(gctx, "smolvla.vision.layer_norm_eps", 1e-6f);
-    ctx->num_patches = (ctx->image_size / ctx->patch_size) * (ctx->image_size / ctx->patch_size);
-    const float default_mean[3] = {0.5f, 0.5f, 0.5f};
-    const float default_std[3] = {0.5f, 0.5f, 0.5f};
-    get_f32_arr3_or(gctx, "smolvla.vision.image_mean", ctx->image_mean, default_mean);
-    get_f32_arr3_or(gctx, "smolvla.vision.image_std", ctx->image_std, default_std);
-
-    const ggml_backend_buffer_type_t model_buft = smolvla_vision_default_model_buffer_type();
-    if (verbosity >= 1) {
-        LOG_INF("%s: resolved model_buft=%s\n", __func__, smolvla_buft_name(model_buft));
-    }
-
-    if (!smolvla_vision_init_backends(ctx, verbosity)) {
-        LOG_ERR("%s: failed to initialize vision backends\n", __func__);
+    backend_scheduler_config scheduler_config;
+    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel = false;
+    scheduler_config.op_offload = false;
+    backend_loader backend;
+    if (!backend.load(
+            ctx->backend_cpu,
+            ctx->backends,
+            ctx->sched,
+            ctx->buft_policy,
+            true,
+            scheduler_config,
+            verbosity)) {
+        LOG_ERR("%s: failed to initialize vision backend: %s\n", __func__, backend.error().c_str());
         smolvla_vision_free(ctx);
-        ggml_free(meta);
         return nullptr;
     }
+    smolvla_vision_log_backend_plan(ctx, verbosity);
 
-    const int n_tensors = gguf_get_n_tensors(gctx);
-    const size_t ctx_size = ggml_tensor_overhead() * (n_tensors + 1);
-    ggml_init_params gparams = { ctx_size, nullptr, true };
-    ctx->ctx_data = ggml_init(gparams);
-    if (!ctx->ctx_data) {
-        LOG_ERR("%s: failed to create ctx_data\n", __func__);
-        smolvla_vision_free(ctx);
-        ggml_free(meta);
-        return nullptr;
+    gguf_load_result loaded;
+    {
+        smolvla_vision_loader loader(ctx, verbosity);
+        if (!loader.load(mmproj_path, ctx->buft_policy.model_buft, loaded, verbosity)) {
+            LOG_ERR("%s: failed to load vision tensors: %s\n", __func__, loader.error().c_str());
+            smolvla_vision_free(ctx);
+            return nullptr;
+        }
     }
+    ctx->ctx_gguf = loaded.gguf;
+    ctx->ctx_data = loaded.ctx_data;
     ctx->ctxs.push_back(ctx->ctx_data);
-
-    // Duplicate tensor metadata into ctx_data.
-    for (int i = 0; i < n_tensors; ++i) {
-        const char * name = gguf_get_tensor_name(gctx, i);
-        ggml_tensor * mt = ggml_get_tensor(meta, name);
-        ggml_tensor * t = ggml_dup_tensor(ctx->ctx_data, mt);
-        ggml_set_name(t, name);
-    }
-
-    // Allocate backend buffer and load tensor bytes.
-    // TODO: model_buft still assumes the whole model lives on a single target device.
-    ggml_backend_buffer_t model_buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx->ctx_data, model_buft);
-    if (!model_buf) {
-        LOG_ERR("%s: failed to allocate model buffer\n", __func__);
-        smolvla_vision_free(ctx);
-        ggml_free(meta);
-        return nullptr;
-    }
+    ctx->bufs.push_back(loaded.model_buffer);
 
     if (verbosity >= 1) {
         LOG_INF("%s: model_buf=%s is_host=%d\n",
             __func__,
-            ggml_backend_buffer_name(model_buf),
-            ggml_backend_buffer_is_host(model_buf) ? 1 : 0);
-    }
-    
-    ctx->bufs.push_back(model_buf);
-    std::ifstream fin(mmproj_path, std::ios::binary);
-    if (!fin) {
-        LOG_ERR("%s: failed to open %s\n", __func__, mmproj_path);
-        smolvla_vision_free(ctx);
-        ggml_free(meta);
-        return nullptr;
-    }
-    std::vector<uint8_t> tmp;
-    for (int i = 0; i < n_tensors; ++i) {
-        const char * name = gguf_get_tensor_name(gctx, i);
-        ggml_tensor * t = ggml_get_tensor(ctx->ctx_data, name);
-        const size_t off = gguf_get_data_offset(gctx) + gguf_get_tensor_offset(gctx, i);
-        fin.seekg(off, std::ios::beg);
-        const int nbytes = (int) ggml_nbytes(t);
-        if (ggml_backend_buffer_is_host(model_buf)) {
-            fin.read((char *) t->data, nbytes);
-        } else {
-            tmp.resize(nbytes);
-            fin.read((char *) tmp.data(), nbytes);
-            ggml_backend_tensor_set(t, tmp.data(), 0, nbytes);
-        }
-    }
-    fin.close();
-    ggml_free(meta);
-
-    // Bind tensors.
-    try {
-        ctx->patch_embd_w = get_tensor(ctx->ctx_data, "v.patch_embd.weight");
-        ctx->patch_embd_b = get_tensor(ctx->ctx_data, "v.patch_embd.bias");
-        ctx->pos_embd = get_tensor(ctx->ctx_data, "v.position_embd.weight");
-        ctx->post_ln_w = get_tensor(ctx->ctx_data, "v.post_ln.weight");
-        ctx->post_ln_b = get_tensor(ctx->ctx_data, "v.post_ln.bias");
-        ctx->layers.resize(ctx->n_layers);
-        for (int i = 0; i < ctx->n_layers; ++i) {
-            auto & l = ctx->layers[i];
-            l.ln1_w = get_tensor(ctx->ctx_data, format("v.blk.%d.ln1.weight", i));
-            l.ln1_b = get_tensor(ctx->ctx_data, format("v.blk.%d.ln1.bias", i));
-            l.q_w = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_q.weight", i));
-            l.q_b = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_q.bias", i));
-            l.k_w = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_k.weight", i));
-            l.k_b = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_k.bias", i));
-            l.v_w = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_v.weight", i));
-            l.v_b = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_v.bias", i));
-            l.o_w = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_out.weight", i));
-            l.o_b = get_tensor(ctx->ctx_data, format("v.blk.%d.attn_out.bias", i));
-            l.ln2_w = get_tensor(ctx->ctx_data, format("v.blk.%d.ln2.weight", i));
-            l.ln2_b = get_tensor(ctx->ctx_data, format("v.blk.%d.ln2.bias", i));
-            l.ffn1_w = get_tensor(ctx->ctx_data, format("v.blk.%d.ffn_down.weight", i));
-            l.ffn1_b = get_tensor(ctx->ctx_data, format("v.blk.%d.ffn_down.bias", i));
-            l.ffn2_w = get_tensor(ctx->ctx_data, format("v.blk.%d.ffn_up.weight", i));
-            l.ffn2_b = get_tensor(ctx->ctx_data, format("v.blk.%d.ffn_up.bias", i));
-        }
-        ggml_tensor * conn = get_tensor(ctx->ctx_data, "mm.0.weight");
-        // Converter writes numpy shape [out_features, in_features] = [960, 12288].
-        // In ggml tensor dims this appears as ne0=in_features, ne1=out_features.
-        const int64_t in = conn->ne[0];
-        const int64_t out = conn->ne[1];
-        ctx->connector_out_features = (int) out;
-        ctx->connector_in_features = (int) in;
-        ctx->pool_num = 16;
-        ctx->output_tokens = ctx->num_patches / ctx->pool_num;
-        ctx->connector_w = conn;
-        ctx->proj_dim = ctx->connector_out_features;
-    } catch (const std::exception & e) {
-        LOG_ERR("%s: tensor bind failed: %s", __func__, e.what());
-        smolvla_vision_free(ctx);
-        return nullptr;
-    }
-
-    if (!smolvla_vision_init_scheduler(ctx, verbosity)) {
-        LOG_ERR("%s: failed to initialize vision scheduler\n", __func__);
-        smolvla_vision_free(ctx);
-        return nullptr;
+            ggml_backend_buffer_name(loaded.model_buffer),
+            ggml_backend_buffer_is_host(loaded.model_buffer) ? 1 : 0);
     }
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
@@ -857,7 +627,7 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     ggml_backend_tensor_set(positions, ctx->patch_positions.data(), 0,
                             ctx->patch_positions.size() * sizeof(int32_t));
 
-    smolvla_vision_set_backend_threads(ctx, n_threads);
+    set_backend_threads(ctx->backends, n_threads);
     auto t_compute_start = std::chrono::high_resolution_clock::now();
     ggml_backend_sched_graph_compute(ctx->sched, graph);
     auto t_compute_end = std::chrono::high_resolution_clock::now();

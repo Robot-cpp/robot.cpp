@@ -4,13 +4,12 @@
 #include <cstdint>
 #include <vector>
 
+#include "models/ggml_backend.h"
+
 struct gguf_context;
 struct ggml_context;
 struct ggml_cgraph;
 struct ggml_tensor;
-typedef struct ggml_backend * ggml_backend_t;
-typedef struct ggml_backend_buffer * ggml_backend_buffer_t;
-typedef struct ggml_backend_sched * ggml_backend_sched_t;
 typedef struct ggml_gallocr * ggml_gallocr_t;
 
 // SmolVLA Vision context
@@ -21,6 +20,7 @@ struct smolvla_vision_ctx {
     ggml_backend_t        backend_cpu;
     ggml_backend_sched_t  sched;
     std::vector<ggml_backend_t> backends;
+    backend_buft_policy   buft_policy;
     std::vector<ggml_context *> ctxs;
     std::vector<ggml_backend_buffer_t> bufs;
     std::vector<uint8_t>  buf_compute_meta;
