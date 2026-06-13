@@ -177,6 +177,21 @@ float gguf_loader::f32_or(gguf_context * gguf, const char * key, float fallback)
     return idx >= 0 ? gguf_get_val_f32(gguf, idx) : fallback;
 }
 
+void gguf_loader::f32_arr3_or(gguf_context * gguf, const char * key, float out[3], const float fallback[3]) {
+    const int n = arr_n(gguf, key);
+    const float * data = static_cast<const float *>(arr_data(gguf, key));
+    if (n < 3 || !data) {
+        out[0] = fallback[0];
+        out[1] = fallback[1];
+        out[2] = fallback[2];
+        return;
+    }
+
+    out[0] = data[0];
+    out[1] = data[1];
+    out[2] = data[2];
+}
+
 int gguf_loader::arr_n(gguf_context * gguf, const char * key) const {
     const int idx = gguf_find_key(gguf, key);
     return idx >= 0 ? gguf_get_arr_n(gguf, idx) : -1;

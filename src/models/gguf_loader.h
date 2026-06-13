@@ -33,6 +33,7 @@ protected:
     uint32_t require_u32(gguf_context * gguf, const char * key);
     uint32_t u32_or(gguf_context * gguf, const char * key, uint32_t fallback);
     float f32_or(gguf_context * gguf, const char * key, float fallback);
+    void f32_arr3_or(gguf_context * gguf, const char * key, float out[3], const float fallback[3]);
 
     int arr_n(gguf_context * gguf, const char * key) const;
     const void * arr_data(gguf_context * gguf, const char * key) const;
