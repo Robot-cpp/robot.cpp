@@ -29,7 +29,6 @@ public:
 protected:
     virtual bool parse_metadata(gguf_context * gguf) = 0;
     virtual bool bind_tensors(ggml_context * ctx_data) = 0;
-    virtual bool validate_model() = 0;
 
     uint32_t require_u32(gguf_context * gguf, const char * key);
     uint32_t u32_or(gguf_context * gguf, const char * key, uint32_t fallback);

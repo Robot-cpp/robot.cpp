@@ -140,7 +140,7 @@ bool gguf_loader::load(
             meta = nullptr;
         }
 
-        if (!bind_tensors(ctx_data) || !validate_model()) {
+        if (!bind_tensors(ctx_data)) {
             cleanup();
             return false;
         }
