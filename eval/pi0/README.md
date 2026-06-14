@@ -1,20 +1,34 @@
 # pi0 LIBERO eval
 
 This folder contains pi0-specific LIBERO runners for `model-server`. The
-LeRobot reference checkpoint is `lerobot/pi0_libero_finetuned_v044`; the converted
-split GGUF path defaults to:
+LeRobot reference checkpoint is `lerobot/pi0_libero_finetuned_v044`; the
+converted split GGUF files are hosted at
+`JJJYmmm/robotcpp-pi0-libero-finetuned-v044`.
 
-```text
-ckpts/pi0-libero-finetuned-v044/vlacpp-split
-```
+## Checkpoint
 
-Download the split GGUF files from Hugging Face:
+Download the split GGUF files:
 
 ```sh
 hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
   --include "*.gguf" \
   --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
 ```
+
+The runner looks under this repo-relative path by default:
+
+```sh
+ckpts/pi0-libero-finetuned-v044/vlacpp-split
+```
+
+Set `VLACPP_PI0_GGUF_DIR` or pass `--gguf-dir` to use a different location:
+
+```sh
+export VLACPP_PI0_GGUF_DIR=/path/to/split-gguf
+```
+
+`--model-basename` is optional; by default the runner infers it from the single
+`*.vit.gguf` file in `--gguf-dir`.
 
 ## model-server eval
 

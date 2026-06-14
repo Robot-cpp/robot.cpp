@@ -5,8 +5,8 @@ Model-specific runners live in sibling folders such as `eval/pi0`.
 
 ## Dependency check
 
-Run these commands inside an environment with LeRobot and LIBERO dependencies.
-If LIBERO dependencies are missing, install the LeRobot LIBERO package set:
+Run these commands inside the Python environment used for eval. If LIBERO
+dependencies are missing, install the LeRobot LIBERO package set:
 
 ```sh
 pip install "cmake<4"
