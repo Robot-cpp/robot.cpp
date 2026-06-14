@@ -53,6 +53,9 @@ static bool mode_for_device(
 }
 
 backend_mode backend_loader::desired_mode(bool use_accel) const {
+    if (!use_accel) {
+        return backend_mode::cpu;
+    }
 #if defined(GGML_USE_CUDA)
     return backend_mode::cuda;
 #elif defined(GGML_USE_METAL)
@@ -248,7 +251,6 @@ const std::string & backend_loader::error() const {
 
 bool backend_loader::fail(const std::string & message) {
     error_ = message;
-    std::fprintf(stderr, "%s: %s\n", __func__, error_.c_str());
     return false;
 }
 

@@ -34,8 +34,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=OFF \
-        -DVLACPP_BUILD_SMOLVLA=ON \
-        -DVLACPP_BUILD_TESTS=ON
+        -DVLACPP_BUILD_ROBOT_SERVER=ON
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \

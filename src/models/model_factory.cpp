@@ -3,8 +3,6 @@
 #include "models/pi0/pi0_model.h"
 #include "models/smolvla/smolvla_model.h"
 
-#include <any>
-
 namespace robotcpp {
 
 bool make_model(

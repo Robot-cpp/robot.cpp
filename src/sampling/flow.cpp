@@ -4,7 +4,7 @@
 #include <cmath>
 #include <random>
 
-namespace vlacpp {
+namespace robotcpp::sampling {
 
 void sample_flow_euler(
     int steps,
@@ -39,4 +39,4 @@ void sample_flow_euler(
     }
 }
 
-} // namespace vlacpp
+} // namespace robotcpp::sampling

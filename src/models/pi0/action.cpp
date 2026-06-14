@@ -1,6 +1,6 @@
 #include "models/pi0/action.h"
 
-#include "models/ggml_runtime.h"
+#include "models/pi0/backend.h"
 #include "models/pi0/load.h"
 #include "sampling/flow.h"
 
@@ -11,7 +11,7 @@
 #include <cstddef>
 #include <stdexcept>
 
-namespace vlacpp {
+namespace robotcpp::pi0 {
 
 namespace {
 
@@ -74,16 +74,17 @@ bool pi0_has_action_expert(const Pi0Context & ctx) {
 }
 
 void pi0_state_context(const Pi0Context & ctx, const std::vector<float> & state, std::vector<float> & out) {
-    const Tensor * state_w = ctx.weights.state_w;
-    const Tensor * state_b = ctx.weights.state_b;
+    ggml_tensor * state_w = ctx.weights.state_w;
+    ggml_tensor * state_b = ctx.weights.state_b;
     if (state_w == nullptr || state_b == nullptr) {
         out.clear();
         return;
     }
     pi0_linear_batch(
         ctx,
-        *state_w,
-        *state_b,
+        ctx.components.state.backend,
+        state_w,
+        state_b,
         state,
         1,
         out,
@@ -111,12 +112,12 @@ void pi0_action_head_batch(
     const std::vector<float> & actions,
     const std::vector<float> & state_context,
     std::vector<float> & out) {
-    const Tensor & in_w = *ctx.weights.action_in_w;
-    const Tensor & out_w = *ctx.weights.action_out_w;
-    const Tensor & out_b = *ctx.weights.action_out_b;
+    ggml_tensor * in_w = ctx.weights.action_in_w;
+    ggml_tensor * out_w = ctx.weights.action_out_w;
+    ggml_tensor * out_b = ctx.weights.action_out_b;
 
     const int batch = ctx.config.common.action_horizon;
-    const size_t width = static_cast<size_t>(in_w.shape[1]);
+    const size_t width = static_cast<size_t>(in_w->ne[1]);
 
     std::vector<float> suffix_tokens;
     pi0_suffix_embeddings(ctx, time, actions, state_context, suffix_tokens);
@@ -131,6 +132,7 @@ void pi0_action_head_batch(
         suffix_tokens.begin() + static_cast<std::ptrdiff_t>(action_offset + static_cast<size_t>(batch) * width));
     pi0_linear_batch(
         ctx,
+        ctx.components.action_decoder.backend,
         out_w,
         out_b,
         action_expert_tokens,
@@ -145,18 +147,19 @@ void pi0_suffix_embeddings(
     const std::vector<float> & actions,
     const std::vector<float> & state_context,
     std::vector<float> & out) {
-    const Tensor & in_w = *ctx.weights.action_in_w;
-    const Tensor & in_b = *ctx.weights.action_in_b;
-    const Tensor & time_in_w = *ctx.weights.action_time_in_w;
-    const Tensor & time_in_b = *ctx.weights.action_time_in_b;
-    const Tensor & time_out_w = *ctx.weights.action_time_out_w;
-    const Tensor & time_out_b = *ctx.weights.action_time_out_b;
+    ggml_tensor * in_w = ctx.weights.action_in_w;
+    ggml_tensor * in_b = ctx.weights.action_in_b;
+    ggml_tensor * time_in_w = ctx.weights.action_time_in_w;
+    ggml_tensor * time_in_b = ctx.weights.action_time_in_b;
+    ggml_tensor * time_out_w = ctx.weights.action_time_out_w;
+    ggml_tensor * time_out_b = ctx.weights.action_time_out_b;
     const int batch = ctx.config.common.action_horizon;
-    const size_t width = static_cast<size_t>(in_w.shape[1]);
+    const size_t width = static_cast<size_t>(in_w->ne[1]);
 
     std::vector<float> action_tokens;
     pi0_linear_batch(
         ctx,
+        ctx.components.action_decoder.backend,
         in_w,
         in_b,
         actions,
@@ -181,6 +184,7 @@ void pi0_suffix_embeddings(
     std::vector<float> hidden;
     pi0_linear_batch(
         ctx,
+        ctx.components.action_decoder.backend,
         time_in_w,
         time_in_b,
         action_time,
@@ -191,6 +195,7 @@ void pi0_suffix_embeddings(
     std::vector<float> action_expert_tokens;
     pi0_linear_batch(
         ctx,
+        ctx.components.action_decoder.backend,
         time_out_w,
         time_out_b,
         hidden,
@@ -251,14 +256,14 @@ bool pi0_velocity_expert_batch_device(
         (has_state_context && state_context.size() != static_cast<size_t>(width))) {
         throw std::invalid_argument("pi0 action expert fused graph input has incompatible shape");
     }
-    const Tensor * in_w = ctx.weights.action_in_w;
-    const Tensor * in_b = ctx.weights.action_in_b;
-    const Tensor * time_in_w = ctx.weights.action_time_in_w;
-    const Tensor * time_in_b = ctx.weights.action_time_in_b;
-    const Tensor * time_out_w = ctx.weights.action_time_out_w;
-    const Tensor * time_out_b = ctx.weights.action_time_out_b;
-    const Tensor * out_w = ctx.weights.action_out_w;
-    const Tensor * out_b = ctx.weights.action_out_b;
+    ggml_tensor * in_w = ctx.weights.action_in_w;
+    ggml_tensor * in_b = ctx.weights.action_in_b;
+    ggml_tensor * time_in_w = ctx.weights.action_time_in_w;
+    ggml_tensor * time_in_b = ctx.weights.action_time_in_b;
+    ggml_tensor * time_out_w = ctx.weights.action_time_out_w;
+    ggml_tensor * time_out_b = ctx.weights.action_time_out_b;
+    ggml_tensor * out_w = ctx.weights.action_out_w;
+    ggml_tensor * out_b = ctx.weights.action_out_b;
     if (in_w == nullptr || in_b == nullptr ||
         time_in_w == nullptr || time_in_b == nullptr || time_out_w == nullptr || time_out_b == nullptr ||
         out_w == nullptr || out_b == nullptr) {
@@ -286,51 +291,51 @@ bool pi0_velocity_expert_batch_device(
         }
     }
     const size_t context_size = 256 * 1024 * 1024;
-    const GgmlRunner & runner = *ctx.components.action_decoder.runner;
-    GgmlContext gctx(runner.init_params(context_size, &ctx, static_cast<uint64_t>(prefix_tokens)));
+    const Pi0ComponentBackend & runtime = ctx.components.action_decoder.backend;
+    Pi0GraphContext gctx(pi0_graph_init_params(context_size));
 
     ggml_tensor * action_input = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, action_dim, batch);
     ggml_tensor * time_input = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, width, batch);
     ggml_tensor * pos = ggml_new_tensor_1d(gctx, GGML_TYPE_I32, suffix_count);
-    std::vector<GgmlInput> inputs;
-    runner.set_input(inputs, action_input, actions.data(), actions.size() * sizeof(float));
-    runner.set_input(inputs, time_input, time_batch.data(), time_batch.size() * sizeof(float));
-    runner.set_input(inputs, pos, pos_host.data(), pos_host.size() * sizeof(int32_t));
+    ggml_set_input(action_input);
+    ggml_set_input(time_input);
+    ggml_set_input(pos);
 
     ggml_tensor * kq_mask = nullptr;
     if (!attention_mask.empty()) {
         kq_mask = ggml_new_tensor_3d(gctx, GGML_TYPE_F32, kv_tokens, suffix_count, 1);
-        runner.set_input(inputs, kq_mask, attention_mask.data(), attention_mask.size() * sizeof(float));
+        ggml_set_input(kq_mask);
     }
 
     ggml_tensor * action_tokens = ggml_add(
         gctx,
-        ggml_mul_mat(gctx, pi0_weight(ctx, *in_w, 2), action_input),
-        pi0_weight(ctx, *in_b, 1));
+        ggml_mul_mat(gctx, pi0_weight(ctx, in_w, 2), action_input),
+        pi0_f32_weight(gctx, ctx, in_b, 1));
     ggml_tensor * action_time = ggml_concat(gctx, action_tokens, time_input, 0);
     ggml_tensor * time_hidden = ggml_silu(gctx, ggml_add(
         gctx,
-        ggml_mul_mat(gctx, pi0_weight(ctx, *time_in_w, 2), action_time),
-        pi0_weight(ctx, *time_in_b, 1)));
+        ggml_mul_mat(gctx, pi0_weight(ctx, time_in_w, 2), action_time),
+        pi0_f32_weight(gctx, ctx, time_in_b, 1)));
     ggml_tensor * hidden = ggml_add(
         gctx,
-        ggml_mul_mat(gctx, pi0_weight(ctx, *time_out_w, 2), time_hidden),
-        pi0_weight(ctx, *time_out_b, 1));
+        ggml_mul_mat(gctx, pi0_weight(ctx, time_out_w, 2), time_hidden),
+        pi0_f32_weight(gctx, ctx, time_out_b, 1));
+    ggml_tensor * state_token = nullptr;
     if (has_state_context) {
-        ggml_tensor * state_token = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, width, 1);
-        runner.set_input(inputs, state_token, state_context.data(), state_context.size() * sizeof(float));
+        state_token = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, width, 1);
+        ggml_set_input(state_token);
         hidden = ggml_concat(gctx, state_token, hidden, 1);
     }
 
     for (int layer = 0; layer < layers; ++layer) {
         const Pi0TransformerLayerWeights & layer_w = ctx.weights.action_layers[static_cast<size_t>(layer)];
-        const Tensor * q_w = layer_w.q;
-        const Tensor * k_w = layer_w.k;
-        const Tensor * v_w = layer_w.v;
-        const Tensor * attn_out_w = layer_w.out;
-        const Tensor * gate_w = layer_w.gate;
-        const Tensor * up_w = layer_w.up;
-        const Tensor * down_w = layer_w.down;
+        ggml_tensor * q_w = layer_w.q;
+        ggml_tensor * k_w = layer_w.k;
+        ggml_tensor * v_w = layer_w.v;
+        ggml_tensor * attn_out_w = layer_w.out;
+        ggml_tensor * gate_w = layer_w.gate;
+        ggml_tensor * up_w = layer_w.up;
+        ggml_tensor * down_w = layer_w.down;
         if (q_w == nullptr || k_w == nullptr || v_w == nullptr || attn_out_w == nullptr ||
             gate_w == nullptr || up_w == nullptr || down_w == nullptr) {
             throw std::invalid_argument("missing pi0 action expert fused graph tensor");
@@ -339,13 +344,13 @@ bool pi0_velocity_expert_batch_device(
         if (layer_w.input_norm_scale == nullptr || layer_w.post_norm_scale == nullptr) {
             throw std::invalid_argument("missing pi0 action expert norm scale tensor");
         }
-        ggml_tensor * input_scale_tensor = pi0_weight(ctx, *layer_w.input_norm_scale, 1);
-        ggml_tensor * post_scale_tensor = pi0_weight(ctx, *layer_w.post_norm_scale, 1);
+        ggml_tensor * input_scale_tensor = pi0_f32_weight(gctx, ctx, layer_w.input_norm_scale, 1);
+        ggml_tensor * post_scale_tensor = pi0_f32_weight(gctx, ctx, layer_w.post_norm_scale, 1);
 
         ggml_tensor * normed = ggml_mul(gctx, ggml_rms_norm(gctx, hidden, 1.0e-6f), input_scale_tensor);
-        ggml_tensor * q = ggml_cont_2d(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, *q_w, 2), normed), q_out, suffix_count);
-        ggml_tensor * k = ggml_cont_2d(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, *k_w, 2), normed), kv_out, suffix_count);
-        ggml_tensor * v = ggml_cont_2d(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, *v_w, 2), normed), kv_out, suffix_count);
+        ggml_tensor * q = ggml_cont_2d(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, q_w, 2), normed), q_out, suffix_count);
+        ggml_tensor * k = ggml_cont_2d(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, k_w, 2), normed), kv_out, suffix_count);
+        ggml_tensor * v = ggml_cont_2d(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, v_w, 2), normed), kv_out, suffix_count);
         q = ggml_reshape_3d(gctx, q, head_dim, heads, suffix_count);
         k = ggml_reshape_3d(gctx, k, head_dim, kv_heads, suffix_count);
         v = ggml_reshape_3d(gctx, v, head_dim, kv_heads, suffix_count);
@@ -381,34 +386,50 @@ bool pi0_velocity_expert_batch_device(
         ggml_tensor * values = ggml_mul_mat(gctx, v_perm, scores);
         ggml_tensor * attn_values = ggml_permute(gctx, values, 0, 2, 1, 3);
         attn_values = ggml_cont_2d(gctx, attn_values, static_cast<int64_t>(head_dim) * heads, suffix_count);
-        ggml_tensor * attn_out = ggml_mul_mat(gctx, pi0_weight(ctx, *attn_out_w, 2), attn_values);
+        ggml_tensor * attn_out = ggml_mul_mat(gctx, pi0_weight(ctx, attn_out_w, 2), attn_values);
         ggml_tensor * first_residual = ggml_add(gctx, hidden, attn_out);
 
         ggml_tensor * post_norm = ggml_mul(gctx, ggml_rms_norm(gctx, first_residual, 1.0e-6f), post_scale_tensor);
-        ggml_tensor * gate = ggml_gelu(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, *gate_w, 2), post_norm));
-        ggml_tensor * up = ggml_mul_mat(gctx, pi0_weight(ctx, *up_w, 2), post_norm);
-        ggml_tensor * mlp_out = ggml_mul_mat(gctx, pi0_weight(ctx, *down_w, 2), ggml_mul(gctx, gate, up));
+        ggml_tensor * gate = ggml_gelu(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, gate_w, 2), post_norm));
+        ggml_tensor * up = ggml_mul_mat(gctx, pi0_weight(ctx, up_w, 2), post_norm);
+        ggml_tensor * mlp_out = ggml_mul_mat(gctx, pi0_weight(ctx, down_w, 2), ggml_mul(gctx, gate, up));
         hidden = ggml_add(gctx, first_residual, mlp_out);
     }
 
     if (ctx.weights.action_norm_scale == nullptr) {
         throw std::invalid_argument("missing pi0 action expert final norm scale tensor");
     }
-    ggml_tensor * final_scale_tensor = pi0_weight(ctx, *ctx.weights.action_norm_scale, 1);
+    ggml_tensor * final_scale_tensor = pi0_f32_weight(gctx, ctx, ctx.weights.action_norm_scale, 1);
     hidden = ggml_mul(gctx, ggml_rms_norm(gctx, hidden, 1.0e-6f), final_scale_tensor);
 
     const size_t action_offset = suffix_count == batch ? 0 : static_cast<size_t>(width) * sizeof(float);
     ggml_tensor * output_tokens = ggml_view_2d(gctx, hidden, width, batch, hidden->nb[1], action_offset);
     ggml_tensor * y = ggml_add(
         gctx,
-        ggml_mul_mat(gctx, pi0_weight(ctx, *out_w, 2), output_tokens),
-        pi0_weight(ctx, *out_b, 1));
+        ggml_mul_mat(gctx, pi0_weight(ctx, out_w, 2), output_tokens),
+        pi0_f32_weight(gctx, ctx, out_b, 1));
     ggml_cgraph * graph = ggml_new_graph_custom(gctx, GGML_DEFAULT_GRAPH_SIZE, false);
     ggml_build_forward_expand(graph, y);
-    runner.compute(gctx, graph, inputs, "ggml action decoder fused graph compute failed");
+    ggml_backend_sched_reset(runtime.sched);
+    if (!ggml_backend_sched_alloc_graph(runtime.sched, graph)) {
+        throw std::runtime_error("pi0 action decoder graph allocation failed");
+    }
+    ggml_backend_tensor_set(action_input, actions.data(), 0, actions.size() * sizeof(float));
+    ggml_backend_tensor_set(time_input, time_batch.data(), 0, time_batch.size() * sizeof(float));
+    ggml_backend_tensor_set(pos, pos_host.data(), 0, pos_host.size() * sizeof(int32_t));
+    if (kq_mask != nullptr) {
+        ggml_backend_tensor_set(kq_mask, attention_mask.data(), 0, attention_mask.size() * sizeof(float));
+    }
+    if (state_token != nullptr) {
+        ggml_backend_tensor_set(state_token, state_context.data(), 0, state_context.size() * sizeof(float));
+    }
+    set_backend_threads(runtime.backends, runtime.n_threads);
+    if (ggml_backend_sched_graph_compute(runtime.sched, graph) != GGML_STATUS_SUCCESS) {
+        throw std::runtime_error("ggml action decoder fused graph compute failed");
+    }
 
     out.resize(static_cast<size_t>(batch) * static_cast<size_t>(action_dim));
-    runner.get_output(y, out.data(), out.size() * sizeof(float));
+    ggml_backend_tensor_get(y, out.data(), 0, out.size() * sizeof(float));
     return true;
 }
 
@@ -416,12 +437,12 @@ Pi0Sampler::Pi0Sampler(const Pi0Context & ctx)
     : ctx_(ctx) {}
 
 void Pi0Sampler::sample_actions(
-    RuntimeConfig & runtime,
+    Pi0RuntimeConfig & runtime,
     const std::vector<float> & state_context,
-    const KvCache & cache,
+    const Pi0KvCache & cache,
     const std::vector<float> & initial_noise,
     std::vector<float> & out_actions) const {
-    sample_flow_euler(
+    robotcpp::sampling::sample_flow_euler(
         runtime.flow_steps,
         runtime.rng,
         ctx_.config.common.action_horizon,
@@ -456,4 +477,4 @@ void Pi0Sampler::denormalize_actions(std::vector<float> & actions) const {
     }
 }
 
-} // namespace vlacpp
+} // namespace robotcpp::pi0

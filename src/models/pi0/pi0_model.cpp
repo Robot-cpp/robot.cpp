@@ -1,11 +1,13 @@
 #include "models/pi0/pi0_model.h"
 
+#include "models/pi0/pi0_engine.h"
+
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <new>
 #include <string>
+#include <vector>
 
 namespace robotcpp {
 namespace {
@@ -45,52 +47,27 @@ bool validate_options(const model_args & args, std::string & error) {
     return true;
 }
 
-std::string last_error_or_status(vlacpp_status status) {
-    const char * error = vlacpp_last_error();
-    if (error != nullptr && error[0] != '\0') {
-        return error;
-    }
-    return "vlacpp status " + std::to_string(static_cast<int>(status));
-}
-
 } // namespace
 
 Pi0Model::Pi0Model(const model_args & args)
     : args_(args) {
-    vlacpp_model_artifact artifact_items[] = {
-        {"vit", args_.vit_path.c_str()},
-        {"mmproj", args_.mmproj_path.c_str()},
-        {"llm", args_.llm_path.c_str()},
-        {"tokenizer", args_.tokenizer_path.c_str()},
-        {"state", args_.state_path.c_str()},
-        {"action_decoder", args_.action_decoder_path.c_str()},
-    };
-    vlacpp_model_artifacts artifacts{};
-    artifacts.items = artifact_items;
-    artifacts.count = sizeof(artifact_items) / sizeof(artifact_items[0]);
+    pi0_params params = pi0_default_params();
+    params.vit_path = args_.vit_path.c_str();
+    params.mmproj_path = args_.mmproj_path.c_str();
+    params.llm_path = args_.llm_path.c_str();
+    params.tokenizer_path = args_.tokenizer_path.c_str();
+    params.state_path = args_.state_path.c_str();
+    params.action_decoder_path = args_.action_decoder_path.c_str();
+    params.n_threads = args_.threads;
+    params.noise_seed = args_.noise_seed;
+    params.verbosity = args_.verbosity;
 
-    vlacpp_model_params model_params = vlacpp_default_model_params();
-    model_params.n_threads = args_.threads;
-    vlacpp_status status = vlacpp_load_model(&artifacts, &model_params, &model_);
-    if (status != VLACPP_STATUS_OK) {
-        return;
-    }
-
-    vlacpp_context_params context_params = vlacpp_default_context_params();
-    context_params.seed = args_.noise_seed >= 0 ? static_cast<uint32_t>(args_.noise_seed) : 0U;
-    status = vlacpp_create_context(model_, &context_params, &context_);
-    if (status != VLACPP_STATUS_OK) {
-        return;
-    }
-    vlacpp_get_model_info(model_, &info_);
+    ctx_ = pi0_init(params);
 }
 
 Pi0Model::~Pi0Model() {
-    if (context_ != nullptr) {
-        vlacpp_free_context(context_);
-    }
-    if (model_ != nullptr) {
-        vlacpp_free_model(model_);
+    if (ctx_ != nullptr) {
+        pi0_free(ctx_);
     }
 }
 
@@ -100,7 +77,7 @@ const char * Pi0Model::type() const {
 
 bool Pi0Model::predict(const observation & obs, model_result & out, std::string & error) {
     out = model_result{};
-    if (model_ == nullptr || context_ == nullptr) {
+    if (ctx_ == nullptr) {
         error = "Pi0 model is not initialized";
         return false;
     }
@@ -108,60 +85,62 @@ bool Pi0Model::predict(const observation & obs, model_result & out, std::string 
         error = "Pi0 requires at least one image";
         return false;
     }
-    const model_image & image = obs.images[0];
-    if (image.data == nullptr) {
-        error = "Pi0 image data is null";
+    std::vector<pi0_image_view> views;
+    views.reserve(obs.images.size());
+    for (const model_image & image : obs.images) {
+        if (image.name.empty()) {
+            error = "Pi0 image name is required";
+            return false;
+        }
+        if (image.data == nullptr) {
+            error = "Pi0 image data is null";
+            return false;
+        }
+        pi0_image_view view{};
+        view.name = image.name.c_str();
+        view.data = image.data;
+        view.width = image.width;
+        view.height = image.height;
+        view.channels = image.channels;
+        view.stride_bytes = image.stride_bytes;
+        views.push_back(view);
+    }
+
+    const pi0_result result = pi0_predict_raw_rgb(
+        ctx_,
+        views.data(),
+        views.size(),
+        obs.state.empty() ? nullptr : obs.state.data(),
+        obs.state.size(),
+        obs.task.c_str());
+    if (result.actions == nullptr) {
+        error = "pi0_predict_raw_rgb failed";
         return false;
     }
 
-    vlacpp_image_view view{};
-    view.name = "base_0_rgb";
-    view.data = image.data;
-    view.width = image.width;
-    view.height = image.height;
-    view.channels = image.channels;
-    view.stride_bytes = image.stride_bytes;
+    out.chunk_size = result.chunk_size;
+    out.action_dim = result.action_dim;
+    const size_t count = static_cast<size_t>(result.chunk_size) * static_cast<size_t>(result.action_dim);
+    out.actions.assign(result.actions, result.actions + count);
 
-    vlacpp_observation raw{};
-    raw.images = &view;
-    raw.image_count = 1;
-    raw.state = obs.state.empty() ? nullptr : obs.state.data();
-    raw.state_count = obs.state.size();
-    raw.prompt = obs.task.c_str();
-
-    vlacpp_action_chunk actions{};
-    vlacpp_status status = vlacpp_infer_actions(context_, &raw, &actions);
-    if (status != VLACPP_STATUS_OK) {
-        error = last_error_or_status(status);
-        return false;
-    }
-
-    out.chunk_size = actions.horizon;
-    out.action_dim = actions.action_dim;
-    const size_t count = static_cast<size_t>(actions.horizon) * static_cast<size_t>(actions.action_dim);
-    out.actions.assign(actions.data, actions.data + count);
-    vlacpp_free_action_chunk(&actions);
-
-    vlacpp_infer_timings timings{};
-    if (vlacpp_context_last_timings(context_, &timings) == VLACPP_STATUS_OK) {
-        add_metric(out, "preprocess_ms", timings.preprocess_ms);
-        add_metric(out, "prefix_ms", timings.prefix_ms);
-        add_metric(out, "state_ms", timings.state_ms);
-        add_metric(out, "denoise_ms", timings.denoise_ms);
-        add_metric(out, "output_ms", timings.output_ms);
-        add_metric(out, "model_total_ms", timings.total_ms);
-    }
+    const pi0_stage_timings timings = pi0_get_last_stage_timings(ctx_);
+    add_metric(out, "preprocess_ms", timings.preprocess_ms);
+    add_metric(out, "prefix_ms", timings.prefix_ms);
+    add_metric(out, "state_ms", timings.state_ms);
+    add_metric(out, "denoise_ms", timings.denoise_ms);
+    add_metric(out, "output_ms", timings.output_ms);
+    add_metric(out, "model_total_ms", timings.total_ms);
     return true;
 }
 
 void Pi0Model::reset() {
-    if (context_ != nullptr) {
-        vlacpp_reset_cache(context_);
+    if (ctx_ != nullptr) {
+        pi0_reset(ctx_);
     }
 }
 
 bool Pi0Model::is_ready() const {
-    return model_ != nullptr && context_ != nullptr;
+    return ctx_ != nullptr;
 }
 
 bool make_pi0_model(
@@ -178,7 +157,7 @@ bool make_pi0_model(
         return false;
     }
     if (!model->is_ready()) {
-        error = last_error_or_status(VLACPP_STATUS_RUNTIME_ERROR);
+        error = "failed to initialize Pi0 model";
         return false;
     }
     out = std::move(model);

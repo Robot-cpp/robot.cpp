@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/types.h"
+#include "models/pi0/types.h"
 
 #include <cstdint>
 #include <memory>
@@ -10,7 +10,7 @@
 struct llama_model;
 struct llama_vocab;
 
-namespace vlacpp {
+namespace robotcpp::pi0 {
 
 struct Pi0Context;
 
@@ -37,7 +37,7 @@ private:
 bool pi0_has_vision_encoder(const Pi0Context & ctx);
 void pi0_encode_vision(
     const Pi0Context & ctx,
-    const std::vector<ImageTensor> & images,
+    const std::vector<Pi0ImageTensor> & images,
     std::vector<float> & out,
     int & token_count);
 bool pi0_has_language_layer(const Pi0Context & ctx, int layer);
@@ -72,9 +72,9 @@ void pi0_embed_prompt_tokens(
     int & token_count);
 void pi0_prefill_prefix_from_embeddings(
     const Pi0Context & ctx,
-    KvCache & cache,
+    Pi0KvCache & cache,
     const std::vector<float> & embeddings,
     int token_count);
-void pi0_prefill_prefix(const Pi0Context & ctx, KvCache & cache, const ObservationData & observation);
+void pi0_prefill_prefix(const Pi0Context & ctx, Pi0KvCache & cache, const Pi0Observation & observation);
 
-} // namespace vlacpp
+} // namespace robotcpp::pi0

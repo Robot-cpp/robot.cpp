@@ -5,7 +5,7 @@
 #include <random>
 #include <vector>
 
-namespace vlacpp {
+namespace robotcpp::sampling {
 
 using VelocityFn = std::function<void(float time, const std::vector<float> & x, std::vector<float> & v)>;
 
@@ -18,4 +18,4 @@ void sample_flow_euler(
     const VelocityFn & velocity,
     std::vector<float> & out);
 
-} // namespace vlacpp
+} // namespace robotcpp::sampling

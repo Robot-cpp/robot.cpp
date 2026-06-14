@@ -1,10 +1,11 @@
 #pragma once
 
 #include "models/model.h"
-#include "vlacpp.h"
 
 #include <memory>
 #include <string>
+
+struct pi0_context;
 
 namespace robotcpp {
 
@@ -24,9 +25,7 @@ public:
 
 private:
     model_args args_;
-    vlacpp_model * model_ = nullptr;
-    vlacpp_context * context_ = nullptr;
-    vlacpp_model_info info_{};
+    pi0_context * ctx_ = nullptr;
 };
 
 bool make_pi0_model(
