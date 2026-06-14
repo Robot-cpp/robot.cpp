@@ -34,7 +34,7 @@ static bool mode_for_device(
         mode = backend_mode::cuda;
         return true;
     }
-    else if (reg_name && std::strcmp(reg_name, "Metal") == 0) {
+    else if (reg_name && (std::strcmp(reg_name, "Metal") == 0 || std::strcmp(reg_name, "MTL") == 0)) {
         mode = backend_mode::metal;
         return true;
     }
