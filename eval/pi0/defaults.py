@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from eval.common import REPO_ROOT
+from eval.libero.utils import REPO_ROOT
 
 
 DEFAULT_CKPT_ROOT = REPO_ROOT / "ckpts" / "pi0-libero-finetuned-v044"

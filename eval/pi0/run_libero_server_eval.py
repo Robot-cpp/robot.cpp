@@ -16,7 +16,7 @@ import numpy as np
 if __package__ is None or __package__ == "":
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from eval.common import (  # noqa: E402
+from eval.libero.utils import (  # noqa: E402
     DEFAULT_RESULTS_DIR,
     aggregate_episodes,
     parse_task_ids,
