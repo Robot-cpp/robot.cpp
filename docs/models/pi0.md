@@ -14,6 +14,15 @@ converted components in one directory, for example:
 ckpts/pi0-libero-finetuned-v044/vlacpp-split
 ```
 
+The converted split GGUF files are available on Hugging Face as
+`JJJYmmm/robotcpp-pi0-libero-finetuned-v044`:
+
+```sh
+hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
+  --include "*.gguf" \
+  --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
+```
+
 Expected files:
 
 ```text

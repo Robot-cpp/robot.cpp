@@ -8,6 +8,14 @@ split GGUF path defaults to:
 ckpts/pi0-libero-finetuned-v044/vlacpp-split
 ```
 
+Download the split GGUF files from Hugging Face:
+
+```sh
+hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
+  --include "*.gguf" \
+  --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
+```
+
 ## model-server eval
 
 Build the CUDA server first:
