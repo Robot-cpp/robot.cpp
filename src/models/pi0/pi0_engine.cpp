@@ -68,9 +68,7 @@ bool pi0_env_flag_enabled(const char * name, bool default_value) {
 
 struct pi0_context {
     robotcpp::pi0::Pi0Context model;
-    robotcpp::pi0::Pi0Sampler sampler;
     robotcpp::pi0::Pi0RuntimeConfig runtime;
-    robotcpp::pi0::Pi0KvCache cache;
     std::vector<float> action_buffer;
     pi0_stage_timings last_timings = {};
 
@@ -79,8 +77,7 @@ struct pi0_context {
         std::string tokenizer_path,
         robotcpp::pi0::Pi0Components components,
         uint32_t seed)
-        : model(std::move(config), tokenizer_path, std::move(components)),
-          sampler(model) {
+        : model(std::move(config), tokenizer_path, std::move(components)) {
         runtime.seed = seed;
         runtime.flow_steps = 10;
         runtime.rng.seed(seed);
@@ -106,9 +103,7 @@ pi0_context * pi0_init(pi0_params params) {
     paths.action_decoder = params.action_decoder_path ? params.action_decoder_path : "";
 
     robotcpp::pi0::Pi0BackendConfig backend;
-    backend.backend = pi0_env_flag_enabled("PI0_USE_ACCEL_BACKEND", true) ?
-        robotcpp::pi0::PI0_BACKEND_ACCEL :
-        robotcpp::pi0::PI0_BACKEND_CPU;
+    backend.use_accel = pi0_env_flag_enabled("PI0_USE_ACCEL_BACKEND", true);
     backend.n_threads = params.n_threads;
 
     robotcpp::pi0::Pi0ModelConfig config;
@@ -182,14 +177,9 @@ pi0_result pi0_predict_raw_rgb(
 
     try {
         const auto prefix_start = Clock::now();
-        robotcpp::pi0::pi0_prefill_prefix(ctx->model, ctx->cache, observation);
+        robotcpp::pi0::pi0_prefill_prefix(ctx->model, observation);
         const auto prefix_done = Clock::now();
         ctx->runtime.last_timings.prefix_ms = elapsed_ms(prefix_start, prefix_done);
-
-        if (!robotcpp::pi0::pi0_has_action_head(ctx->model)) {
-            pi0_log_error("pi0 inference requires pi0 action decoder head tensors");
-            return empty_result();
-        }
 
         std::vector<float> state_context;
         const auto state_start = Clock::now();
@@ -198,7 +188,12 @@ pi0_result pi0_predict_raw_rgb(
         ctx->runtime.last_timings.state_ms = elapsed_ms(state_start, state_done);
 
         const auto denoise_start = Clock::now();
-        ctx->sampler.sample_actions(ctx->runtime, state_context, ctx->cache, observation.noise, ctx->action_buffer);
+        robotcpp::pi0::pi0_sample_actions(
+            ctx->model,
+            ctx->runtime,
+            state_context,
+            observation.noise,
+            ctx->action_buffer);
         const auto denoise_done = Clock::now();
         ctx->runtime.last_timings.denoise_ms = elapsed_ms(denoise_start, denoise_done);
     } catch (const std::exception & error) {
@@ -235,7 +230,6 @@ void pi0_reset(pi0_context * ctx) {
     if (ctx == nullptr) {
         return;
     }
-    ctx->cache.reset();
     ctx->model.prefix_kv.reset();
 }
 

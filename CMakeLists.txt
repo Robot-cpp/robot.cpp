@@ -64,8 +64,8 @@ add_library(pi0_engine STATIC
     src/models/pi0/types.h
     src/models/pi0/action.cpp
     src/models/pi0/action.h
-    src/models/pi0/backend.cpp
-    src/models/pi0/backend.h
+    src/models/pi0/component_runtime.cpp
+    src/models/pi0/component_runtime.h
     src/models/pi0/config.h
     src/models/pi0/load.cpp
     src/models/pi0/load.h

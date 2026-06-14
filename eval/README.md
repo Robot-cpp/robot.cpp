@@ -4,8 +4,7 @@ This tree contains LIBERO eval entrypoints for LeRobot reference runs and
 `model-server` rollouts.
 
 ```text
-eval/model_server_policy.py  Generic model-server action-chunk adapter
-eval/libero/                 LIBERO env setup, request builders, runners
+eval/libero/  LIBERO environment setup, LeRobot baseline, latency, and model-server rollout runners
 ```
 
 Start with:

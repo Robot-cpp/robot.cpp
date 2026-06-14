@@ -1,6 +1,6 @@
 #include "models/pi0/action.h"
 
-#include "models/pi0/backend.h"
+#include "models/pi0/component_runtime.h"
 #include "models/pi0/load.h"
 
 #include "ggml.h"
@@ -31,12 +31,6 @@ void fill_posemb_sincos(float time, float * result, size_t width) {
         result[i] = std::sin(angle);
         result[half + i] = std::cos(angle);
     }
-}
-
-std::vector<float> posemb_sincos(float time, size_t width) {
-    std::vector<float> result(width, 0.0f);
-    fill_posemb_sincos(time, result.data(), width);
-    return result;
 }
 
 template <typename VelocityFn>
@@ -78,43 +72,6 @@ void sample_flow_euler(
 
 } // namespace
 
-bool pi0_velocity_expert_batch_device(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out);
-bool pi0_has_action_expert(const Pi0Context & ctx);
-void pi0_action_head_batch(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out);
-void pi0_suffix_embeddings(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out);
-
-bool pi0_has_action_head(const Pi0Context & ctx) {
-    return ctx.weights.action_in_w != nullptr;
-}
-
-bool pi0_has_action_expert(const Pi0Context & ctx) {
-    const Pi0Config & pi0 = pi0_config(ctx.config);
-    return pi0_has_action_head(ctx) &&
-        pi0.action.expert_layers > 0 &&
-        pi0.action.expert_width > 0 &&
-        pi0.action.expert_q_out > 0 &&
-        pi0.action.expert_kv_out > 0 &&
-        !ctx.weights.action_layers.empty() &&
-        ctx.weights.action_layers[0].q != nullptr &&
-        ctx.weights.action_layers[0].k != nullptr &&
-        ctx.weights.action_layers[0].gate != nullptr;
-}
-
 void pi0_state_context(const Pi0Context & ctx, const std::vector<float> & state, std::vector<float> & out) {
     ggml_tensor * state_w = ctx.weights.state_w;
     ggml_tensor * state_b = ctx.weights.state_b;
@@ -124,136 +81,13 @@ void pi0_state_context(const Pi0Context & ctx, const std::vector<float> & state,
     }
     pi0_linear_batch(
         ctx,
-        ctx.components.state.backend,
+        ctx.components.state.runtime,
         state_w,
         state_b,
         state,
         1,
         out,
         "ggml pi0 state projection graph compute failed");
-}
-
-void pi0_velocity_batch(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out) {
-    if (pi0_has_action_expert(ctx)) {
-        if (!pi0_velocity_expert_batch_device(ctx, time, actions, state_context, out)) {
-            throw std::invalid_argument("pi0 action expert requires fused ggml graph execution");
-        }
-        return;
-    }
-    pi0_action_head_batch(ctx, time, actions, state_context, out);
-}
-
-void pi0_action_head_batch(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out) {
-    ggml_tensor * in_w = ctx.weights.action_in_w;
-    ggml_tensor * out_w = ctx.weights.action_out_w;
-    ggml_tensor * out_b = ctx.weights.action_out_b;
-
-    const int batch = ctx.config.common.action_horizon;
-    const size_t width = static_cast<size_t>(in_w->ne[1]);
-
-    std::vector<float> suffix_tokens;
-    pi0_suffix_embeddings(ctx, time, actions, state_context, suffix_tokens);
-    const size_t suffix_count = suffix_tokens.size() / width;
-    if (suffix_tokens.size() != suffix_count * width || suffix_count < static_cast<size_t>(batch)) {
-        throw std::invalid_argument("pi0 suffix tokens have incompatible shape");
-    }
-
-    const size_t action_offset = state_context.empty() ? 0 : width;
-    std::vector<float> action_expert_tokens(
-        suffix_tokens.begin() + static_cast<std::ptrdiff_t>(action_offset),
-        suffix_tokens.begin() + static_cast<std::ptrdiff_t>(action_offset + static_cast<size_t>(batch) * width));
-    pi0_linear_batch(
-        ctx,
-        ctx.components.action_decoder.backend,
-        out_w,
-        out_b,
-        action_expert_tokens,
-        batch,
-        out,
-        "ggml pi0 action output projection graph compute failed");
-}
-
-void pi0_suffix_embeddings(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out) {
-    ggml_tensor * in_w = ctx.weights.action_in_w;
-    ggml_tensor * in_b = ctx.weights.action_in_b;
-    ggml_tensor * time_in_w = ctx.weights.action_time_in_w;
-    ggml_tensor * time_in_b = ctx.weights.action_time_in_b;
-    ggml_tensor * time_out_w = ctx.weights.action_time_out_w;
-    ggml_tensor * time_out_b = ctx.weights.action_time_out_b;
-    const int batch = ctx.config.common.action_horizon;
-    const size_t width = static_cast<size_t>(in_w->ne[1]);
-
-    std::vector<float> action_tokens;
-    pi0_linear_batch(
-        ctx,
-        ctx.components.action_decoder.backend,
-        in_w,
-        in_b,
-        actions,
-        batch,
-        action_tokens,
-        "ggml pi0 action input projection graph compute failed");
-
-    const std::vector<float> time_emb = posemb_sincos(time, width);
-    std::vector<float> action_time(static_cast<size_t>(batch) * width * 2, 0.0f);
-    for (int row = 0; row < batch; ++row) {
-        const size_t src = static_cast<size_t>(row) * width;
-        const size_t dst = static_cast<size_t>(row) * width * 2;
-        std::copy(
-            action_tokens.begin() + static_cast<std::ptrdiff_t>(src),
-            action_tokens.begin() + static_cast<std::ptrdiff_t>(src + width),
-            action_time.begin() + static_cast<std::ptrdiff_t>(dst));
-        std::copy(
-            time_emb.begin(),
-            time_emb.end(),
-            action_time.begin() + static_cast<std::ptrdiff_t>(dst + width));
-    }
-    std::vector<float> hidden;
-    pi0_linear_batch(
-        ctx,
-        ctx.components.action_decoder.backend,
-        time_in_w,
-        time_in_b,
-        action_time,
-        batch,
-        hidden,
-        "ggml pi0 action time input projection graph compute failed",
-        true);
-    std::vector<float> action_expert_tokens;
-    pi0_linear_batch(
-        ctx,
-        ctx.components.action_decoder.backend,
-        time_out_w,
-        time_out_b,
-        hidden,
-        batch,
-        action_expert_tokens,
-        "ggml pi0 action time output projection graph compute failed");
-
-    out.clear();
-    out.reserve(action_expert_tokens.size() + state_context.size());
-    if (!state_context.empty()) {
-        if (state_context.size() != width) {
-            throw std::invalid_argument("state token width does not match action expert width");
-        }
-        out.insert(out.end(), state_context.begin(), state_context.end());
-    }
-    out.insert(out.end(), action_expert_tokens.begin(), action_expert_tokens.end());
 }
 
 namespace {
@@ -263,7 +97,7 @@ public:
     Pi0ActionVelocityGraph(const Pi0Context & ctx, const std::vector<float> & state_context)
         : ctx_(ctx),
           state_context_(state_context),
-          runtime_(ctx.components.action_decoder.backend),
+          runtime_(ctx.components.action_decoder.runtime),
           gctx_(pi0_graph_init_params(256 * 1024 * 1024)) {
         init_shape();
         build_graph();
@@ -288,10 +122,18 @@ public:
 
 private:
     void init_shape() {
-        if (!pi0_has_action_expert(ctx_)) {
+        const Pi0Config & pi0 = pi0_config(ctx_.config);
+        if (ctx_.weights.action_in_w == nullptr ||
+            pi0.action.expert_layers <= 0 ||
+            pi0.action.expert_width <= 0 ||
+            pi0.action.expert_q_out <= 0 ||
+            pi0.action.expert_kv_out <= 0 ||
+            ctx_.weights.action_layers.empty() ||
+            ctx_.weights.action_layers[0].q == nullptr ||
+            ctx_.weights.action_layers[0].k == nullptr ||
+            ctx_.weights.action_layers[0].gate == nullptr) {
             throw std::invalid_argument("pi0 action expert requires fused ggml graph execution");
         }
-        const Pi0Config & pi0 = pi0_config(ctx_.config);
         if (pi0.action.expert_q_out % pi0.action.expert_kv_out != 0) {
             throw std::invalid_argument("pi0 action expert Q/KV widths are incompatible");
         }
@@ -505,7 +347,7 @@ private:
 
     const Pi0Context & ctx_;
     const std::vector<float> & state_context_;
-    const Pi0ComponentBackend & runtime_;
+    const Pi0ComponentRuntime & runtime_;
     Pi0GraphContext gctx_;
     int layers_ = 0;
     int64_t width_ = 0;
@@ -537,80 +379,36 @@ private:
 
 } // namespace
 
-bool pi0_velocity_expert_batch_device(
-    const Pi0Context & ctx,
-    float time,
-    const std::vector<float> & actions,
-    const std::vector<float> & state_context,
-    std::vector<float> & out) {
-    if (!pi0_has_action_expert(ctx)) {
-        return false;
-    }
-    Pi0ActionVelocityGraph graph(ctx, state_context);
-    graph.eval(time, actions, out);
-    return true;
-}
-
-Pi0Sampler::Pi0Sampler(const Pi0Context & ctx)
-    : ctx_(ctx) {}
-
-void Pi0Sampler::sample_actions(
-    Pi0RuntimeConfig & runtime,
-    const std::vector<float> & state_context,
-    const Pi0KvCache & cache,
-    const std::vector<float> & initial_noise,
-    std::vector<float> & out_actions) const {
-    (void) cache;
-
-    if (pi0_has_action_expert(ctx_)) {
-        Pi0ActionVelocityGraph velocity_graph(ctx_, state_context);
-        sample_flow_euler(
-            runtime.flow_steps,
-            runtime.rng,
-            ctx_.config.common.action_horizon,
-            ctx_.config.common.action_dim,
-            initial_noise.empty() ? nullptr : &initial_noise,
-            [&](float time, const std::vector<float> & x, std::vector<float> & v) {
-                velocity_graph.eval(time, x, v);
-            },
-            out_actions);
-        denormalize_actions(out_actions);
-        return;
-    }
-
-    sample_flow_euler(
-        runtime.flow_steps,
-        runtime.rng,
-        ctx_.config.common.action_horizon,
-        ctx_.config.common.action_dim,
-        initial_noise.empty() ? nullptr : &initial_noise,
-        [&](float time, const std::vector<float> & x, std::vector<float> & v) {
-            std::vector<float> action_velocity;
-            pi0_velocity_batch(
-                ctx_,
-                time,
-                x,
-                state_context,
-                action_velocity);
-            if (action_velocity.size() != v.size()) {
-                throw std::invalid_argument("pi0 action velocity has incompatible shape");
-            }
-            std::copy(action_velocity.begin(), action_velocity.end(), v.begin());
-        },
-        out_actions);
-
-    denormalize_actions(out_actions);
-}
-
-void Pi0Sampler::denormalize_actions(std::vector<float> & actions) const {
-    if (ctx_.config.common.action_mean.size() != static_cast<size_t>(ctx_.config.common.action_dim) ||
-        ctx_.config.common.action_std.size() != static_cast<size_t>(ctx_.config.common.action_dim)) {
+void denormalize_actions(const Pi0Context & ctx, std::vector<float> & actions) {
+    if (ctx.config.common.action_mean.size() != static_cast<size_t>(ctx.config.common.action_dim) ||
+        ctx.config.common.action_std.size() != static_cast<size_t>(ctx.config.common.action_dim)) {
         return;
     }
     for (size_t i = 0; i < actions.size(); ++i) {
-        const size_t col = i % static_cast<size_t>(ctx_.config.common.action_dim);
-        actions[i] = actions[i] * ctx_.config.common.action_std[col] + ctx_.config.common.action_mean[col];
+        const size_t col = i % static_cast<size_t>(ctx.config.common.action_dim);
+        actions[i] = actions[i] * ctx.config.common.action_std[col] + ctx.config.common.action_mean[col];
     }
+}
+
+void pi0_sample_actions(
+    const Pi0Context & ctx,
+    Pi0RuntimeConfig & runtime,
+    const std::vector<float> & state_context,
+    const std::vector<float> & initial_noise,
+    std::vector<float> & out_actions) {
+    Pi0ActionVelocityGraph velocity_graph(ctx, state_context);
+    sample_flow_euler(
+        runtime.flow_steps,
+        runtime.rng,
+        ctx.config.common.action_horizon,
+        ctx.config.common.action_dim,
+        initial_noise.empty() ? nullptr : &initial_noise,
+        [&](float time, const std::vector<float> & x, std::vector<float> & v) {
+            velocity_graph.eval(time, x, v);
+        },
+        out_actions);
+
+    denormalize_actions(ctx, out_actions);
 }
 
 } // namespace robotcpp::pi0

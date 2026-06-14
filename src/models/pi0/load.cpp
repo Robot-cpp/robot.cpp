@@ -15,6 +15,9 @@
 
 namespace robotcpp::pi0 {
 
+static bool should_load_pi0_tensor(const Pi0ModelConfig & config, const std::string & name);
+static bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Components & components);
+
 namespace {
 
 std::string with_prefix(const std::string & prefix, const std::string & suffix) {
@@ -244,7 +247,7 @@ private:
 
 } // namespace
 
-bool should_load_pi0_tensor(const Pi0ModelConfig & config, const std::string & name) {
+static bool should_load_pi0_tensor(const Pi0ModelConfig & config, const std::string & name) {
     const Pi0Config & pi0 = pi0_config(config);
     return starts_with(name, pi0.action.component.tensor_prefix) ||
         starts_with(name, pi0.state.component.tensor_prefix) ||
@@ -342,7 +345,7 @@ bool has_transformer_stack(
 
 namespace {
 
-bool has_pi0_action_head_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
+bool has_valid_pi0_action_projection_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
     ggml_tensor * in_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.weight"));
     ggml_tensor * in_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.bias"));
     ggml_tensor * time_in_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
@@ -505,27 +508,21 @@ void merge_pi0_role_config(Pi0ModelConfig & base, const Pi0ModelConfig & current
     }
 }
 
-struct Pi0ComponentDtype {
-    const char * role;
-    const Pi0ComponentConfig * component;
-};
-
 bool validate_pi0_component_dtypes(const Pi0ModelConfig & config) {
     const Pi0Config & pi0 = pi0_config(config);
-    const Pi0ComponentDtype components[] = {
-        {"vit", &pi0.vision.component},
-        {"mmproj", &pi0.mmproj.component},
-        {"llm", &pi0.llm.component},
-        {"state", &pi0.state.component},
-        {"action_decoder", &pi0.action.component},
-    };
-    for (const Pi0ComponentDtype & item : components) {
-        if (!is_component_dtype(item.component->runtime.data_type)) {
-            return pi0_load_error(
-                std::string("unsupported pi0 component dtype for ") + item.role + ": " + item.component->runtime.data_type);
+    auto check = [](const char * role, const Pi0ComponentConfig & component) {
+        if (is_component_dtype(component.runtime.data_type)) {
+            return true;
         }
-    }
-    return true;
+        return pi0_load_error(
+            std::string("unsupported pi0 component dtype for ") + role + ": " + component.runtime.data_type);
+    };
+
+    return check("vit", pi0.vision.component) &&
+        check("mmproj", pi0.mmproj.component) &&
+        check("llm", pi0.llm.component) &&
+        check("state", pi0.state.component) &&
+        check("action_decoder", pi0.action.component);
 }
 
 bool read_component_metadata(
@@ -635,11 +632,11 @@ bool init_pi0_component_backends(
     int verbosity) {
     const Pi0Config & pi0 = pi0_config(config);
     try {
-        pi0_init_backend(components.vit.backend, backend, pi0.vision.component, "vit", verbosity);
-        pi0_init_backend(components.mmproj.backend, backend, pi0.mmproj.component, "mmproj", verbosity);
-        pi0_init_backend(components.llm.backend, backend, pi0.llm.component, "llm", verbosity);
-        pi0_init_backend(components.state.backend, backend, pi0.state.component, "state", verbosity);
-        pi0_init_backend(components.action_decoder.backend, backend, pi0.action.component, "action_decoder", verbosity);
+        pi0_init_component_runtime(components.vit.runtime, backend, pi0.vision.component, "vit", verbosity);
+        pi0_init_component_runtime(components.mmproj.runtime, backend, pi0.mmproj.component, "mmproj", verbosity);
+        pi0_init_component_runtime(components.llm.runtime, backend, pi0.llm.component, "llm", verbosity);
+        pi0_init_component_runtime(components.state.runtime, backend, pi0.state.component, "state", verbosity);
+        pi0_init_component_runtime(components.action_decoder.runtime, backend, pi0.action.component, "action_decoder", verbosity);
     } catch (const std::exception & error) {
         return pi0_load_error(error.what());
     }
@@ -684,22 +681,22 @@ bool load_pi0_components(
     if (!init_pi0_component_backends(config, backend, components, verbosity)) {
         return false;
     }
-    if (!load_component_tensors(paths.vit, "vit", components.vit.backend.buft_policy.model_buft, components.vit.loaded)) {
+    if (!load_component_tensors(paths.vit, "vit", components.vit.runtime.buft_policy.model_buft, components.vit.loaded)) {
         return false;
     }
-    if (!load_component_tensors(paths.mmproj, "mmproj", components.mmproj.backend.buft_policy.model_buft, components.mmproj.loaded)) {
+    if (!load_component_tensors(paths.mmproj, "mmproj", components.mmproj.runtime.buft_policy.model_buft, components.mmproj.loaded)) {
         return false;
     }
-    if (!load_component_tensors(paths.llm, "llm", components.llm.backend.buft_policy.model_buft, components.llm.loaded)) {
+    if (!load_component_tensors(paths.llm, "llm", components.llm.runtime.buft_policy.model_buft, components.llm.loaded)) {
         return false;
     }
-    if (!load_component_tensors(paths.state, "state", components.state.backend.buft_policy.model_buft, components.state.loaded)) {
+    if (!load_component_tensors(paths.state, "state", components.state.runtime.buft_policy.model_buft, components.state.loaded)) {
         return false;
     }
     if (!load_component_tensors(
             paths.action_decoder,
             "action_decoder",
-            components.action_decoder.backend.buft_policy.model_buft,
+            components.action_decoder.runtime.buft_policy.model_buft,
             components.action_decoder.loaded)) {
         return false;
     }
@@ -724,7 +721,7 @@ void free_pi0_loaded_component(gguf_load_result & component) {
     component = {};
 }
 
-bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Components & components) {
+static bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Components & components) {
     Pi0Config & pi0 = ensure_pi0_config(config);
     if (!has_valid_pi0_merger_tensors(config, components.mmproj.loaded.ctx_data)) {
         return pi0_load_error("pi0 merger tensors must use ggml ne order [vision_width, language_width]");
@@ -741,8 +738,8 @@ bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Components & co
             return pi0_load_error("pi0 state component requires state_proj tensors with ggml ne order [state_dim, action_width]");
         }
     }
-    if (!has_pi0_action_head_tensors(config, components.action_decoder.loaded.ctx_data)) {
-        return pi0_load_error("pi0 model requires pi0 action decoder head tensors");
+    if (!has_valid_pi0_action_projection_tensors(config, components.action_decoder.loaded.ctx_data)) {
+        return pi0_load_error("pi0 model requires pi0 action decoder projection tensors");
     }
     const bool required_weights_present =
         pi0.vision.layers > 0 &&

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "models/gguf_loader.h"
-#include "models/pi0/backend.h"
+#include "models/pi0/component_runtime.h"
 #include "models/pi0/config.h"
 
 #include <string>
@@ -20,29 +20,29 @@ struct Pi0ComponentPaths {
 
 void free_pi0_loaded_component(gguf_load_result & component);
 
-struct Pi0ComponentRuntime {
+struct Pi0LoadedComponent {
     gguf_load_result loaded;
-    Pi0ComponentBackend backend;
+    Pi0ComponentRuntime runtime;
 
-    Pi0ComponentRuntime() = default;
-    ~Pi0ComponentRuntime() {
+    Pi0LoadedComponent() = default;
+    ~Pi0LoadedComponent() {
         free_pi0_loaded_component(loaded);
     }
 
-    Pi0ComponentRuntime(const Pi0ComponentRuntime &) = delete;
-    Pi0ComponentRuntime & operator=(const Pi0ComponentRuntime &) = delete;
+    Pi0LoadedComponent(const Pi0LoadedComponent &) = delete;
+    Pi0LoadedComponent & operator=(const Pi0LoadedComponent &) = delete;
 
-    Pi0ComponentRuntime(Pi0ComponentRuntime && other) noexcept
+    Pi0LoadedComponent(Pi0LoadedComponent && other) noexcept
         : loaded(other.loaded),
-          backend(std::move(other.backend)) {
+          runtime(std::move(other.runtime)) {
         other.loaded = {};
     }
 
-    Pi0ComponentRuntime & operator=(Pi0ComponentRuntime && other) noexcept {
+    Pi0LoadedComponent & operator=(Pi0LoadedComponent && other) noexcept {
         if (this != &other) {
             free_pi0_loaded_component(loaded);
             loaded = other.loaded;
-            backend = std::move(other.backend);
+            runtime = std::move(other.runtime);
             other.loaded = {};
         }
         return *this;
@@ -50,14 +50,12 @@ struct Pi0ComponentRuntime {
 };
 
 struct Pi0Components {
-    Pi0ComponentRuntime vit;
-    Pi0ComponentRuntime mmproj;
-    Pi0ComponentRuntime llm;
-    Pi0ComponentRuntime state;
-    Pi0ComponentRuntime action_decoder;
+    Pi0LoadedComponent vit;
+    Pi0LoadedComponent mmproj;
+    Pi0LoadedComponent llm;
+    Pi0LoadedComponent state;
+    Pi0LoadedComponent action_decoder;
 };
-
-bool should_load_pi0_tensor(const Pi0ModelConfig & config, const std::string & name);
 
 std::string pi0_action_decoder_tensor(const Pi0ModelConfig & config, const std::string & suffix);
 std::string pi0_action_decoder_layer_prefix(const Pi0ModelConfig & config, int layer);
@@ -75,6 +73,5 @@ bool load_pi0_components(
     Pi0ModelConfig & out_config,
     Pi0Components & out_components,
     int verbosity);
-bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Components & components);
 
 } // namespace robotcpp::pi0

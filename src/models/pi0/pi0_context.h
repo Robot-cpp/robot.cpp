@@ -1,6 +1,6 @@
 #pragma once
 
-#include "models/pi0/backend.h"
+#include "models/pi0/component_runtime.h"
 #include "models/pi0/load.h"
 #include "models/pi0/vlm.h"
 #include "models/pi0/weights.h"
@@ -14,15 +14,13 @@ namespace robotcpp::pi0 {
 
 struct Pi0PrefixKvRuntime {
     size_t token_count = 0;
-    uint64_t generation = 0;
     std::vector<ggml_tensor *> k_layers;
     std::vector<ggml_tensor *> v_layers;
+    ggml_tensor * vision_prefix_embeddings = nullptr;
+    ggml_tensor * prompt_embeddings = nullptr;
 
     void reset() {
         token_count = 0;
-        ++generation;
-        k_layers.clear();
-        v_layers.clear();
     }
 };
 
@@ -89,7 +87,7 @@ inline ggml_tensor * pi0_f32_weight(
 
 inline void pi0_linear_batch(
     const Pi0Context & ctx,
-    const Pi0ComponentBackend & runtime,
+    const Pi0ComponentRuntime & runtime,
     ggml_tensor * weight,
     ggml_tensor * bias,
     const std::vector<float> & input,

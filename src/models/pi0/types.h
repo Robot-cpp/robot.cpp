@@ -1,18 +1,12 @@
 #pragma once
 
 #include <cstdint>
-#include <map>
 #include <random>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace robotcpp::pi0 {
-
-enum Pi0BackendMode {
-    PI0_BACKEND_CPU = 0,
-    PI0_BACKEND_ACCEL = 1,
-};
 
 struct Pi0InferTimings {
     double preprocess_ms = 0.0;
@@ -144,20 +138,8 @@ struct Pi0Observation {
     std::vector<float> noise;
 };
 
-struct Pi0KvCache {
-    bool prefix_valid = false;
-    size_t token_count = 0;
-    uint64_t prefix_generation = 0;
-
-    void reset() {
-        prefix_valid = false;
-        token_count = 0;
-        ++prefix_generation;
-    }
-};
-
 struct Pi0BackendConfig {
-    Pi0BackendMode backend = PI0_BACKEND_ACCEL;
+    bool use_accel = true;
     int n_threads = 0;
 };
 

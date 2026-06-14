@@ -1,8 +1,7 @@
 # LIBERO eval
 
-This folder contains LIBERO environment helpers, model-server request builders,
-the LeRobot baseline runner, policy latency benchmark, and model-server rollout
-runner.
+This folder contains LIBERO environment helpers, the LeRobot baseline runner,
+policy latency benchmark, and model-server rollout runner.
 
 ## Dependency check
 

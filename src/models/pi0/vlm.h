@@ -34,37 +34,6 @@ private:
     const llama_vocab * vocab_ = nullptr;
 };
 
-bool pi0_has_vision_encoder(const Pi0Context & ctx);
-void pi0_encode_vision(
-    const Pi0Context & ctx,
-    const std::vector<Pi0ImageTensor> & images,
-    std::vector<float> & out,
-    int & token_count);
-bool pi0_has_language_layer(const Pi0Context & ctx, int layer);
-void pi0_prefill_language_prefix_batch(
-    const Pi0Context & ctx,
-    const std::vector<float> & tokens,
-    const std::vector<int> & positions,
-    int batch,
-    int heads,
-    int kv_heads,
-    int head_dim,
-    std::vector<float> & out,
-    uint64_t generation,
-    bool need_output = true);
-bool pi0_has_merger(const Pi0Context & ctx);
-bool pi0_has_vision_prefix(const Pi0Context & ctx);
-bool pi0_has_language_prefix(const Pi0Context & ctx);
-void pi0_embed_prompt(
-    const Pi0Context & ctx,
-    const std::string & prompt,
-    std::vector<float> & out,
-    int & token_count);
-void pi0_embed_prompt_tokens(
-    const Pi0Context & ctx,
-    const std::vector<int32_t> & tokens,
-    std::vector<float> & out,
-    int & token_count);
-void pi0_prefill_prefix(const Pi0Context & ctx, Pi0KvCache & cache, const Pi0Observation & observation);
+void pi0_prefill_prefix(const Pi0Context & ctx, const Pi0Observation & observation);
 
 } // namespace robotcpp::pi0
