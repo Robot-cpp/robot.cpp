@@ -1,8 +1,7 @@
 # LIBERO eval
 
-This folder contains LIBERO environment helpers, the LeRobot baseline runner,
-and result comparison tools. Model-specific runners live in sibling folders such
-as `eval/pi0`.
+This folder contains LIBERO environment helpers and the LeRobot baseline runner.
+Model-specific runners live in sibling folders such as `eval/pi0`.
 
 ## Dependency check
 
@@ -55,15 +54,3 @@ LeRobot's `eval_info.json` in `eval/results/lerobot-baseline-*`. It creates a
 symlink-only shadow policy by default so the v044 local `tokenizer.model` is
 used instead of fetching gated PaliGemma tokenizer files. Use
 `--no-local-tokenizer` to keep the original checkpoint config unchanged.
-
-## Compare
-
-```sh
-python -m eval.libero.compare_results \
-  --server eval/results/server-libero-YYYYMMDD-HHMMSS.json \
-  --lerobot eval/results/lerobot-baseline-YYYYMMDD-HHMMSS/eval_info.json \
-  --output eval/results/pi0-v044-compare.json
-```
-
-Both paths report LeRobot-style `overall.pc_success`, `avg_sum_reward`, and
-`avg_max_reward`.
