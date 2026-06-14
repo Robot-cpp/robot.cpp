@@ -9,6 +9,7 @@ runtimes:
   `model-cli` and `model-server`.
 - `robot_server`: TCP protocol, server, and client examples.
 - `tools`: GGUF conversion, tensor mapping, and inspection utilities.
+- `eval`: LIBERO evaluation runners for LeRobot baselines and `model-server`.
 
 Generated build directories, checkpoints, artifacts, and datasets should stay
 out of git under `build*/`, `ckpts/`, `artifacts/`, and `data/`.
@@ -45,47 +46,58 @@ same command for the local SmolVLA CPU path.
 Converted pi0 checkpoints are expected as split GGUF components:
 
 ```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+
 ./build/bin/model-server \
   --model-type pi0 \
-  --vit /path/to/model.vit.gguf \
-  --mmproj /path/to/model.mmproj.gguf \
-  --llm /path/to/model.llm.gguf \
-  --tokenizer /path/to/model.tokenizer.gguf \
-  --state-gguf /path/to/model.state.gguf \
-  --action-decoder /path/to/model.action_decoder.gguf \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
   --host 127.0.0.1 \
   --port 5555
 ```
 
-For the local LIBERO finetuned checkpoint layout:
-
-```sh
-bash robot_server/shell/launch_pi0_server_cpu.sh
-```
-
-By default that script looks under
-`ckpts/pi0-libero-finetuned-v044/vlacpp-split`.
+For the LIBERO v044 split checkpoint, see `docs/models/pi0.md`.
 
 ## model-cli
 
 `model-cli` uses the same robotcpp model wrappers as `model-server`, so CLI and
 server predictions share one runtime path. For pi0, pass image names that match
-the checkpoint metadata, for example:
+the checkpoint metadata. The LIBERO v044 checkpoint expects two image views:
 
 ```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+IMAGE0=agentview.png
+IMAGE1=eye_in_hand.png
+
 ./build/bin/model-cli \
   --model-type pi0 \
-  --image /path/to/image.png \
-  --image-name base_0_rgb \
+  --image "${IMAGE0}" \
+  --image "${IMAGE1}" \
+  --image-name observation.images.image \
+  --image-name observation.images.image2 \
   --state "$(python3 -c 'print(",".join(["0"] * 32))')" \
   --task "pick up the fork" \
-  --vit /path/to/model.vit.gguf \
-  --mmproj /path/to/model.mmproj.gguf \
-  --llm /path/to/model.llm.gguf \
-  --tokenizer /path/to/model.tokenizer.gguf \
-  --state-gguf /path/to/model.state.gguf \
-  --action-decoder /path/to/model.action_decoder.gguf
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf"
 ```
 
 Use repeated `--image` and `--image-name` arguments when a checkpoint expects
 multiple image views. Values are paired by order.
+
+## Evaluation
+
+LIBERO evaluation docs live in `eval/libero/README.md`.
+
+- LeRobot baseline: `python -m eval.libero.run_lerobot_baseline`
+- LeRobot policy latency: `python -m eval.libero.benchmark_lerobot_policy`
+- model-server rollout: `python -m eval.libero.run_model_server_eval`

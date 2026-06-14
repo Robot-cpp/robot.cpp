@@ -1,7 +1,8 @@
 # LIBERO eval
 
 This folder contains LIBERO environment helpers, model-server request builders,
-the LeRobot baseline runner, and model-server rollout runner.
+the LeRobot baseline runner, policy latency benchmark, and model-server rollout
+runner.
 
 ## Dependency check
 
@@ -80,6 +81,8 @@ cmake --build build-cuda --target model-server -j
 Run one episode for task 0 in `libero_object`:
 
 ```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
 export VLACPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/vlacpp-eval-cache"
 
 python -m eval.libero.run_model_server_eval \
@@ -99,12 +102,12 @@ python -m eval.libero.run_model_server_eval \
   --server-command \
   build-cuda/bin/model-server \
   --model-type pi0 \
-  --vit ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.vit.gguf \
-  --mmproj ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.mmproj.gguf \
-  --llm ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.llm.gguf \
-  --tokenizer ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.tokenizer.gguf \
-  --state-gguf ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.state.gguf \
-  --action-decoder ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.action_decoder.gguf \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
   --host 127.0.0.1 \
   --port 5555 \
   --threads 8 \

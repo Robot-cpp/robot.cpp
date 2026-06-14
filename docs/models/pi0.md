@@ -75,6 +75,8 @@ Example with a split GGUF checkpoint and CUDA build:
 ```sh
 GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
 MODEL=vlacpp-pi0-libero-finetuned-v044
+IMAGE0=agentview.png
+IMAGE1=eye_in_hand.png
 STATE="$(python3 - <<'PY'
 print(",".join(["0"] * 32))
 PY
@@ -88,8 +90,8 @@ PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-cli \
   --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
   --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
   --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
-  --image /path/to/agentview.png \
-  --image /path/to/eye_in_hand.png \
+  --image "${IMAGE0}" \
+  --image "${IMAGE1}" \
   --image-name observation.images.image \
   --image-name observation.images.image2 \
   --state "${STATE}" \
@@ -109,7 +111,7 @@ observation.images.image2
 For another checkpoint, inspect the image keys:
 
 ```sh
-strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "pi0\\.image_keys|observation\\.images|base_0_rgb"
+strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "pi0\\.image_keys|observation\\.images"
 ```
 
 ## model-server
@@ -143,3 +145,42 @@ bash robot_server/shell/launch_pi0_server_cpu.sh
 
 The server listens on `127.0.0.1` in this phase. Request images must include the
 same names as the checkpoint image keys.
+
+## LIBERO eval
+
+The LIBERO model-server runner is model-agnostic and lives under `eval/libero`.
+The pi0-specific pieces are only the server launch command and optional backend
+environment override:
+
+```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+
+python -m eval.libero.run_model_server_eval \
+  --launch-server \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --server-env PI0_USE_ACCEL_BACKEND=1 \
+  --suite libero_object \
+  --task-ids 0 \
+  --n-episodes 1 \
+  --seed 1000 \
+  --server-command \
+  build-cuda/bin/model-server \
+  --model-type pi0 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --threads 8 \
+  --noise-seed 1000 \
+  --verbosity 0
+```
+
+`--server-command` must be the final eval argument because the runner passes the
+remaining command line directly to `model-server`. See `eval/libero/README.md`
+for LIBERO environment setup and LeRobot baseline commands.

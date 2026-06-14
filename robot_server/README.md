@@ -1,77 +1,85 @@
-# SmolVLA Robot Server 使用说明
+# Robot Server
 
-这个目录实现的是 Step2 的本机 SmolVLA policy daemon：模型在后台进程中常驻加载，robot/control client 通过 `127.0.0.1` TCP loopback 发送 observation/state/raw RGB image，server 返回 action chunk。（实现哲学是针对 edge on-device，因此采用的是轻量的进程通信，而不是 websocket、gRPC 之类的通用网络服务。）
+`robot_server` provides the lightweight TCP protocol used by `model-server` and
+the Python/C++ clients. The server keeps one robot policy loaded in-process and
+returns an action chunk for each prediction request.
 
-* [X] 现阶段只验证 CPU + BLAS 路径，Metal 先关闭
-* [ ] 其他backend测试
-* [ ] clean merge
+The active server binary is `model-server`; it supports both SmolVLA and pi0
+through the shared `robotcpp::Model` interface.
 
-## server编译与启动
+## Build
 
-### 一键编译与启动
-
-最推荐的入口是：
-
-```bash
-bash robot_server/shell/launch_robot_server_mac_cpu.sh
+```sh
+cmake -S . -B build -DVLACPP_BUILD_ROBOT_SERVER=ON
+cmake --build build --target model-server
 ```
 
-这个脚本会做两件事：
+CUDA builds use the same target from a CUDA-enabled build directory:
 
-1. 从源码 build `model-server`。
-2. 前台启动真实 SmolVLA robot server。
+```sh
+cmake --build build-cuda --target model-server -j
+```
 
-启动成功后会看到类似：
+## Launch
+
+SmolVLA:
+
+```sh
+./build/bin/model-server \
+  --model-type smolvla \
+  --llm /path/to/smolvla-llm.gguf \
+  --mmproj /path/to/mmproj-smolvla.gguf \
+  --state-proj /path/to/state-proj-smolvla.gguf \
+  --action-expert /path/to/action-expert-smolvla.gguf \
+  --host 127.0.0.1 \
+  --port 5555
+```
+
+pi0:
+
+```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+
+PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-server \
+  --model-type pi0 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --host 127.0.0.1 \
+  --port 5555
+```
+
+The server currently listens only on `127.0.0.1`.
+
+## Clients
+
+Python client:
 
 ```text
-[launch] listening on 127.0.0.1:5555
-[model-server] listening on 127.0.0.1:5555 model=smolvla
+robot_server/client/python/model_client.py
+robot_server/examples/python/minimal_predict.py
+robot_server/examples/python/robot_client/
 ```
 
-停止 server 直接 `Ctrl-C` 即可
-
-## client
-
-server 启动后，robot 侧只需要把当前 observation 传给 client，client 会把图像转成 `RGB / HWC / uint8` 的连续 bytes，然后发给 server，拿回 action chunk。
-
-### python client
-
-最小 TCP 预测例子：
-
-```text
-robot_server/test/benchmark_latency.py                          # 随机观测 smoke / 压测
-robot_server/examples/python/robot_client/                     # RobotClientBase + run_sync 入口
-robot_server/examples/python/lerobot_so101/so101_client.py    # SO101 硬件实现
-```
-
-启动 server 后运行（记得先填写相关环境变量）：
-
-```bash
-bash robot_server/shell/client_example.sh
-# SO101 真机
-bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
-```
-
-- `response.actions`：二维 list，形状是 `[chunk_size][action_dim]`。
-- `response.actions_flat`：一维 action buffer，长度是 `chunk_size * action_dim`。
-- `response.timings`：server 返回的分段耗时，包括 `vision_ms`、`llm_ms`、`phase2_ms`、`model_total_ms` 等。
-
-### C++ client
-
-C++ 可复用 client 在：
+C++ client:
 
 ```text
 robot_server/client/cpp/model_client.{h,cpp}
-```
-
-最小 C++ example 在：
-
-```text
 robot_server/examples/cpp/minimal_predict.cpp
 ```
 
-启动 server 后运行（记得先填写相关环境变量）：
+Useful smoke and latency scripts:
 
-```bash
-bash robot_server/shell/cpp_client_example.sh
+```text
+robot_server/test/benchmark_latency.py
+robot_server/test/compare_server_model_cli.py
 ```
+
+`response.actions` is shaped `[chunk_size][action_dim]`.
+`response.actions_flat` is the same action buffer flattened.
+`response.timings` contains server/model timing metrics such as
+`server_predict_ms`, `model_total_ms`, and model-specific stage timings.
