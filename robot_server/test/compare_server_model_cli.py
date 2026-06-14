@@ -77,7 +77,13 @@ def model_cli_command(args: argparse.Namespace) -> list[str]:
         "--model-type",
         args.model_type,
         "--image",
-        args.image,
+        args.image[0],
+    ]
+    for image_path in args.image[1:]:
+        cmd += ["--image", image_path]
+    for image_name in args.image_name:
+        cmd += ["--image-name", image_name]
+    cmd += [
         "--state",
         args.state,
         "--task",
@@ -87,8 +93,6 @@ def model_cli_command(args: argparse.Namespace) -> list[str]:
         "--noise-seed",
         str(args.noise_seed),
     ]
-    for image_name in args.image_name:
-        cmd += ["--image-name", image_name]
     if args.model_type == "smolvla":
         cmd += [
             "--llm",
@@ -151,7 +155,7 @@ def main() -> int:
     parser.add_argument("--model-type", choices=["smolvla", "pi0"], required=True)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5555)
-    parser.add_argument("--image", required=True)
+    parser.add_argument("--image", action="append", required=True)
     parser.add_argument("--image-name", action="append", default=[])
     parser.add_argument("--state", required=True)
     parser.add_argument("--task", default="grab the block.")
@@ -179,9 +183,15 @@ def main() -> int:
     if missing:
         raise SystemExit(f"missing required {args.model_type} args: {', '.join(missing)}")
 
-    rgb, width, height, stride = load_image_rgb(args.image)
     if not args.image_name:
+        if len(args.image) != 1:
+            raise SystemExit("multiple --image inputs require one --image-name per image")
         args.image_name = ["image"]
+    if len(args.image) != len(args.image_name):
+        raise SystemExit(
+            f"--image count ({len(args.image)}) must match --image-name count ({len(args.image_name)})"
+        )
+    images = [load_image_rgb(image_path) for image_path in args.image]
     response = ModelClient(host=args.host, port=args.port).predict(
         {
             "images": [
@@ -192,7 +202,7 @@ def main() -> int:
                     "height": height,
                     "stride_bytes": stride,
                 }
-                for image_name in args.image_name
+                for image_name, (rgb, width, height, stride) in zip(args.image_name, images)
             ],
             "state": parse_state(args.state),
             "prompt": args.task,

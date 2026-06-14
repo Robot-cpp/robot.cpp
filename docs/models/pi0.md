@@ -77,7 +77,8 @@ PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-cli \
   --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
   --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
   --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
-  --image third_party/llama.cpp/tools/mtmd/test-1.jpeg \
+  --image /path/to/agentview.png \
+  --image /path/to/eye_in_hand.png \
   --image-name observation.images.image \
   --image-name observation.images.image2 \
   --state "${STATE}" \
@@ -85,8 +86,9 @@ PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-cli \
   --noise-seed 1
 ```
 
-`--image-name` must match `vlacpp.image_keys` in the checkpoint metadata. The
-LIBERO split checkpoint currently expects:
+Repeated `--image` values are paired with repeated `--image-name` values by
+order. `--image-name` must match `vlacpp.image_keys` in the checkpoint metadata.
+The LIBERO split checkpoint currently expects:
 
 ```text
 observation.images.image
@@ -130,34 +132,3 @@ bash robot_server/shell/launch_pi0_server_cpu.sh
 
 The server listens on `127.0.0.1` in this phase. Request images must include the
 same names as the checkpoint image keys.
-
-## Server/CLI Parity Check
-
-For strict server/CLI parity, use identical raw RGB bytes. JPEG decoded through
-different libraries can produce small action differences. A PPM input is a good
-simple choice for parity checks.
-
-With a running server:
-
-```sh
-python3 robot_server/test/compare_server_model_cli.py \
-  --model-cli ./build-cuda/bin/model-cli \
-  --model-type pi0 \
-  --host 127.0.0.1 \
-  --port 5555 \
-  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
-  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
-  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
-  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
-  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
-  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
-  --image /path/to/image.ppm \
-  --image-name observation.images.image \
-  --image-name observation.images.image2 \
-  --state "${STATE}" \
-  --task "grab the block." \
-  --noise-seed 1
-```
-
-The CLI prints only the first and last action rows for large chunks, so the
-comparison script checks the printed subset.

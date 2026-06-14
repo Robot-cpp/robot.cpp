@@ -87,5 +87,5 @@ the checkpoint metadata, for example:
   --action-decoder /path/to/model.action_decoder.gguf
 ```
 
-Use repeated `--image-name` arguments when a checkpoint expects multiple image
-views and you want to feed the same input image under each name.
+Use repeated `--image` and `--image-name` arguments when a checkpoint expects
+multiple image views. Values are paired by order.
