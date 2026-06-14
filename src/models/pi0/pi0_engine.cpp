@@ -187,7 +187,7 @@ pi0_result pi0_predict_raw_rgb(
         ctx->runtime.last_timings.prefix_ms = elapsed_ms(prefix_start, prefix_done);
 
         if (!robotcpp::pi0::pi0_has_action_head(ctx->model)) {
-            pi0_log_error("pi0 inference requires mapped OpenPI action decoder tensors");
+            pi0_log_error("pi0 inference requires pi0 action decoder head tensors");
             return empty_result();
         }
 

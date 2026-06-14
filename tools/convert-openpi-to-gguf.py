@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a pi0 checkpoint directory or safetensors file into vlacpp GGUF."""
+"""Convert a pi0 checkpoint directory or safetensors file into split pi0 GGUF."""
 
 from __future__ import annotations
 
@@ -428,8 +428,8 @@ def load_safetensors_shapes(path: Path) -> dict[str, Any]:
     vision_layers: set[int] = set()
     with safe_open(path, framework="np") as handle:
         raw_metadata = handle.metadata() or {}
-        if "vlacpp.metadata" in raw_metadata:
-            metadata = json.loads(raw_metadata["vlacpp.metadata"])
+        if "pi0.metadata" in raw_metadata:
+            metadata = json.loads(raw_metadata["pi0.metadata"])
         for name in handle.keys():
             stripped = strip_model_prefix(name)
             if stripped == LEROBOT_VISION_PREFIX + "embeddings.patch_embedding.weight":
@@ -441,7 +441,7 @@ def load_safetensors_shapes(path: Path) -> dict[str, Any]:
             if match:
                 vision_layers.add(int(match.group(1)))
             target = pi0_runtime_tensor_name(name)
-            if is_vlacpp_pi0_tensor(target):
+            if is_pi0_runtime_tensor(target):
                 tensors[target] = {"shape": list(handle.get_slice(name).get_shape()), "data": []}
     if vision_layers:
         if vision_layers != set(range(len(vision_layers))):
@@ -450,7 +450,7 @@ def load_safetensors_shapes(path: Path) -> dict[str, Any]:
     return {"metadata": metadata, "tensors": tensors}
 
 
-def is_vlacpp_pi0_tensor(name: str) -> bool:
+def is_pi0_runtime_tensor(name: str) -> bool:
     return (
         name.startswith(PI0_ACTION_DECODER_PREFIX)
         or name.startswith(PI0_LLM_PREFIX)
@@ -496,7 +496,7 @@ def iter_safetensors_arrays(path: Path, component_dtypes: dict[str, str]):
     with safe_open(path, framework="pt") as handle:
         for source_name in handle.keys():
             target = pi0_runtime_tensor_name(source_name)
-            if not is_vlacpp_pi0_tensor(target):
+            if not is_pi0_runtime_tensor(target):
                 continue
             source_tensor = handle.get_tensor(source_name).detach().cpu()
             dtype = concrete_tensor_dtype(
@@ -655,7 +655,7 @@ def build_metadata(args: argparse.Namespace, checkpoint: dict[str, Any]) -> dict
             "action_decoder": canonical_dtype(args.action_decoder_dtype or args.dtype, allow_preserve=True),
             "tokenizer": "metadata",
         },
-        "format": "vlacpp-pi0-components-v1",
+        "format": "pi0-components-v1",
     }
     for key, value in source.items():
         if key == "pi0_vision_norm_epsilon":
@@ -732,67 +732,67 @@ def gguf_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     component_dtypes = metadata.get("component_dtypes", {})
     result = {
         "general.architecture": metadata["model_type"],
-        "vlacpp.model_type": metadata["model_type"],
-        "vlacpp.gguf.schema": "vla-unified-v1",
-        "vlacpp.image_width": metadata["image_width"],
-        "vlacpp.image_height": metadata["image_height"],
-        "vlacpp.state_dim": metadata["state_dim"],
-        "vlacpp.action_dim": metadata["action_dim"],
-        "vlacpp.action_horizon": metadata["action_horizon"],
-        "vlacpp.max_token_len": metadata["max_token_len"],
-        "vlacpp.image_keys": metadata["image_keys"],
-        "vlacpp.state_mean": metadata["state_mean"],
-        "vlacpp.state_std": metadata["state_std"],
-        "vlacpp.action_mean": metadata["action_mean"],
-        "vlacpp.action_std": metadata["action_std"],
-        "vlacpp.source_checkpoint": metadata.get("source_checkpoint", ""),
-        "vlacpp.component.vit.architecture": "openpi-vit",
-        "vlacpp.component.vit.prefix": PI0_VIT_PREFIX,
-        "vlacpp.component.vit.backend": "inherit",
-        "vlacpp.component.vit.dtype": component_dtypes.get("vit", "preserve"),
-        "vlacpp.component.mmproj.architecture": "openpi-mmproj",
-        "vlacpp.component.mmproj.prefix": PI0_MERGER_PREFIX,
-        "vlacpp.component.mmproj.backend": "inherit",
-        "vlacpp.component.mmproj.dtype": component_dtypes.get("mmproj", "preserve"),
-        "vlacpp.component.llm.architecture": "gemma",
-        "vlacpp.component.llm.prefix": PI0_LLM_PREFIX,
-        "vlacpp.component.llm.backend": "inherit",
-        "vlacpp.component.llm.dtype": component_dtypes.get("llm", "preserve"),
-        "vlacpp.component.tokenizer.architecture": "sentencepiece",
-        "vlacpp.component.tokenizer.backend": "inherit",
-        "vlacpp.component.tokenizer.dtype": component_dtypes.get("tokenizer", "metadata"),
-        "vlacpp.component.state.architecture": "openpi-state-proj",
-        "vlacpp.component.state.prefix": PI0_STATE_PREFIX,
-        "vlacpp.component.state.backend": "inherit",
-        "vlacpp.component.state.dtype": component_dtypes.get("state", "preserve"),
-        "vlacpp.component.action_decoder.architecture": "pi0-action-decoder",
-        "vlacpp.component.action_decoder.prefix": PI0_ACTION_DECODER_PREFIX,
-        "vlacpp.component.action_decoder.backend": "inherit",
-        "vlacpp.component.action_decoder.dtype": component_dtypes.get("action_decoder", "preserve"),
+        "pi0.model_type": metadata["model_type"],
+        "pi0.gguf.schema": "pi0-unified-v1",
+        "pi0.image_width": metadata["image_width"],
+        "pi0.image_height": metadata["image_height"],
+        "pi0.state_dim": metadata["state_dim"],
+        "pi0.action_dim": metadata["action_dim"],
+        "pi0.action_horizon": metadata["action_horizon"],
+        "pi0.max_token_len": metadata["max_token_len"],
+        "pi0.image_keys": metadata["image_keys"],
+        "pi0.state_mean": metadata["state_mean"],
+        "pi0.state_std": metadata["state_std"],
+        "pi0.action_mean": metadata["action_mean"],
+        "pi0.action_std": metadata["action_std"],
+        "pi0.source_checkpoint": metadata.get("source_checkpoint", ""),
+        "pi0.component.vit.architecture": "pi0-vit",
+        "pi0.component.vit.prefix": PI0_VIT_PREFIX,
+        "pi0.component.vit.backend": "inherit",
+        "pi0.component.vit.dtype": component_dtypes.get("vit", "preserve"),
+        "pi0.component.mmproj.architecture": "pi0-mmproj",
+        "pi0.component.mmproj.prefix": PI0_MERGER_PREFIX,
+        "pi0.component.mmproj.backend": "inherit",
+        "pi0.component.mmproj.dtype": component_dtypes.get("mmproj", "preserve"),
+        "pi0.component.llm.architecture": "gemma",
+        "pi0.component.llm.prefix": PI0_LLM_PREFIX,
+        "pi0.component.llm.backend": "inherit",
+        "pi0.component.llm.dtype": component_dtypes.get("llm", "preserve"),
+        "pi0.component.tokenizer.architecture": "sentencepiece",
+        "pi0.component.tokenizer.backend": "inherit",
+        "pi0.component.tokenizer.dtype": component_dtypes.get("tokenizer", "metadata"),
+        "pi0.component.state.architecture": "pi0-state-proj",
+        "pi0.component.state.prefix": PI0_STATE_PREFIX,
+        "pi0.component.state.backend": "inherit",
+        "pi0.component.state.dtype": component_dtypes.get("state", "preserve"),
+        "pi0.component.action_decoder.architecture": "pi0-action-decoder",
+        "pi0.component.action_decoder.prefix": PI0_ACTION_DECODER_PREFIX,
+        "pi0.component.action_decoder.backend": "inherit",
+        "pi0.component.action_decoder.dtype": component_dtypes.get("action_decoder", "preserve"),
     }
     optional_ints = {
-        "vlacpp.pi0.action_decoder.width": "pi0_action_width",
-        "vlacpp.pi0.vit.width": "pi0_vision_width",
-        "vlacpp.pi0.vit.patch_height": "pi0_vision_patch_height",
-        "vlacpp.pi0.vit.patch_width": "pi0_vision_patch_width",
-        "vlacpp.pi0.vit.layers": "pi0_vision_layers",
-        "vlacpp.pi0.vit.heads": "pi0_vision_heads",
-        "vlacpp.pi0.llm.width": "pi0_language_width",
-        "vlacpp.pi0.llm.q_out": "pi0_language_q_out",
-        "vlacpp.pi0.llm.kv_out": "pi0_language_kv_out",
-        "vlacpp.pi0.llm.mlp_width": "pi0_language_mlp_width",
-        "vlacpp.pi0.llm.layers": "pi0_language_layers",
-        "vlacpp.pi0.action_decoder.expert_width": "pi0_action_expert_width",
-        "vlacpp.pi0.action_decoder.q_out": "pi0_action_expert_q_out",
-        "vlacpp.pi0.action_decoder.kv_out": "pi0_action_expert_kv_out",
-        "vlacpp.pi0.action_decoder.mlp_width": "pi0_action_expert_mlp_width",
-        "vlacpp.pi0.action_decoder.layers": "pi0_action_expert_layers",
+        "pi0.action_decoder.width": "pi0_action_width",
+        "pi0.vit.width": "pi0_vision_width",
+        "pi0.vit.patch_height": "pi0_vision_patch_height",
+        "pi0.vit.patch_width": "pi0_vision_patch_width",
+        "pi0.vit.layers": "pi0_vision_layers",
+        "pi0.vit.heads": "pi0_vision_heads",
+        "pi0.llm.width": "pi0_language_width",
+        "pi0.llm.q_out": "pi0_language_q_out",
+        "pi0.llm.kv_out": "pi0_language_kv_out",
+        "pi0.llm.mlp_width": "pi0_language_mlp_width",
+        "pi0.llm.layers": "pi0_language_layers",
+        "pi0.action_decoder.expert_width": "pi0_action_expert_width",
+        "pi0.action_decoder.q_out": "pi0_action_expert_q_out",
+        "pi0.action_decoder.kv_out": "pi0_action_expert_kv_out",
+        "pi0.action_decoder.mlp_width": "pi0_action_expert_mlp_width",
+        "pi0.action_decoder.layers": "pi0_action_expert_layers",
     }
     for key, source in optional_ints.items():
         if source in metadata:
             result[key] = int(metadata[source])
     if "pi0_vision_norm_epsilon" in metadata:
-        result["vlacpp.pi0.vit.norm_epsilon"] = float(metadata["pi0_vision_norm_epsilon"])
+        result["pi0.vit.norm_epsilon"] = float(metadata["pi0_vision_norm_epsilon"])
     return result
 
 
@@ -812,8 +812,8 @@ def component_output_paths(output: Path) -> dict[str, Path]:
 def component_metadata(metadata: dict[str, Any], role: str) -> dict[str, Any]:
     result = gguf_metadata(metadata)
     result["general.architecture"] = f"pi0-{role}"
-    result["vlacpp.gguf.schema"] = "vla-component-v1"
-    result["vlacpp.component.role"] = role
+    result["pi0.gguf.schema"] = "pi0-component-v1"
+    result["pi0.component.role"] = role
     return result
 
 

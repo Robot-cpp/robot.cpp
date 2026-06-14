@@ -87,7 +87,7 @@ PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-cli \
 ```
 
 Repeated `--image` values are paired with repeated `--image-name` values by
-order. `--image-name` must match `vlacpp.image_keys` in the checkpoint metadata.
+order. `--image-name` must match `pi0.image_keys` in the checkpoint metadata.
 The LIBERO split checkpoint currently expects:
 
 ```text
@@ -98,7 +98,7 @@ observation.images.image2
 For another checkpoint, inspect the image keys:
 
 ```sh
-strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "vlacpp\\.image_keys|observation\\.images|base_0_rgb"
+strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "pi0\\.image_keys|observation\\.images|base_0_rgb"
 ```
 
 ## model-server

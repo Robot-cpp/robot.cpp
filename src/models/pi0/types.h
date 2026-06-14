@@ -58,7 +58,7 @@ struct Pi0ComponentConfig {
 };
 
 struct Pi0VisionConfig {
-    Pi0ComponentConfig component = {"vit", "openpi-vit", "pi0.vit.", {}};
+    Pi0ComponentConfig component = {"vit", "pi0-vit", "pi0.vit.", {}};
     int width = 0;
     int patch_height = 0;
     int patch_width = 0;
@@ -77,7 +77,7 @@ struct Pi0LlmConfig {
 };
 
 struct Pi0MmprojConfig {
-    Pi0ComponentConfig component = {"mmproj", "openpi-mmproj", "pi0.merger.", {}};
+    Pi0ComponentConfig component = {"mmproj", "pi0-mmproj", "pi0.merger.", {}};
 };
 
 struct Pi0ActionConfig {
@@ -91,7 +91,7 @@ struct Pi0ActionConfig {
 };
 
 struct Pi0StateConfig {
-    Pi0ComponentConfig component = {"state", "openpi-state-proj", "pi0.action_decoder.state_proj.", {}};
+    Pi0ComponentConfig component = {"state", "pi0-state-proj", "pi0.action_decoder.state_proj.", {}};
 };
 
 struct Pi0Config {

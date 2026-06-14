@@ -99,7 +99,7 @@ def writer_raw_shape(shape: list[int], data: np.ndarray, raw_dtype: gguf.GGMLQua
 
 def write_gguf(path: Path, metadata: dict[str, Any], tensors: dict[str, dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    writer = gguf.GGUFWriter(path, arch=str(metadata.get("general.architecture", "vlacpp")))
+    writer = gguf.GGUFWriter(path, arch=str(metadata.get("general.architecture", "pi0")))
     add_metadata(writer, metadata)
     add_tokenizer_metadata(writer, metadata)
     for name, tensor in tensors.items():
@@ -114,7 +114,7 @@ def write_gguf(path: Path, metadata: dict[str, Any], tensors: dict[str, dict[str
 
 def write_gguf_arrays(path: Path, metadata: dict[str, Any], tensors: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    writer = gguf.GGUFWriter(path, arch=str(metadata.get("general.architecture", "vlacpp")), use_temp_file=True)
+    writer = gguf.GGUFWriter(path, arch=str(metadata.get("general.architecture", "pi0")), use_temp_file=True)
     add_metadata(writer, metadata)
     add_tokenizer_metadata(writer, metadata)
     for item in tensors:

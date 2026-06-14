@@ -124,7 +124,10 @@ bool gguf_f32_array(gguf_context * gguf, const char * key, std::vector<float> & 
     return true;
 }
 
-bool parse_component_metadata(gguf_context * gguf, const char * prefix, Pi0ComponentConfig & component) {
+bool parse_component_metadata(
+    gguf_context * gguf,
+    const char * prefix,
+    Pi0ComponentConfig & component) {
     std::string key = std::string(prefix) + "architecture";
     gguf_string(gguf, key.c_str(), component.architecture);
     key = std::string(prefix) + "prefix";
@@ -139,19 +142,19 @@ bool parse_component_metadata(gguf_context * gguf, const char * prefix, Pi0Compo
 }
 
 bool parse_common_metadata(gguf_context * gguf, Pi0ModelConfig & config) {
-    gguf_string(gguf, "vlacpp.model_type", config.common.model_type);
-    gguf_string(gguf, "vlacpp.component.role", config.component_role);
-    gguf_i32(gguf, "vlacpp.image_width", config.common.image_width);
-    gguf_i32(gguf, "vlacpp.image_height", config.common.image_height);
-    gguf_i32(gguf, "vlacpp.state_dim", config.common.state_dim);
-    gguf_i32(gguf, "vlacpp.action_dim", config.common.action_dim);
-    gguf_i32(gguf, "vlacpp.action_horizon", config.common.action_horizon);
-    gguf_i32(gguf, "vlacpp.max_token_len", config.common.max_token_len);
-    gguf_string_array(gguf, "vlacpp.image_keys", config.common.image_keys);
-    gguf_f32_array(gguf, "vlacpp.state_mean", config.common.state_mean);
-    gguf_f32_array(gguf, "vlacpp.state_std", config.common.state_std);
-    gguf_f32_array(gguf, "vlacpp.action_mean", config.common.action_mean);
-    gguf_f32_array(gguf, "vlacpp.action_std", config.common.action_std);
+    gguf_string(gguf, "pi0.model_type", config.common.model_type);
+    gguf_string(gguf, "pi0.component.role", config.component_role);
+    gguf_i32(gguf, "pi0.image_width", config.common.image_width);
+    gguf_i32(gguf, "pi0.image_height", config.common.image_height);
+    gguf_i32(gguf, "pi0.state_dim", config.common.state_dim);
+    gguf_i32(gguf, "pi0.action_dim", config.common.action_dim);
+    gguf_i32(gguf, "pi0.action_horizon", config.common.action_horizon);
+    gguf_i32(gguf, "pi0.max_token_len", config.common.max_token_len);
+    gguf_string_array(gguf, "pi0.image_keys", config.common.image_keys);
+    gguf_f32_array(gguf, "pi0.state_mean", config.common.state_mean);
+    gguf_f32_array(gguf, "pi0.state_std", config.common.state_std);
+    gguf_f32_array(gguf, "pi0.action_mean", config.common.action_mean);
+    gguf_f32_array(gguf, "pi0.action_std", config.common.action_std);
     return true;
 }
 
@@ -178,30 +181,30 @@ bool validate_common_metadata(const Pi0ModelConfig & config) {
 bool parse_pi0_gguf_metadata(gguf_context * gguf, Pi0ModelConfig & config) {
     parse_common_metadata(gguf, config);
     Pi0Config & pi0 = ensure_pi0_config(config);
-    parse_component_metadata(gguf, "vlacpp.component.vit.", pi0.vision.component);
-    parse_component_metadata(gguf, "vlacpp.component.llm.", pi0.llm.component);
-    parse_component_metadata(gguf, "vlacpp.component.mmproj.", pi0.mmproj.component);
-    parse_component_metadata(gguf, "vlacpp.component.tokenizer.", pi0.tokenizer);
-    parse_component_metadata(gguf, "vlacpp.component.action_decoder.", pi0.action.component);
-    parse_component_metadata(gguf, "vlacpp.component.state.", pi0.state.component);
+    parse_component_metadata(gguf, "pi0.component.vit.", pi0.vision.component);
+    parse_component_metadata(gguf, "pi0.component.llm.", pi0.llm.component);
+    parse_component_metadata(gguf, "pi0.component.mmproj.", pi0.mmproj.component);
+    parse_component_metadata(gguf, "pi0.component.tokenizer.", pi0.tokenizer);
+    parse_component_metadata(gguf, "pi0.component.action_decoder.", pi0.action.component);
+    parse_component_metadata(gguf, "pi0.component.state.", pi0.state.component);
 
-    gguf_i32(gguf, "vlacpp.pi0.action_decoder.width", pi0.action.width);
-    gguf_i32(gguf, "vlacpp.pi0.vit.width", pi0.vision.width);
-    gguf_i32(gguf, "vlacpp.pi0.vit.patch_height", pi0.vision.patch_height);
-    gguf_i32(gguf, "vlacpp.pi0.vit.patch_width", pi0.vision.patch_width);
-    gguf_i32(gguf, "vlacpp.pi0.vit.layers", pi0.vision.layers);
-    gguf_i32(gguf, "vlacpp.pi0.vit.heads", pi0.vision.heads);
-    gguf_i32(gguf, "vlacpp.pi0.llm.width", pi0.llm.width);
-    gguf_i32(gguf, "vlacpp.pi0.llm.q_out", pi0.llm.q_out);
-    gguf_i32(gguf, "vlacpp.pi0.llm.kv_out", pi0.llm.kv_out);
-    gguf_i32(gguf, "vlacpp.pi0.llm.mlp_width", pi0.llm.mlp_width);
-    gguf_i32(gguf, "vlacpp.pi0.llm.layers", pi0.llm.layers);
-    gguf_i32(gguf, "vlacpp.pi0.action_decoder.expert_width", pi0.action.expert_width);
-    gguf_i32(gguf, "vlacpp.pi0.action_decoder.q_out", pi0.action.expert_q_out);
-    gguf_i32(gguf, "vlacpp.pi0.action_decoder.kv_out", pi0.action.expert_kv_out);
-    gguf_i32(gguf, "vlacpp.pi0.action_decoder.mlp_width", pi0.action.expert_mlp_width);
-    gguf_i32(gguf, "vlacpp.pi0.action_decoder.layers", pi0.action.expert_layers);
-    gguf_f32(gguf, "vlacpp.pi0.vit.norm_epsilon", pi0.vision.norm_epsilon);
+    gguf_i32(gguf, "pi0.action_decoder.width", pi0.action.width);
+    gguf_i32(gguf, "pi0.vit.width", pi0.vision.width);
+    gguf_i32(gguf, "pi0.vit.patch_height", pi0.vision.patch_height);
+    gguf_i32(gguf, "pi0.vit.patch_width", pi0.vision.patch_width);
+    gguf_i32(gguf, "pi0.vit.layers", pi0.vision.layers);
+    gguf_i32(gguf, "pi0.vit.heads", pi0.vision.heads);
+    gguf_i32(gguf, "pi0.llm.width", pi0.llm.width);
+    gguf_i32(gguf, "pi0.llm.q_out", pi0.llm.q_out);
+    gguf_i32(gguf, "pi0.llm.kv_out", pi0.llm.kv_out);
+    gguf_i32(gguf, "pi0.llm.mlp_width", pi0.llm.mlp_width);
+    gguf_i32(gguf, "pi0.llm.layers", pi0.llm.layers);
+    gguf_i32(gguf, "pi0.action_decoder.expert_width", pi0.action.expert_width);
+    gguf_i32(gguf, "pi0.action_decoder.q_out", pi0.action.expert_q_out);
+    gguf_i32(gguf, "pi0.action_decoder.kv_out", pi0.action.expert_kv_out);
+    gguf_i32(gguf, "pi0.action_decoder.mlp_width", pi0.action.expert_mlp_width);
+    gguf_i32(gguf, "pi0.action_decoder.layers", pi0.action.expert_layers);
+    gguf_f32(gguf, "pi0.vit.norm_epsilon", pi0.vision.norm_epsilon);
     return validate_common_metadata(config);
 }
 
@@ -739,7 +742,7 @@ bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Components & co
         }
     }
     if (!has_pi0_action_head_tensors(config, components.action_decoder.loaded.ctx_data)) {
-        return pi0_load_error("pi0 model requires mapped OpenPI action decoder tensors");
+        return pi0_load_error("pi0 model requires pi0 action decoder head tensors");
     }
     const bool required_weights_present =
         pi0.vision.layers > 0 &&
