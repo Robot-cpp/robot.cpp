@@ -840,6 +840,7 @@ static struct smolvla_result smolvla_predict_impl(
         llama_batch_free(batch);
         llama_set_causal_attn(ctx->ctx_llama, true);
         llama_set_embeddings(ctx->ctx_llama, false);
+        llama_synchronize(ctx->ctx_llama);
         ctx->last_timings.llm_ms = smolvla_elapsed_ms(t_llm_start, smolvla_clock::now());
     }
 
