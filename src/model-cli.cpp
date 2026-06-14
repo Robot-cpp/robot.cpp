@@ -58,6 +58,7 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "Common options:\n");
     std::fprintf(stderr, "  --model-type <type>      Model type (default: smolvla)\n");
     std::fprintf(stderr, "  --image <path>           Input image (JPEG/PNG)\n");
+    std::fprintf(stderr, "  --image-name <name>      Observation image name (default: image)\n");
     std::fprintf(stderr, "  --state <csv>            Proprio/state values (comma-separated)\n");
     std::fprintf(stderr, "  --task <str>             Task instruction (default: \"grab the block.\")\n");
     std::fprintf(stderr, "  --threads <n>            Number of threads (default: auto)\n");
@@ -123,6 +124,7 @@ bool load_rgb_image(const std::string & path, loaded_image & out) {
 int main(int argc, char ** argv) {
     robotcpp::model_args args;
     std::string image_path;
+    std::vector<std::string> image_names;
     std::string state_csv;
     std::string task;
 
@@ -157,6 +159,8 @@ int main(int argc, char ** argv) {
             args.action_expert_path = argv[++i];
         } else if (arg == "--image" && i + 1 < argc) {
             image_path = argv[++i];
+        } else if (arg == "--image-name" && i + 1 < argc) {
+            image_names.push_back(argv[++i]);
         } else if (arg == "--state" && i + 1 < argc) {
             state_csv = argv[++i];
         } else if (arg == "--task" && i + 1 < argc) {
@@ -208,15 +212,22 @@ int main(int argc, char ** argv) {
     std::chrono::duration<double> init_time = init_end - init_start;
     std::fprintf(stderr, "[model-cli] Model initialization: %.2f seconds\n", init_time.count());
 
+    if (image_names.empty()) {
+        image_names.push_back("image");
+    }
+
     robotcpp::observation obs;
-    robotcpp::model_image model_image;
-    model_image.name = args.type == robotcpp::model_type::pi0 ? "base_0_rgb" : "image";
-    model_image.data = image.data.data();
-    model_image.width = image.width;
-    model_image.height = image.height;
-    model_image.channels = image.channels;
-    model_image.stride_bytes = image.stride_bytes;
-    obs.images.push_back(model_image);
+    obs.images.reserve(image_names.size());
+    for (const std::string & name : image_names) {
+        robotcpp::model_image model_image;
+        model_image.name = name;
+        model_image.data = image.data.data();
+        model_image.width = image.width;
+        model_image.height = image.height;
+        model_image.channels = image.channels;
+        model_image.stride_bytes = image.stride_bytes;
+        obs.images.push_back(model_image);
+    }
     obs.state = state_vec;
     obs.task = task;
 

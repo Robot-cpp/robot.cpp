@@ -20,6 +20,10 @@ struct server_args {
     robotcpp::model_type model_type = robotcpp::model_type::smolvla;
     std::string llm_path;
     std::string mmproj_path;
+    std::string vit_path;
+    std::string tokenizer_path;
+    std::string state_path;
+    std::string action_decoder_path;
     std::string state_proj_path;
     std::string action_expert_path;
     std::string task = "grab the block.";
@@ -36,6 +40,10 @@ struct server_args {
 static bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
     if (value == "smolvla") {
         out = robotcpp::model_type::smolvla;
+        return true;
+    }
+    if (value == "pi0") {
+        out = robotcpp::model_type::pi0;
         return true;
     }
     return false;
@@ -62,7 +70,8 @@ static void quiet_llama_log_callback(ggml_log_level level, const char * text, vo
 
 static void print_usage(const char * prog) {
     std::fprintf(stderr,
-        "Usage: %s --model-type smolvla --llm <path> --mmproj <path> [options]\n"
+        "Usage: %s --model-type smolvla --llm <path> --mmproj <path> --state-proj <path> --action-expert <path> [options]\n"
+        "       %s --model-type pi0 --vit <path> --mmproj <path> --llm <path> --tokenizer <path> --state-gguf <path> --action-decoder <path> [options]\n"
         "\n"
         "Common options:\n"
         "  --model-type <type>      Model type (default: smolvla)\n"
@@ -74,6 +83,14 @@ static void print_usage(const char * prog) {
         "  --action-expert <path>   Action expert GGUF path\n"
         "  --task <str>             Accepted for compatibility; predict request task is used\n"
         "\n"
+        "Pi0 options:\n"
+        "  --vit <path>             ViT GGUF path\n"
+        "  --mmproj <path>          Merger GGUF path\n"
+        "  --llm <path>             LLM GGUF path\n"
+        "  --tokenizer <path>       Tokenizer GGUF path\n"
+        "  --state-gguf <path>      State projector GGUF path\n"
+        "  --action-decoder <path>  Action decoder GGUF path\n"
+        "\n"
         "Runtime options:\n"
         "  --host <ip>              Listen host (default: 127.0.0.1)\n"
         "  --port <n>               Listen port (default: 5555)\n"
@@ -84,7 +101,7 @@ static void print_usage(const char * prog) {
         "  --noise-seed <n>         RNG seed, <0 means auto (default: -1)\n"
         "  --verbosity <n>          Log verbosity (default: 1)\n"
         "  -h, --help               Show this help\n",
-        prog);
+        prog, prog);
 }
 
 // TODO: may need to be cleaned up and optimized
@@ -103,6 +120,14 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
             }
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
+        } else if (arg == "--vit" && i + 1 < argc) {
+            args.vit_path = argv[++i];
+        } else if (arg == "--tokenizer" && i + 1 < argc) {
+            args.tokenizer_path = argv[++i];
+        } else if (arg == "--state-gguf" && i + 1 < argc) {
+            args.state_path = argv[++i];
+        } else if (arg == "--action-decoder" && i + 1 < argc) {
+            args.action_decoder_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
             args.state_proj_path = argv[++i];
         } else if (arg == "--action-expert" && i + 1 < argc) {
@@ -141,8 +166,23 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         std::fprintf(stderr, "Error: model-server only listens on 127.0.0.1 in this phase\n");
         return false;
     }
-    if (args.llm_path.empty() || args.mmproj_path.empty()) {
-        std::fprintf(stderr, "Error: --llm and --mmproj are required\n");
+    if (args.model_type == robotcpp::model_type::smolvla) {
+        if (
+            args.llm_path.empty() ||
+            args.mmproj_path.empty() ||
+            args.state_proj_path.empty() ||
+            args.action_expert_path.empty()) {
+            std::fprintf(stderr, "Error: smolvla requires --llm --mmproj --state-proj --action-expert\n");
+            return false;
+        }
+    } else if (
+        args.vit_path.empty() ||
+        args.mmproj_path.empty() ||
+        args.llm_path.empty() ||
+        args.tokenizer_path.empty() ||
+        args.state_path.empty() ||
+        args.action_decoder_path.empty()) {
+        std::fprintf(stderr, "Error: pi0 requires --vit --mmproj --llm --tokenizer --state-gguf --action-decoder\n");
         return false;
     }
     return true;
@@ -155,6 +195,10 @@ static robotcpp::model_args make_model_args(const server_args & args) {
     model_args.verbosity = args.verbosity;
     model_args.llm_path = args.llm_path;
     model_args.mmproj_path = args.mmproj_path;
+    model_args.vit_path = args.vit_path;
+    model_args.tokenizer_path = args.tokenizer_path;
+    model_args.state_path = args.state_path;
+    model_args.action_decoder_path = args.action_decoder_path;
     model_args.state_proj_path = args.state_proj_path;
     model_args.action_expert_path = args.action_expert_path;
     model_args.n_batch = args.n_batch;
