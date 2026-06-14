@@ -40,7 +40,7 @@ public:
     const std::string & error() const;
 
 private:
-    backend_mode desired_mode(bool use_accel) const;
+    backend_mode desired_mode() const;
 
     bool init_backends(
         ggml_backend_t & cpu_backend,

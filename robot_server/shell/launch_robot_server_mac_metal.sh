@@ -4,7 +4,7 @@ set -e
 # ====== change these if needed ======
 VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
-BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
+BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_metal}"
 
 
 HOST="${HOST:-127.0.0.1}"
@@ -17,6 +17,8 @@ NOISE_SEED="${NOISE_SEED:--1}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 DTYPE="${DTYPE:-f32}"
+
+
 # ====================================
 
 LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
@@ -33,7 +35,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_BLAS=ON \
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
-        -DGGML_METAL=OFF \
+        -DGGML_METAL=ON \
         -DVLACPP_BUILD_SMOLVLA=ON \
         -DVLACPP_BUILD_TESTS=ON
 

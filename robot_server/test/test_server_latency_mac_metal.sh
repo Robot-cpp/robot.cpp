@@ -4,7 +4,7 @@ set -e
 # ====== change these if needed ======
 VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
-BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
+BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_metal}"
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5569}"
@@ -19,10 +19,10 @@ DTYPE="${DTYPE:-f32}"
 
 PYTHON="${PYTHON:-python3}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
-ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency}"
+ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency_metal}"
 # ====================================
 
-LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
+LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_metal.sh"
 BENCHMARK_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/benchmark_latency.py"
 
 SERVER_LOG="${ARTIFACT_DIR}/server.log"
@@ -46,7 +46,7 @@ echo "== configure =="
     -DGGML_BLAS=ON \
     -DGGML_BLAS_VENDOR=Apple \
     -DGGML_OPENMP=OFF \
-    -DGGML_METAL=OFF \
+    -DGGML_METAL=ON \
     -DVLACPP_BUILD_SMOLVLA=ON \
     -DVLACPP_BUILD_TESTS=ON
 

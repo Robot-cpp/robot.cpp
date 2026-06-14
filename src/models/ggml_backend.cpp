@@ -52,13 +52,12 @@ static bool mode_for_device(
     return false;
 }
 
-backend_mode backend_loader::desired_mode(bool use_accel) const {
+backend_mode backend_loader::desired_mode() const {
 #if defined(GGML_USE_CUDA)
     return backend_mode::cuda;
 #elif defined(GGML_USE_METAL)
     return backend_mode::metal;
 #else
-    (void) use_accel;
     return backend_mode::cpu;
 #endif
 }
@@ -93,7 +92,7 @@ bool backend_loader::init_backends(
     int verbosity) {
 
     mode_ = backend_mode::cpu;
-    const backend_mode wanted = desired_mode(use_accel);
+    const backend_mode wanted = desired_mode();
 
     for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
         ggml_backend_dev_t dev = ggml_backend_dev_get(i);
