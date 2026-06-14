@@ -57,3 +57,9 @@ The server adapter matches LeRobot pi0 rollout input semantics:
 - The 50-step server action chunk is queued and consumed one action per env
   step, matching `PI0Policy.select_action`.
 - Only the first 7 action dimensions are sent to the LIBERO environment.
+
+The result JSON includes per-episode `server_timing_avg_ms` and a top-level
+`timing_ms` block. `timing_ms` is computed across all `model-server` predict
+calls and reports `count`, `avg`, `min`, `p50`, `p90`, `p99`, and `max` for
+`roundtrip_ms` plus server/model metrics such as `server_predict_ms`,
+`model_total_ms`, `prefix_ms`, and `denoise_ms`.

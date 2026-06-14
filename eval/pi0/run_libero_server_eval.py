@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import statistics
 import subprocess
@@ -47,6 +48,45 @@ def average_timing(records: list[Any]) -> dict[str, float]:
         if values:
             out[key] = statistics.fmean(values)
     return out
+
+
+def summarize_values(values: list[float]) -> dict[str, float | int]:
+    ordered = sorted(float(value) for value in values)
+    if not ordered:
+        return {}
+
+    def percentile(q: float) -> float:
+        if len(ordered) == 1:
+            return ordered[0]
+        pos = (len(ordered) - 1) * q
+        low = int(math.floor(pos))
+        high = int(math.ceil(pos))
+        if low == high:
+            return ordered[low]
+        weight = pos - low
+        return ordered[low] * (1.0 - weight) + ordered[high] * weight
+
+    return {
+        "count": len(ordered),
+        "avg": statistics.fmean(ordered),
+        "min": ordered[0],
+        "p50": percentile(0.50),
+        "p90": percentile(0.90),
+        "p99": percentile(0.99),
+        "max": ordered[-1],
+    }
+
+
+def timing_summary(records: list[Any]) -> dict[str, dict[str, float | int]]:
+    if not records:
+        return {}
+    values_by_name: dict[str, list[float]] = {
+        "roundtrip_ms": [record.roundtrip_ms for record in records],
+    }
+    for record in records:
+        for key, value in record.timings.items():
+            values_by_name.setdefault(key, []).append(value)
+    return {key: summarize_values(values) for key, values in sorted(values_by_name.items())}
 
 
 def run_episode(env: Any, policy: ModelServerPolicy, seed: int | None, episode_index: int) -> dict[str, Any]:
@@ -257,11 +297,14 @@ def main() -> int:
                 "triton_cache_dir": os.environ.get("TRITON_CACHE_DIR"),
             },
             "episodes": episodes,
+            "timing_ms": timing_summary(policy.timing_records),
             **aggregate_episodes(episodes),
         }
         write_json(output, payload)
         print(f"wrote {output}")
         print(f"overall: {payload['overall']}")
+        if payload["timing_ms"]:
+            print(f"timing_ms: {payload['timing_ms']}")
         return 0
     finally:
         if close_envs is not None and envs is not None:
