@@ -239,11 +239,72 @@ ggml_tensor * pi0_materialize_device_f32_3d(
         if (cached->buffer == nullptr) {
             throw std::runtime_error("failed to allocate pi0 cached backend buffer");
         }
-        ggml_backend_buffer_set_usage(cached->buffer, GGML_BACKEND_BUFFER_USAGE_WEIGHTS);
         it = runtime.device_tensors.emplace(tensor_key, std::move(cached)).first;
     }
     ggml_backend_tensor_copy(source, it->second->tensor);
     return it->second->tensor;
+}
+
+namespace {
+
+ggml_tensor * cached_device_f32_2d(
+    const Pi0ComponentBackend & runtime,
+    const void * key,
+    int64_t ne0,
+    int64_t ne1) {
+    if (runtime.sched == nullptr) {
+        throw std::runtime_error("pi0 backend scheduler is not initialized");
+    }
+    Pi0DeviceTensorKey tensor_key{key, GGML_TYPE_F32, 2, ne0, ne1, 1, 1};
+    auto it = runtime.device_tensors.find(tensor_key);
+    if (it == runtime.device_tensors.end()) {
+        auto cached = std::make_unique<Pi0DeviceTensor>();
+        ggml_init_params params{};
+        params.mem_size = 2 * ggml_tensor_overhead();
+        params.mem_buffer = nullptr;
+        params.no_alloc = true;
+        cached->ctx = ggml_init(params);
+        if (cached->ctx == nullptr) {
+            throw std::runtime_error("failed to initialize pi0 cached tensor context");
+        }
+        cached->tensor = ggml_new_tensor_2d(cached->ctx, GGML_TYPE_F32, ne0, ne1);
+        if (cached->tensor == nullptr) {
+            throw std::runtime_error("failed to allocate pi0 cached tensor metadata");
+        }
+        cached->buffer = ggml_backend_alloc_ctx_tensors_from_buft(cached->ctx, runtime.buft_policy.runtime_buft);
+        if (cached->buffer == nullptr) {
+            throw std::runtime_error("failed to allocate pi0 cached backend buffer");
+        }
+        it = runtime.device_tensors.emplace(tensor_key, std::move(cached)).first;
+    }
+    return it->second->tensor;
+}
+
+} // namespace
+
+ggml_tensor * pi0_materialize_device_f32_2d(
+    const Pi0ComponentBackend & runtime,
+    const void * key,
+    const ggml_tensor * source,
+    int64_t ne0,
+    int64_t ne1) {
+    ggml_tensor * cached = cached_device_f32_2d(runtime, key, ne0, ne1);
+    ggml_backend_tensor_copy(source, cached);
+    return cached;
+}
+
+ggml_tensor * pi0_upload_device_f32_2d(
+    const Pi0ComponentBackend & runtime,
+    const void * key,
+    const float * source,
+    int64_t ne0,
+    int64_t ne1) {
+    if (source == nullptr && ne0 * ne1 > 0) {
+        throw std::invalid_argument("pi0 device upload requires source data");
+    }
+    ggml_tensor * cached = cached_device_f32_2d(runtime, key, ne0, ne1);
+    ggml_backend_tensor_set(cached, source, 0, static_cast<size_t>(ne0) * static_cast<size_t>(ne1) * sizeof(float));
+    return cached;
 }
 
 } // namespace robotcpp::pi0

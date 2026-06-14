@@ -55,11 +55,6 @@ void pi0_prefill_language_prefix_batch(
 bool pi0_has_merger(const Pi0Context & ctx);
 bool pi0_has_vision_prefix(const Pi0Context & ctx);
 bool pi0_has_language_prefix(const Pi0Context & ctx);
-void pi0_project_vision_tokens(
-    const Pi0Context & ctx,
-    const std::vector<float> & vision_tokens,
-    int token_count,
-    std::vector<float> & out);
 void pi0_embed_prompt(
     const Pi0Context & ctx,
     const std::string & prompt,
@@ -70,11 +65,6 @@ void pi0_embed_prompt_tokens(
     const std::vector<int32_t> & tokens,
     std::vector<float> & out,
     int & token_count);
-void pi0_prefill_prefix_from_embeddings(
-    const Pi0Context & ctx,
-    Pi0KvCache & cache,
-    const std::vector<float> & embeddings,
-    int token_count);
 void pi0_prefill_prefix(const Pi0Context & ctx, Pi0KvCache & cache, const Pi0Observation & observation);
 
 } // namespace robotcpp::pi0

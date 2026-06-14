@@ -88,4 +88,18 @@ ggml_tensor * pi0_materialize_device_f32_3d(
     int64_t ne1,
     int64_t ne2);
 
+ggml_tensor * pi0_materialize_device_f32_2d(
+    const Pi0ComponentBackend & runtime,
+    const void * key,
+    const ggml_tensor * source,
+    int64_t ne0,
+    int64_t ne1);
+
+ggml_tensor * pi0_upload_device_f32_2d(
+    const Pi0ComponentBackend & runtime,
+    const void * key,
+    const float * source,
+    int64_t ne0,
+    int64_t ne1);
+
 } // namespace robotcpp::pi0
