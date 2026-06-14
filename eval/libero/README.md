@@ -45,3 +45,18 @@ python -m eval.libero.run_lerobot_baseline \
 
 The wrapper stores `stdout.log`, `stderr.log`, `baseline_run.json`, and
 LeRobot's `eval_info.json` in `eval/results/lerobot-baseline-*`.
+
+## LeRobot policy latency
+
+Measure one pi0 action chunk with explicit warmup, without launching LIBERO:
+
+```sh
+python -m eval.libero.benchmark_lerobot_policy \
+  --policy-path lerobot/pi0_libero_finetuned_v044 \
+  --warmup 5 \
+  --loops 20
+```
+
+The result JSON reports `processor_ms`, `policy_ms`, and `total_ms` after
+discarding warmup iterations. Use `--compile-model` or `--no-compile-model` to
+override the checkpoint's `compile_model` setting.
