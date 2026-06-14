@@ -359,11 +359,12 @@ bool pi0_has_vision_encoder(const Pi0Context & ctx) {
         ctx.weights.vit_post_norm_b != nullptr;
 }
 
-void pi0_encode_vision(
+void pi0_encode_vision_impl(
     const Pi0Context & ctx,
     const std::vector<Pi0ImageTensor> & images,
     std::vector<float> & out_tokens,
-    int & out_token_count) {
+    int & out_token_count,
+    bool project_to_language) {
     out_tokens.clear();
     out_token_count = 0;
     if (!pi0_has_vision_encoder(ctx) || images.empty()) {
@@ -406,6 +407,7 @@ void pi0_encode_vision(
     }
 
     const int64_t batch = static_cast<int64_t>(images.size());
+    const int64_t vision_token_count = batch * patches;
     const Pi0ComponentBackend & runtime = ctx.components.vit.backend;
     Pi0GraphContext gctx(pi0_graph_init_params(pi0_graph_context_size(0)));
     auto norm = [&](ggml_tensor * input, ggml_tensor * weight, ggml_tensor * bias) {
@@ -499,8 +501,28 @@ void pi0_encode_vision(
         pi0_tensor(ctx.weights.vit_post_norm_w, "post_layernorm.weight"),
         pi0_tensor(ctx.weights.vit_post_norm_b, "post_layernorm.bias"));
 
+    ggml_tensor * output = hidden;
+    int64_t output_width = width;
+    if (project_to_language) {
+        ggml_tensor * weight = ctx.weights.merger_w;
+        ggml_tensor * bias = ctx.weights.merger_b;
+        if (weight == nullptr || bias == nullptr) {
+            throw std::invalid_argument("missing pi0 vision projector tensors");
+        }
+        if (ggml_n_dims(weight) != 2 || weight->ne[0] != width ||
+            ggml_n_dims(bias) != 1 || bias->ne[0] != weight->ne[1]) {
+            throw std::invalid_argument("pi0 vision projector has incompatible shape");
+        }
+        ggml_tensor * flat = ggml_reshape_2d(gctx, hidden, width, vision_token_count);
+        output = ggml_add(
+            gctx,
+            ggml_mul_mat(gctx, pi0_weight(ctx, weight, 2), flat),
+            pi0_f32_weight(gctx, ctx, bias, 1));
+        output_width = weight->ne[1];
+    }
+
     ggml_cgraph * graph = ggml_new_graph(gctx);
-    ggml_build_forward_expand(graph, hidden);
+    ggml_build_forward_expand(graph, output);
     ggml_backend_sched_reset(runtime.sched);
     if (!ggml_backend_sched_alloc_graph(runtime.sched, graph)) {
         throw std::runtime_error("pi0 ViT graph allocation failed");
@@ -511,9 +533,17 @@ void pi0_encode_vision(
         throw std::runtime_error("ggml pi0 ViT graph compute failed");
     }
 
-    out_tokens.resize(images.size() * static_cast<size_t>(patches) * static_cast<size_t>(width));
-    ggml_backend_tensor_get(hidden, out_tokens.data(), 0, out_tokens.size() * sizeof(float));
-    out_token_count = static_cast<int>(images.size() * static_cast<size_t>(patches));
+    out_tokens.resize(static_cast<size_t>(vision_token_count) * static_cast<size_t>(output_width));
+    ggml_backend_tensor_get(output, out_tokens.data(), 0, out_tokens.size() * sizeof(float));
+    out_token_count = static_cast<int>(vision_token_count);
+}
+
+void pi0_encode_vision(
+    const Pi0Context & ctx,
+    const std::vector<Pi0ImageTensor> & images,
+    std::vector<float> & out_tokens,
+    int & out_token_count) {
+    pi0_encode_vision_impl(ctx, images, out_tokens, out_token_count, false);
 }
 
 namespace {
@@ -701,10 +731,7 @@ void pi0_prefill_prefix(const Pi0Context & ctx, Pi0KvCache & cache, const Pi0Obs
     if (pi0_has_vision_prefix(ctx) && pi0_has_language_prefix(ctx) && !observation.images.empty()) {
         std::vector<float> embeddings;
         int token_count = 0;
-        pi0_encode_vision(ctx, observation.images, embeddings, token_count);
-        std::vector<float> projected;
-        pi0_project_vision_tokens(ctx, embeddings, token_count, projected);
-        embeddings = std::move(projected);
+        pi0_encode_vision_impl(ctx, observation.images, embeddings, token_count, true);
         std::vector<float> prompt_embeddings;
         int prompt_tokens = 0;
         if (!observation.prompt_tokens.empty()) {
