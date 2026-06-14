@@ -4,33 +4,10 @@
 #include <cmath>
 #include <cstdio>
 #include <set>
+#include <vector>
 
 namespace robotcpp::pi0 {
 namespace {
-
-float sample_u8_rgb(const Pi0RawImageView & image, int x, int y, int c) {
-    const int channel = std::min(c, image.channels - 1);
-    const uint8_t * row = image.data + static_cast<size_t>(y) * image.stride_bytes;
-    return static_cast<float>(row[x * image.channels + channel]) / 255.0f * 2.0f - 1.0f;
-}
-
-float sample_bilinear_u8_rgb(const Pi0RawImageView & image, float x, float y, int c) {
-    x = std::max(0.0f, std::min(x, static_cast<float>(image.width - 1)));
-    y = std::max(0.0f, std::min(y, static_cast<float>(image.height - 1)));
-    const int x0 = static_cast<int>(std::floor(x));
-    const int y0 = static_cast<int>(std::floor(y));
-    const int x1 = std::min(x0 + 1, image.width - 1);
-    const int y1 = std::min(y0 + 1, image.height - 1);
-    const float wx = x - static_cast<float>(x0);
-    const float wy = y - static_cast<float>(y0);
-    const float top =
-        sample_u8_rgb(image, x0, y0, c) * (1.0f - wx) +
-        sample_u8_rgb(image, x1, y0, c) * wx;
-    const float bottom =
-        sample_u8_rgb(image, x0, y1, c) * (1.0f - wx) +
-        sample_u8_rgb(image, x1, y1, c) * wx;
-    return top * (1.0f - wy) + bottom * wy;
-}
 
 bool pi0_preprocess_error_at(const char * func, const std::string & message) {
     std::fprintf(stderr, "[Pi0] Error: %s: %s\n", func, message.c_str());
@@ -38,6 +15,32 @@ bool pi0_preprocess_error_at(const char * func, const std::string & message) {
 }
 
 #define pi0_preprocess_error(message) pi0_preprocess_error_at(__func__, (message))
+
+struct ResizeCoord {
+    int lo = 0;
+    int hi = 0;
+    float lo_weight = 1.0f;
+    float hi_weight = 0.0f;
+};
+
+std::vector<ResizeCoord> build_resize_coords(int src_size, int dst_size) {
+    std::vector<ResizeCoord> coords(static_cast<size_t>(dst_size));
+    for (int i = 0; i < dst_size; ++i) {
+        float src = (static_cast<float>(i) + 0.5f) * static_cast<float>(src_size) /
+                static_cast<float>(dst_size) -
+            0.5f;
+        src = std::max(0.0f, std::min(src, static_cast<float>(src_size - 1)));
+        const int lo = static_cast<int>(std::floor(src));
+        const int hi = std::min(lo + 1, src_size - 1);
+        const float hi_weight = src - static_cast<float>(lo);
+        coords[static_cast<size_t>(i)] = {lo, hi, 1.0f - hi_weight, hi_weight};
+    }
+    return coords;
+}
+
+inline float normalize_u8(float value) {
+    return value * (2.0f / 255.0f) - 1.0f;
+}
 
 } // namespace
 
@@ -98,6 +101,7 @@ bool validate_and_preprocess_pi0(
             required.insert(key);
         }
     }
+    out.images.reserve(raw.image_count);
     for (size_t i = 0; i < raw.image_count; ++i) {
         const Pi0RawImageView & image = raw.images[i];
         if (image.name == nullptr || image.data == nullptr) {
@@ -127,21 +131,46 @@ bool validate_and_preprocess_pi0(
         const int pad_x0 = (tensor.width - resized_width) / 2;
         const int pad_y0 = (tensor.height - resized_height) / 2;
 
+        const std::vector<ResizeCoord> x_coords = build_resize_coords(image.width, resized_width);
+        const std::vector<ResizeCoord> y_coords = build_resize_coords(image.height, resized_height);
+        const int channel_0 = 0;
+        const int channel_1 = std::min(1, image.channels - 1);
+        const int channel_2 = std::min(2, image.channels - 1);
         std::fill(tensor.data.begin(), tensor.data.end(), -1.0f);
-        for (int y = pad_y0; y < pad_y0 + resized_height; ++y) {
-            const float resized_y = static_cast<float>(y - pad_y0);
-            const float src_y = (resized_y + 0.5f) * static_cast<float>(image.height) /
-                                    static_cast<float>(resized_height) -
-                                0.5f;
-            for (int x = pad_x0; x < pad_x0 + resized_width; ++x) {
-                const float resized_x = static_cast<float>(x - pad_x0);
-                const float src_x = (resized_x + 0.5f) * static_cast<float>(image.width) /
-                                        static_cast<float>(resized_width) -
-                                    0.5f;
-                for (int c = 0; c < 3; ++c) {
-                    tensor.data[(static_cast<size_t>(y) * tensor.width + x) * 3 + c] =
-                        sample_bilinear_u8_rgb(image, src_x, src_y, c);
-                }
+        for (int ry = 0; ry < resized_height; ++ry) {
+            const ResizeCoord & yc = y_coords[static_cast<size_t>(ry)];
+            const uint8_t * row0 = image.data + static_cast<size_t>(yc.lo) * image.stride_bytes;
+            const uint8_t * row1 = image.data + static_cast<size_t>(yc.hi) * image.stride_bytes;
+            const int dst_y = pad_y0 + ry;
+            for (int rx = 0; rx < resized_width; ++rx) {
+                const ResizeCoord & xc = x_coords[static_cast<size_t>(rx)];
+                const int x0 = xc.lo * image.channels;
+                const int x1 = xc.hi * image.channels;
+                const int dst_x = pad_x0 + rx;
+                float * dst = tensor.data.data() +
+                    (static_cast<size_t>(dst_y) * tensor.width + static_cast<size_t>(dst_x)) * 3;
+
+                const float r_top =
+                    static_cast<float>(row0[x0 + channel_0]) * xc.lo_weight +
+                    static_cast<float>(row0[x1 + channel_0]) * xc.hi_weight;
+                const float r_bottom =
+                    static_cast<float>(row1[x0 + channel_0]) * xc.lo_weight +
+                    static_cast<float>(row1[x1 + channel_0]) * xc.hi_weight;
+                const float g_top =
+                    static_cast<float>(row0[x0 + channel_1]) * xc.lo_weight +
+                    static_cast<float>(row0[x1 + channel_1]) * xc.hi_weight;
+                const float g_bottom =
+                    static_cast<float>(row1[x0 + channel_1]) * xc.lo_weight +
+                    static_cast<float>(row1[x1 + channel_1]) * xc.hi_weight;
+                const float b_top =
+                    static_cast<float>(row0[x0 + channel_2]) * xc.lo_weight +
+                    static_cast<float>(row0[x1 + channel_2]) * xc.hi_weight;
+                const float b_bottom =
+                    static_cast<float>(row1[x0 + channel_2]) * xc.lo_weight +
+                    static_cast<float>(row1[x1 + channel_2]) * xc.hi_weight;
+                dst[0] = normalize_u8(r_top * yc.lo_weight + r_bottom * yc.hi_weight);
+                dst[1] = normalize_u8(g_top * yc.lo_weight + g_bottom * yc.hi_weight);
+                dst[2] = normalize_u8(b_top * yc.lo_weight + b_bottom * yc.hi_weight);
             }
         }
         out.images.push_back(std::move(tensor));

@@ -260,12 +260,9 @@ void pi0_prefill_language_prefix_layers_batch(
         ggml_tensor * k_perm = ggml_permute(gctx, k_rot, 0, 2, 1, 3);
         const float scale = 1.0f / std::sqrt(static_cast<float>(head_dim));
         ggml_tensor * v_perm = ggml_permute(gctx, v, 0, 2, 1, 3);
-        v_perm = ggml_cont(gctx, ggml_transpose(gctx, v_perm));
-        ggml_tensor * scores = ggml_mul_mat(gctx, k_perm, q_perm);
-        scores = ggml_soft_max_ext(gctx, scores, nullptr, scale, 0.0f);
-        ggml_tensor * values = ggml_mul_mat(gctx, v_perm, scores);
-        ggml_tensor * attn_values = ggml_permute(gctx, values, 0, 2, 1, 3);
-        attn_values = ggml_cont_2d(gctx, attn_values, static_cast<int64_t>(head_dim) * heads, batch);
+        ggml_tensor * attn_values = ggml_flash_attn_ext(gctx, q_perm, k_perm, v_perm, nullptr, scale, 0.0f, 0.0f);
+        ggml_flash_attn_ext_set_prec(attn_values, GGML_PREC_F32);
+        attn_values = ggml_reshape_2d(gctx, attn_values, static_cast<int64_t>(head_dim) * heads, batch);
         ggml_tensor * attn_out = ggml_mul_mat(gctx, pi0_weight(ctx, out_w, 2), attn_values);
         ggml_tensor * first_residual = ggml_add(gctx, hidden, attn_out);
 
@@ -484,13 +481,11 @@ void pi0_encode_vision_impl(
     auto attention = [&](ggml_tensor * q, ggml_tensor * k, ggml_tensor * v) {
         ggml_tensor * q_perm = ggml_permute(gctx, q, 0, 2, 1, 3);
         ggml_tensor * k_perm = ggml_permute(gctx, k, 0, 2, 1, 3);
-        ggml_tensor * v_perm = ggml_cont(gctx, ggml_permute(gctx, v, 1, 2, 0, 3));
         const float scale = 1.0f / std::sqrt(static_cast<float>(head_dim));
-        ggml_tensor * scores = ggml_mul_mat(gctx, k_perm, q_perm);
-        scores = ggml_soft_max_ext(gctx, scores, nullptr, scale, 0.0f);
-        ggml_tensor * values = ggml_mul_mat(gctx, v_perm, scores);
-        ggml_tensor * y = ggml_permute(gctx, values, 0, 2, 1, 3);
-        return ggml_cont_3d(gctx, y, width, patches, batch);
+        ggml_tensor * v_perm = ggml_permute(gctx, v, 0, 2, 1, 3);
+        ggml_tensor * y = ggml_flash_attn_ext(gctx, q_perm, k_perm, v_perm, nullptr, scale, 0.0f, 0.0f);
+        ggml_flash_attn_ext_set_prec(y, GGML_PREC_F32);
+        return ggml_reshape_3d(gctx, y, width, patches, batch);
     };
 
     ggml_tensor * input = ggml_new_tensor_4d(gctx, GGML_TYPE_F32, first_image.width, first_image.height, 3, batch);
