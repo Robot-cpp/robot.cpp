@@ -1,0 +1,163 @@
+# pi0 model-cli and model-server
+
+This document shows the minimal pi0 launch flow for the split GGUF runtime.
+`model-cli` and `model-server` use the same `robotcpp::Model` wrapper and
+`pi0_engine` path.
+
+## Checkpoint Layout
+
+The default local checkpoint path is:
+
+```sh
+/home/huangjie/projects/vlacpp/ckpts/pi0-libero-finetuned-v044/vlacpp-split
+```
+
+Expected files:
+
+```text
+vlacpp-pi0-libero-finetuned-v044.vit.gguf
+vlacpp-pi0-libero-finetuned-v044.mmproj.gguf
+vlacpp-pi0-libero-finetuned-v044.llm.gguf
+vlacpp-pi0-libero-finetuned-v044.tokenizer.gguf
+vlacpp-pi0-libero-finetuned-v044.state.gguf
+vlacpp-pi0-libero-finetuned-v044.action_decoder.gguf
+```
+
+## Build
+
+CPU build:
+
+```sh
+cmake -S . -B build -DVLACPP_BUILD_ROBOT_SERVER=ON
+cmake --build build --target model-cli model-server -j
+```
+
+CUDA build:
+
+```sh
+cmake -S . -B build-cuda \
+  -DVLACPP_BUILD_ROBOT_SERVER=ON \
+  -DGGML_CUDA=ON \
+  -DCMAKE_CUDA_ARCHITECTURES=80
+cmake --build build-cuda --target model-cli model-server -j
+```
+
+Use the CUDA architecture that matches the target GPU.
+
+## Backend Selection
+
+pi0 defaults to the accelerated backend when the build provides one. In a CUDA
+build, components with GGUF metadata `backend=inherit` resolve to CUDA.
+
+```sh
+PI0_USE_ACCEL_BACKEND=1  # default: use CUDA/Metal when available
+PI0_USE_ACCEL_BACKEND=0  # force CPU
+```
+
+The tokenizer sidecar is loaded as CPU vocab-only metadata. The compute
+components are `vit`, `mmproj`, `llm`, `state`, and `action_decoder`.
+
+## model-cli
+
+Example with the local split checkpoint and CUDA build:
+
+```sh
+GGUF_DIR=/home/huangjie/projects/vlacpp/ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+STATE="$(python3 - <<'PY'
+print(",".join(["0"] * 32))
+PY
+)"
+
+PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-cli \
+  --model-type pi0 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --image third_party/llama.cpp/tools/mtmd/test-1.jpeg \
+  --image-name observation.images.image \
+  --image-name observation.images.image2 \
+  --state "${STATE}" \
+  --task "grab the block." \
+  --noise-seed 1
+```
+
+`--image-name` must match `vlacpp.image_keys` in the checkpoint metadata. The
+LIBERO split checkpoint currently expects:
+
+```text
+observation.images.image
+observation.images.image2
+```
+
+For another checkpoint, inspect the image keys:
+
+```sh
+strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "vlacpp\\.image_keys|observation\\.images|base_0_rgb"
+```
+
+## model-server
+
+Start the CUDA server:
+
+```sh
+GGUF_DIR=/home/huangjie/projects/vlacpp/ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+
+PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-server \
+  --model-type pi0 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --threads 8 \
+  --noise-seed 1 \
+  --verbosity 1
+```
+
+CPU helper script:
+
+```sh
+bash robot_server/shell/launch_pi0_server_cpu.sh
+```
+
+The server listens on `127.0.0.1` in this phase. Request images must include the
+same names as the checkpoint image keys.
+
+## Server/CLI Parity Check
+
+For strict server/CLI parity, use identical raw RGB bytes. JPEG decoded through
+different libraries can produce small action differences. A PPM input is a good
+simple choice for parity checks.
+
+With a running server:
+
+```sh
+python3 robot_server/test/compare_server_model_cli.py \
+  --model-cli ./build-cuda/bin/model-cli \
+  --model-type pi0 \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --image /path/to/image.ppm \
+  --image-name observation.images.image \
+  --image-name observation.images.image2 \
+  --state "${STATE}" \
+  --task "grab the block." \
+  --noise-seed 1
+```
+
+The CLI prints only the first and last action rows for large chunks, so the
+comparison script checks the printed subset.
