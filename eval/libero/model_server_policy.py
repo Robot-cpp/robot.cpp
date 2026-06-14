@@ -65,7 +65,7 @@ class ServerTiming:
 
 
 @dataclass
-class ModelServerPolicy:
+class LiberoModelServerPolicy:
     host: str = "127.0.0.1"
     port: int = 5555
     timeout: float | None = 120.0
