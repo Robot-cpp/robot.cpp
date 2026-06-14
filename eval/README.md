@@ -4,7 +4,8 @@ This tree contains the LIBERO eval entrypoints used for pi0 model-server
 rollouts and LeRobot reference runs.
 
 ```text
-eval/libero/                LIBERO env setup, shared helpers, LeRobot baseline
+eval/model_server_policy.py Generic model-server action-chunk adapter
+eval/libero/                LIBERO env setup, request builders, LeRobot baseline
 eval/pi0/                   pi0 model-server LIBERO runner
 ```
 

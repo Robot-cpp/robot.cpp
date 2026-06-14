@@ -1,7 +1,8 @@
 # LIBERO eval
 
-This folder contains LIBERO environment helpers and the LeRobot baseline runner.
-Model-specific runners live in sibling folders such as `eval/pi0`.
+This folder contains LIBERO environment helpers, model-server request builders,
+and the LeRobot baseline runner. Model-specific runners live in sibling folders
+such as `eval/pi0`.
 
 ## Dependency check
 

@@ -9,6 +9,7 @@ import statistics
 import subprocess
 import sys
 import time
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +36,8 @@ from eval.libero.env import (  # noqa: E402
     task_description,
     vector_reset,
 )
-from eval.libero.model_server_policy import DEFAULT_IMAGE_KEYS, LiberoModelServerPolicy  # noqa: E402
+from eval.libero.model_server import DEFAULT_IMAGE_KEYS, build_libero_model_server_request  # noqa: E402
+from eval.model_server_policy import ModelServerPolicy  # noqa: E402
 
 
 def average_timing(records: list[Any]) -> dict[str, float]:
@@ -89,7 +91,7 @@ def timing_summary(records: list[Any]) -> dict[str, dict[str, float | int]]:
     return {key: summarize_values(values) for key, values in sorted(values_by_name.items())}
 
 
-def run_episode(env: Any, policy: LiberoModelServerPolicy, seed: int | None, episode_index: int) -> dict[str, Any]:
+def run_episode(env: Any, policy: ModelServerPolicy, seed: int | None, episode_index: int) -> dict[str, Any]:
     observation, _info = vector_reset(env, seed)
     policy.reset(reset_server=True)
     task = task_description(env)
@@ -159,7 +161,7 @@ def pi0_server_command(args: argparse.Namespace) -> list[str]:
     ]
 
 
-def wait_for_server(policy: LiberoModelServerPolicy, timeout_s: float) -> None:
+def wait_for_server(policy: ModelServerPolicy, timeout_s: float) -> None:
     deadline = time.time() + timeout_s
     last_error: Exception | None = None
     while time.time() < deadline:
@@ -172,7 +174,7 @@ def wait_for_server(policy: LiberoModelServerPolicy, timeout_s: float) -> None:
     raise RuntimeError(f"model-server did not become healthy within {timeout_s:.1f}s: {last_error}")
 
 
-def maybe_launch_server(args: argparse.Namespace, policy: LiberoModelServerPolicy) -> subprocess.Popen[str] | None:
+def maybe_launch_server(args: argparse.Namespace, policy: ModelServerPolicy) -> subprocess.Popen[str] | None:
     if not args.launch_server:
         wait_for_server(policy, args.server_wait_s)
         return None
@@ -193,7 +195,7 @@ def maybe_launch_server(args: argparse.Namespace, policy: LiberoModelServerPolic
     return proc
 
 
-def stop_server(proc: subprocess.Popen[str] | None, policy: LiberoModelServerPolicy) -> None:
+def stop_server(proc: subprocess.Popen[str] | None, policy: ModelServerPolicy) -> None:
     if proc is None:
         return
     try:
@@ -246,12 +248,16 @@ def main() -> int:
     args = parse_args()
     output = args.output or DEFAULT_RESULTS_DIR / f"server-libero-{timestamp()}.json"
     image_keys = tuple(args.image_key or DEFAULT_IMAGE_KEYS)
-    policy = LiberoModelServerPolicy(
+    request_builder = partial(
+        build_libero_model_server_request,
+        state_dim=args.state_dim,
+        image_keys=image_keys,
+    )
+    policy = ModelServerPolicy(
+        request_builder=request_builder,
+        action_dim=args.env_action_dim,
         host=args.host,
         port=args.port,
-        state_dim=args.state_dim,
-        env_action_dim=args.env_action_dim,
-        image_keys=image_keys,
     )
     envs = None
     close_envs = None
