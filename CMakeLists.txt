@@ -78,8 +78,6 @@ add_library(pi0_engine STATIC
     src/models/pi0/weights.h
     src/models/pi0/vlm.cpp
     src/models/pi0/vlm.h
-    src/sampling/flow.cpp
-    src/sampling/flow.h
 )
 target_include_directories(pi0_engine
     PUBLIC

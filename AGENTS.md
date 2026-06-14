@@ -8,7 +8,8 @@ SmolVLA follows the `smolvla_engine` API under `src/models/smolvla`; pi0 follows
 the same style with `pi0_engine` under `src/models/pi0`. Shared GGUF/backend
 helpers live in `src/models/gguf_loader.*` and `src/models/ggml_backend.*`.
 pi0-only runtime helpers include `backend`, `load`, `preprocess`, `action`,
-`vlm`, `weights`, and `pi0_context`. Sampling utilities live in `src/sampling`.
+`vlm`, `weights`, and `pi0_context`; pi0 action sampling is internal to
+`src/models/pi0/action.cpp`.
 Robot protocol/server/client code lives under `robot_server`, conversion tools
 live in `tools`, and third-party dependencies belong under `third_party`.
 
