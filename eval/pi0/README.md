@@ -1,11 +1,11 @@
 # pi0 LIBERO eval
 
-This folder contains pi0-specific LIBERO runners for `model-server`. Defaults
-point at the v044 checkpoint:
+This folder contains pi0-specific LIBERO runners for `model-server`. The
+LeRobot reference checkpoint is `lerobot/pi0_libero_finetuned_v044`; the converted
+split GGUF path defaults to:
 
 ```text
 ckpts/pi0-libero-finetuned-v044/vlacpp-split
-ckpts/pi0-libero-finetuned-v044/lerobot
 ```
 
 ## model-server eval
@@ -19,7 +19,9 @@ cmake --build build-cuda --target model-server -j
 Run one episode for task 0 in `libero_object`:
 
 ```sh
-conda run -n llava python -m eval.pi0.run_libero_server_eval \
+export VLACPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/vlacpp-eval-cache"
+
+python -m eval.pi0.run_libero_server_eval \
   --launch-server \
   --server-bin build-cuda/bin/model-server \
   --suite libero_object \
@@ -29,9 +31,9 @@ conda run -n llava python -m eval.pi0.run_libero_server_eval \
   --noise-seed 1000 \
   --mujoco-gl osmesa \
   --pyopengl-platform osmesa \
-  --numba-cache-dir /tmp/vlacpp-numba-cache \
-  --torchinductor-cache-dir /tmp/vlacpp-torchinductor-cache \
-  --triton-cache-dir /tmp/vlacpp-triton-cache
+  --numba-cache-dir "${VLACPP_EVAL_CACHE_DIR}/numba" \
+  --torchinductor-cache-dir "${VLACPP_EVAL_CACHE_DIR}/torchinductor" \
+  --triton-cache-dir "${VLACPP_EVAL_CACHE_DIR}/triton"
 ```
 
 The server adapter matches LeRobot pi0 rollout input semantics:

@@ -6,10 +6,12 @@ This document shows the minimal pi0 launch flow for the split GGUF runtime.
 
 ## Checkpoint Layout
 
-The default local checkpoint path is:
+The LeRobot reference checkpoint is available on Hugging Face as
+`lerobot/pi0_libero_finetuned_v044`. The split GGUF runtime expects the
+converted components in one directory, for example:
 
 ```sh
-/home/huangjie/projects/vlacpp/ckpts/pi0-libero-finetuned-v044/vlacpp-split
+ckpts/pi0-libero-finetuned-v044/vlacpp-split
 ```
 
 Expected files:
@@ -59,10 +61,10 @@ components are `vit`, `mmproj`, `llm`, `state`, and `action_decoder`.
 
 ## model-cli
 
-Example with the local split checkpoint and CUDA build:
+Example with a split GGUF checkpoint and CUDA build:
 
 ```sh
-GGUF_DIR=/home/huangjie/projects/vlacpp/ckpts/pi0-libero-finetuned-v044/vlacpp-split
+GGUF_DIR="${VLACPP_PI0_GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/vlacpp-split}"
 MODEL=vlacpp-pi0-libero-finetuned-v044
 STATE="$(python3 - <<'PY'
 print(",".join(["0"] * 32))
@@ -106,7 +108,7 @@ strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "pi0\\.image_keys|observation
 Start the CUDA server:
 
 ```sh
-GGUF_DIR=/home/huangjie/projects/vlacpp/ckpts/pi0-libero-finetuned-v044/vlacpp-split
+GGUF_DIR="${VLACPP_PI0_GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/vlacpp-split}"
 MODEL=vlacpp-pi0-libero-finetuned-v044
 
 PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-server \

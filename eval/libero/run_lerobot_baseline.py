@@ -25,7 +25,7 @@ from eval.libero.env import DEFAULT_LIBERO_CONFIG_PATH, apply_runtime_env, ensur
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--conda-env", help="optional conda env used to run lerobot-eval, e.g. llava")
+    parser.add_argument("--conda-env", help="optional conda env used to run lerobot-eval")
     parser.add_argument("--lerobot-eval", default="lerobot-eval")
     parser.add_argument("--policy-path", type=Path, required=True)
     parser.add_argument("--suite", default="libero_object")

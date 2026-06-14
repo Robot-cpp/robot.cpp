@@ -5,12 +5,10 @@ Model-specific runners live in sibling folders such as `eval/pi0`.
 
 ## Dependency check
 
-The `llava` conda env is the expected Python environment for LeRobot baseline
-and LIBERO simulator runs. If LIBERO dependencies are missing, install the
-LeRobot LIBERO package set there:
+Run these commands inside an environment with LeRobot and LIBERO dependencies.
+If LIBERO dependencies are missing, install the LeRobot LIBERO package set:
 
 ```sh
-conda activate llava
 pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
 export MUJOCO_GL=egl
@@ -20,14 +18,11 @@ export MUJOCO_GL=egl
 The eval runners create `~/.libero/config.yaml` automatically so `hf-libero`
 does not prompt for a dataset path in non-interactive runs.
 
-If EGL devices are unavailable, use OSMesa for LIBERO rendering. If `/home` is
-full, keep simulator assets and runtime caches under `/tmp`:
+If EGL devices are unavailable, use OSMesa for LIBERO rendering. Runtime caches
+can be moved out of the default cache locations:
 
 ```sh
-conda run -n llava python -c \
-  "from libero.libero.utils.download_utils import download_assets_from_huggingface; download_assets_from_huggingface('/tmp/vlacpp-libero-assets')"
-ln -s /tmp/vlacpp-libero-assets \
-  /home/huangjie/anaconda3/envs/llava/lib/python3.10/site-packages/libero/libero/assets
+export VLACPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/vlacpp-eval-cache"
 ```
 
 ## LeRobot baseline
@@ -36,21 +31,17 @@ Run one episode for task 0 in `libero_object` with the v044 LeRobot checkpoint:
 
 ```sh
 python -m eval.libero.run_lerobot_baseline \
-  --conda-env llava \
-  --policy-path ckpts/pi0-libero-finetuned-v044/lerobot \
+  --policy-path lerobot/pi0_libero_finetuned_v044 \
   --suite libero_object \
   --task-ids 0 \
   --n-episodes 1 \
   --mujoco-gl osmesa \
   --pyopengl-platform osmesa \
-  --numba-cache-dir /tmp/vlacpp-numba-cache \
-  --torchinductor-cache-dir /tmp/vlacpp-torchinductor-cache \
-  --triton-cache-dir /tmp/vlacpp-triton-cache \
+  --numba-cache-dir "${VLACPP_EVAL_CACHE_DIR}/numba" \
+  --torchinductor-cache-dir "${VLACPP_EVAL_CACHE_DIR}/torchinductor" \
+  --triton-cache-dir "${VLACPP_EVAL_CACHE_DIR}/triton" \
   --extra-arg=--policy.compile_model=false
 ```
 
 The wrapper stores `stdout.log`, `stderr.log`, `baseline_run.json`, and
-LeRobot's `eval_info.json` in `eval/results/lerobot-baseline-*`. It creates a
-symlink-only shadow policy by default so the v044 local `tokenizer.model` is
-used instead of fetching gated PaliGemma tokenizer files. Use
-`--no-local-tokenizer` to keep the original checkpoint config unchanged.
+LeRobot's `eval_info.json` in `eval/results/lerobot-baseline-*`.
