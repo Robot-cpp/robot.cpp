@@ -9,7 +9,9 @@ import numpy as np
 
 from eval.libero.env import DEFAULT_LIBERO_CAMERA_KEYS
 from eval.libero.utils import add_robot_server_to_path
-from eval.pi0.defaults import DEFAULT_IMAGE_KEYS
+
+
+DEFAULT_IMAGE_KEYS = ("observation.images.image", "observation.images.image2")
 
 
 add_robot_server_to_path()

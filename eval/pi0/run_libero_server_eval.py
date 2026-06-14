@@ -34,8 +34,7 @@ from eval.libero.env import (  # noqa: E402
     task_description,
     vector_reset,
 )
-from eval.pi0.defaults import DEFAULT_IMAGE_KEYS, default_gguf_dir, infer_model_basename  # noqa: E402
-from eval.pi0.model_server_policy import ModelServerPolicy  # noqa: E402
+from eval.pi0.model_server_policy import DEFAULT_IMAGE_KEYS, ModelServerPolicy  # noqa: E402
 
 
 def average_timing(records: list[Any]) -> dict[str, float]:
@@ -90,7 +89,7 @@ def run_episode(env: Any, policy: ModelServerPolicy, seed: int | None, episode_i
 
 def pi0_server_command(args: argparse.Namespace) -> list[str]:
     gguf_dir = Path(args.gguf_dir)
-    model = args.model_basename or infer_model_basename(gguf_dir)
+    model = args.model_basename
     return [
         str(args.server_bin),
         "--model-type",
@@ -174,8 +173,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=5555)
     parser.add_argument("--launch-server", action="store_true")
     parser.add_argument("--server-bin", type=Path, default=Path("build-cuda/bin/model-server"))
-    parser.add_argument("--gguf-dir", type=Path, default=default_gguf_dir())
-    parser.add_argument("--model-basename")
+    parser.add_argument("--gguf-dir", type=Path, required=True)
+    parser.add_argument("--model-basename", required=True)
     parser.add_argument("--use-accel-backend", default="1")
     parser.add_argument("--server-wait-s", type=float, default=120.0)
     parser.add_argument("--threads", type=int, default=8)
@@ -246,7 +245,7 @@ def main() -> int:
                 "host": args.host,
                 "port": args.port,
                 "gguf_dir": str(args.gguf_dir),
-                "model_basename": args.model_basename or infer_model_basename(Path(args.gguf_dir)),
+                "model_basename": args.model_basename,
                 "image_keys": list(image_keys),
                 "state_dim": args.state_dim,
                 "env_action_dim": args.env_action_dim,

@@ -15,20 +15,7 @@ hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
   --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
 ```
 
-The runner looks under this repo-relative path by default:
-
-```sh
-ckpts/pi0-libero-finetuned-v044/vlacpp-split
-```
-
-Set `VLACPP_PI0_GGUF_DIR` or pass `--gguf-dir` to use a different location:
-
-```sh
-export VLACPP_PI0_GGUF_DIR=/path/to/split-gguf
-```
-
-`--model-basename` is optional; by default the runner infers it from the single
-`*.vit.gguf` file in `--gguf-dir`.
+The runner requires both `--gguf-dir` and `--model-basename`.
 
 ## model-server eval
 
@@ -46,6 +33,8 @@ export VLACPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/vlacpp-eval-cache"
 python -m eval.pi0.run_libero_server_eval \
   --launch-server \
   --server-bin build-cuda/bin/model-server \
+  --gguf-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split \
+  --model-basename vlacpp-pi0-libero-finetuned-v044 \
   --suite libero_object \
   --task-ids 0 \
   --n-episodes 1 \

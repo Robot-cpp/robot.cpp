@@ -73,7 +73,7 @@ components are `vit`, `mmproj`, `llm`, `state`, and `action_decoder`.
 Example with a split GGUF checkpoint and CUDA build:
 
 ```sh
-GGUF_DIR="${VLACPP_PI0_GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/vlacpp-split}"
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
 MODEL=vlacpp-pi0-libero-finetuned-v044
 STATE="$(python3 - <<'PY'
 print(",".join(["0"] * 32))
@@ -117,7 +117,7 @@ strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "pi0\\.image_keys|observation
 Start the CUDA server:
 
 ```sh
-GGUF_DIR="${VLACPP_PI0_GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/vlacpp-split}"
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
 MODEL=vlacpp-pi0-libero-finetuned-v044
 
 PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-server \
