@@ -1,8 +1,7 @@
 # LIBERO eval
 
 This folder contains LIBERO environment helpers, model-server request builders,
-and the LeRobot baseline runner. Model-specific runners live in sibling folders
-such as `eval/pi0`.
+the LeRobot baseline runner, and model-server rollout runner.
 
 ## Dependency check
 
@@ -61,3 +60,76 @@ python -m eval.libero.benchmark_lerobot_policy \
 The result JSON reports `processor_ms`, `policy_ms`, and `total_ms` after
 discarding warmup iterations. Use `--compile-model` or `--no-compile-model` to
 override the checkpoint's `compile_model` setting.
+
+## model-server rollout
+
+Download the pi0 v044 split GGUF files:
+
+```sh
+hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
+  --include "*.gguf" \
+  --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
+```
+
+Build the CUDA server:
+
+```sh
+cmake --build build-cuda --target model-server -j
+```
+
+Run one episode for task 0 in `libero_object`:
+
+```sh
+export VLACPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/vlacpp-eval-cache"
+
+python -m eval.libero.run_model_server_eval \
+  --launch-server \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --server-env PI0_USE_ACCEL_BACKEND=1 \
+  --suite libero_object \
+  --task-ids 0 \
+  --n-episodes 1 \
+  --seed 1000 \
+  --mujoco-gl osmesa \
+  --pyopengl-platform osmesa \
+  --numba-cache-dir "${VLACPP_EVAL_CACHE_DIR}/numba" \
+  --torchinductor-cache-dir "${VLACPP_EVAL_CACHE_DIR}/torchinductor" \
+  --triton-cache-dir "${VLACPP_EVAL_CACHE_DIR}/triton" \
+  --server-command \
+  build-cuda/bin/model-server \
+  --model-type pi0 \
+  --vit ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.vit.gguf \
+  --mmproj ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.mmproj.gguf \
+  --llm ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.llm.gguf \
+  --tokenizer ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.tokenizer.gguf \
+  --state-gguf ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.state.gguf \
+  --action-decoder ckpts/pi0-libero-finetuned-v044/vlacpp-split/vlacpp-pi0-libero-finetuned-v044.action_decoder.gguf \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --threads 8 \
+  --noise-seed 1000 \
+  --verbosity 0
+```
+
+The `--server-command ...` block is passed directly to `model-server` and must
+stay last because it consumes the rest of the command line. The runner itself is
+model-agnostic; pi0-specific values appear only in this launch command and the
+optional `PI0_USE_ACCEL_BACKEND` environment override.
+
+The model-server adapter matches LeRobot LIBERO rollout input semantics:
+
+- LIBERO cameras `image` and `image2` are sent as `observation.images.image`
+  and `observation.images.image2`.
+- LIBERO images are flipped by height and width to match LeRobot's
+  `LiberoProcessorStep`.
+- The 8D LIBERO state is padded to the configured state dimension, 32 by
+  default for pi0 v044.
+- Server action chunks are queued and consumed one action per environment step.
+- Only the first 7 action dimensions are sent to the LIBERO environment.
+
+The result JSON includes per-episode `server_timing_avg_ms` and a top-level
+`timing_ms` block. `timing_ms` is computed across all `model-server` predict
+calls and reports `count`, `avg`, `min`, `p50`, `p90`, `p99`, and `max` for
+`roundtrip_ms` plus server/model metrics such as `server_predict_ms`,
+`model_total_ms`, `prefix_ms`, and `denoise_ms`.

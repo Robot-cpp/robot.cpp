@@ -91,6 +91,25 @@ def timing_summary(records: list[Any]) -> dict[str, dict[str, float | int]]:
     return {key: summarize_values(values) for key, values in sorted(values_by_name.items())}
 
 
+def parse_server_env(values: list[str] | None) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for value in values or []:
+        key, sep, env_value = value.partition("=")
+        if not sep or not key:
+            raise ValueError(f"--server-env must be KEY=VALUE, got {value!r}")
+        out[key] = env_value
+    return out
+
+
+def server_command(args: argparse.Namespace) -> list[str]:
+    cmd = list(args.server_command or [])
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+    if not cmd:
+        raise ValueError("--server-command is required with --launch-server")
+    return cmd
+
+
 def run_episode(env: Any, policy: ModelServerPolicy, seed: int | None, episode_index: int) -> dict[str, Any]:
     observation, _info = vector_reset(env, seed)
     policy.reset(reset_server=True)
@@ -129,38 +148,6 @@ def run_episode(env: Any, policy: ModelServerPolicy, seed: int | None, episode_i
     }
 
 
-def pi0_server_command(args: argparse.Namespace) -> list[str]:
-    gguf_dir = Path(args.gguf_dir)
-    model = args.model_basename
-    return [
-        str(args.server_bin),
-        "--model-type",
-        "pi0",
-        "--vit",
-        str(gguf_dir / f"{model}.vit.gguf"),
-        "--mmproj",
-        str(gguf_dir / f"{model}.mmproj.gguf"),
-        "--llm",
-        str(gguf_dir / f"{model}.llm.gguf"),
-        "--tokenizer",
-        str(gguf_dir / f"{model}.tokenizer.gguf"),
-        "--state-gguf",
-        str(gguf_dir / f"{model}.state.gguf"),
-        "--action-decoder",
-        str(gguf_dir / f"{model}.action_decoder.gguf"),
-        "--host",
-        args.host,
-        "--port",
-        str(args.port),
-        "--threads",
-        str(args.threads),
-        "--noise-seed",
-        str(args.noise_seed),
-        "--verbosity",
-        str(args.verbosity),
-    ]
-
-
 def wait_for_server(policy: ModelServerPolicy, timeout_s: float) -> None:
     deadline = time.time() + timeout_s
     last_error: Exception | None = None
@@ -185,9 +172,9 @@ def maybe_launch_server(args: argparse.Namespace, policy: ModelServerPolicy) -> 
     except Exception:
         pass
 
-    cmd = pi0_server_command(args)
+    cmd = server_command(args)
     env = os.environ.copy()
-    env["PI0_USE_ACCEL_BACKEND"] = str(args.use_accel_backend)
+    env.update(parse_server_env(args.server_env))
     print("Launching model-server:")
     print(" ".join(cmd))
     proc = subprocess.Popen(cmd, env=env, text=True)
@@ -214,14 +201,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5555)
     parser.add_argument("--launch-server", action="store_true")
-    parser.add_argument("--server-bin", type=Path, default=Path("build-cuda/bin/model-server"))
-    parser.add_argument("--gguf-dir", type=Path, required=True)
-    parser.add_argument("--model-basename", required=True)
-    parser.add_argument("--use-accel-backend", default="1")
+    parser.add_argument("--server-command", nargs=argparse.REMAINDER, help="model-server command; must be last")
+    parser.add_argument("--server-env", action="append", help="environment variable for launched server, KEY=VALUE")
     parser.add_argument("--server-wait-s", type=float, default=120.0)
-    parser.add_argument("--threads", type=int, default=8)
-    parser.add_argument("--noise-seed", type=int, default=1)
-    parser.add_argument("--verbosity", type=int, default=0)
     parser.add_argument("--suite", default="libero_object")
     parser.add_argument("--task-ids", default="0", help="comma list or JSON list; omit for all tasks")
     parser.add_argument("--n-episodes", type=int, default=1)
@@ -290,8 +272,8 @@ def main() -> int:
                 "seed": args.seed,
                 "host": args.host,
                 "port": args.port,
-                "gguf_dir": str(args.gguf_dir),
-                "model_basename": args.model_basename,
+                "server_command": server_command(args) if args.launch_server else None,
+                "server_env": parse_server_env(args.server_env),
                 "image_keys": list(image_keys),
                 "state_dim": args.state_dim,
                 "env_action_dim": args.env_action_dim,
