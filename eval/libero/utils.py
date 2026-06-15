@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import statistics
-import sys
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -12,13 +11,6 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RESULTS_DIR = REPO_ROOT / "eval" / "results"
-
-
-def add_robot_server_to_path() -> None:
-    robot_server = REPO_ROOT / "robot_server"
-    path = str(robot_server)
-    if path not in sys.path:
-        sys.path.insert(0, path)
 
 
 def timestamp() -> str:

@@ -119,7 +119,10 @@ stay last because it consumes the rest of the command line. The runner itself is
 model-agnostic; pi0-specific values appear only in this launch command and the
 optional `PI0_USE_ACCEL_BACKEND` environment override.
 
-The model-server adapter matches LeRobot LIBERO rollout input semantics:
+The reusable model-server policy and server lifecycle helpers live in
+`eval/model_server_policy.py`. This LIBERO runner supplies only the
+LIBERO-specific request adapter, matching LeRobot LIBERO rollout input
+semantics:
 
 - LIBERO cameras `image` and `image2` are sent as `observation.images.image`
   and `observation.images.image2`.

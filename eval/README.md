@@ -4,6 +4,7 @@ This tree contains LIBERO eval entrypoints for LeRobot reference runs and
 `model-server` rollouts.
 
 ```text
+eval/model_server_policy.py  reusable model-server policy, server lifecycle, and timing helpers
 eval/libero/  LIBERO environment setup, LeRobot baseline, latency, and model-server rollout runners
 ```
 
