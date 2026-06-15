@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 
-LLAMA_GGUF_PY = Path(__file__).resolve().parents[1] / "third_party" / "llama.cpp" / "gguf-py"
+LLAMA_GGUF_PY = Path(__file__).resolve().parents[3] / "third_party" / "llama.cpp" / "gguf-py"
 if not LLAMA_GGUF_PY.exists():
     raise ImportError("third_party/llama.cpp/gguf-py is required; initialize the llama.cpp submodule")
 sys.path.insert(0, str(LLAMA_GGUF_PY))
