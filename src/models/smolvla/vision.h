@@ -2,6 +2,7 @@
 #define SMOLVLA_VISION_H
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "models/ggml_backend.h"
@@ -42,6 +43,7 @@ struct smolvla_vision_ctx {
     float eps;
     float image_mean[3];
     float image_std[3];
+    std::vector<std::string> image_keys;
 
     // ViT tensors
     ggml_tensor * patch_embd_w;

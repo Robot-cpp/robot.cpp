@@ -11,7 +11,8 @@ import torch
 import numpy as np
 from pathlib import Path
 from convert_hf_to_gguf import TextModel
-from gguf import GGUFWriter, GGMLQuantizationType, LlamaFileType, quantize
+from gguf import GGUFWriter, GGMLQuantizationType, LlamaFileType, SpecialVocab, TokenType, quantize
+from transformers import AutoTokenizer
 
 # GGUF key names
 KEY_CONTEXT_LENGTH = "llama.context_length"
@@ -37,17 +38,54 @@ def load_vlm_config(surgery_dir: Path) -> dict:
 
 def add_tokenizer_metadata(fout: GGUFWriter, tokenizer_dir: Path, vocab_size: int):
     """Write tokenizer metadata required by llama.cpp."""
-    # TextModel.__init__ sets up the whole HF converter, but tokenizer export only
-    # needs these three fields. __new__ lets us reuse llama.cpp's tokenizer code
-    # without constructing a full converter for this split GGUF.
+    # SmolVLM's tokenizer.json needs newer tokenizers than some deployment
+    # environments provide. The slow GPT2 tokenizer reads vocab.json/merges.txt
+    # and is enough for exporting llama.cpp GGUF tokenizer metadata.
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir, use_fast=False)
+    vocab = tokenizer.get_vocab()
+    tokenizer.vocab = vocab
+
+    # Reuse llama.cpp's tokenizer pre-tokenizer detection without constructing a
+    # full converter for this split GGUF.
     llama_cpp_model = TextModel.__new__(TextModel)
-    llama_cpp_model.gguf_writer = fout
-    llama_cpp_model.dir_model = tokenizer_dir
-    llama_cpp_model.hparams = {"vocab_size": vocab_size}
+    tokpre = llama_cpp_model.get_vocab_base_pre(tokenizer)
 
-    llama_cpp_model._set_vocab_gpt2()
+    reverse_vocab = {id_: encoded_tok for encoded_tok, id_ in vocab.items()}
+    added_vocab = tokenizer.get_added_vocab()
+    added_tokens_decoder = tokenizer.added_tokens_decoder
 
-    print(f"   Tokenizer: {tokenizer_dir}")
+    tokens = []
+    toktypes = []
+    for token_id in range(vocab_size):
+        if token_id not in reverse_vocab:
+            tokens.append(f"[PAD{token_id}]")
+            toktypes.append(TokenType.UNUSED)
+            continue
+
+        token = reverse_vocab[token_id]
+        if token in added_vocab:
+            added_token = added_tokens_decoder[token_id]
+            if not added_token.normalized:
+                token = tokenizer.decode(tokenizer.encode(token, add_special_tokens=False))
+
+            if added_token.special or llama_cpp_model.does_token_look_special(token):
+                toktypes.append(TokenType.CONTROL)
+            else:
+                token = token.replace(b"\xe2\x96\x81".decode("utf-8"), " ")
+                toktypes.append(TokenType.USER_DEFINED)
+        else:
+            toktypes.append(TokenType.NORMAL)
+        tokens.append(token)
+
+    fout.add_tokenizer_model("gpt2")
+    fout.add_tokenizer_pre(tokpre)
+    fout.add_token_list(tokens)
+    fout.add_token_types(toktypes)
+
+    special_vocab = SpecialVocab(tokenizer_dir, load_merges=True)
+    special_vocab.add_to_gguf(fout)
+
+    print(f"   Tokenizer: {tokenizer_dir} (slow GPT2, pre={tokpre})")
 
 
 def get_tensor_name(name: str, num_layers: int) -> str:

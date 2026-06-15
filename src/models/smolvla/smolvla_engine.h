@@ -54,6 +54,15 @@ struct smolvla_result {
     int action_dim;                   // Action dimension per step
 };
 
+struct smolvla_image_view {
+    const char * name;                 // Observation image key. Batch inference canonicalizes by this name.
+    const uint8_t * data;              // RGB image memory in HWC layout
+    int width;                         // Image width in pixels
+    int height;                        // Image height in pixels
+    int channels;                      // Must be 3
+    int stride_bytes;                  // Row stride in bytes. <=0 means width * 3
+};
+
 struct smolvla_stage_timings {
     double vision_ms;                 // Image encode + vision model forward
     double state_proj_ms;             // State normalization + state projection
@@ -147,6 +156,30 @@ SMOLVLA_API struct smolvla_result smolvla_predict_raw_rgb(
     int height,
     int channels,
     int stride_bytes,
+    const float * state,
+    int state_dim,
+    const char * task);
+
+/**
+ * Run one prediction with one or more raw RGB image views.
+ *
+ * Images are canonicalized by observation key before encoding and concatenated
+ * into the SmolVLA prefix before language and state tokens. This matches
+ * LeRobot SmolVLA's behavior of iterating present image feature keys in config
+ * order.
+ *
+ * @param ctx          Engine context
+ * @param images       Array of RGB/HWC/uint8 image views
+ * @param image_count  Number of image views; must be > 0
+ * @param state        State array, or NULL
+ * @param state_dim    Number of state dimensions
+ * @param task         Language instruction
+ * @return Prediction result
+ */
+SMOLVLA_API struct smolvla_result smolvla_predict_raw_rgb_batch(
+    struct smolvla_context * ctx,
+    const struct smolvla_image_view * images,
+    size_t image_count,
     const float * state,
     int state_dim,
     const char * task);
