@@ -64,6 +64,46 @@ def load_vision_config(surgery_dir: Path) -> dict:
     return vision_config
 
 
+def load_rename_map(surgery_dir: Path) -> dict[str, str]:
+    preprocessor_file = surgery_dir / "policy_preprocessor.json"
+    if not preprocessor_file.exists():
+        return {}
+
+    with open(preprocessor_file, "r", encoding="utf-8") as f:
+        preprocessor = json.load(f)
+
+    for step in preprocessor.get("steps", []):
+        if step.get("registry_name") == "rename_observations_processor":
+            rename_map = step.get("config", {}).get("rename_map", {})
+            return {str(src): str(dst) for src, dst in rename_map.items()}
+    return {}
+
+
+def load_image_keys(surgery_dir: Path) -> list[str]:
+    config_file = surgery_dir / "config.json"
+    if not config_file.exists():
+        raise RuntimeError(f"Missing {config_file}; rerun smolvla_surgery.py to copy the policy config")
+
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+
+    input_features = config.get("input_features", {})
+    rename_map = load_rename_map(surgery_dir)
+    inverse_rename_map = {dst: src for src, dst in rename_map.items()}
+
+    image_keys = []
+    for key, feature in input_features.items():
+        if feature.get("type") != "VISUAL" or ".empty_camera_" in key:
+            continue
+        image_keys.append(inverse_rename_map.get(key, key))
+
+    if not image_keys:
+        raise RuntimeError(f"No visual input_features found in {config_file}")
+    if len(set(image_keys)) != len(image_keys):
+        raise RuntimeError(f"Duplicate SmolVLA image keys after applying rename_map: {image_keys}")
+    return image_keys
+
+
 def _config_int(config: dict, key: str) -> int:
     if key not in config:
         raise RuntimeError(f"Missing vision_config key: {key}")
@@ -131,6 +171,7 @@ def main():
     
     # Read the SmolVLM vision config copied by surgery, then validate it against weights.
     vision_config = load_vision_config(surgery_dir)
+    image_keys = load_image_keys(surgery_dir)
     hidden_size = _config_int(vision_config, "hidden_size")
     image_size = _config_int(vision_config, "image_size")
     patch_size = _config_int(vision_config, "patch_size")
@@ -173,6 +214,7 @@ def main():
     print(f"   Num heads: {num_heads}")
     print(f"   Num patches: {num_patches}")
     print(f"   Connector: {connector_input_size} -> {llm_hidden_size}")
+    print(f"   Image keys: {image_keys}")
     
     # Setup output
     if args.dtype == "f32":
@@ -214,6 +256,7 @@ def main():
     fout.add_uint32("smolvla.vision.num_patches", num_patches)
     fout.add_array("smolvla.vision.image_mean", [0.5, 0.5, 0.5])
     fout.add_array("smolvla.vision.image_std", [0.5, 0.5, 0.5])
+    fout.add_array("smolvla.image_keys", image_keys)
     
     # Connector config
     fout.add_uint32("smolvla.connector.input_size", connector_input_size)

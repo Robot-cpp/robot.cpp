@@ -173,7 +173,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-dim", type=int, default=32)
     parser.add_argument("--env-action-dim", type=int, default=7)
     parser.add_argument("--image-key", action="append")
-    parser.add_argument("--camera-key", action="append")
     parser.add_argument("--libero-config-path", type=Path, default=DEFAULT_LIBERO_CONFIG_PATH)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
@@ -183,12 +182,10 @@ def main() -> int:
     args = parse_args()
     output = args.output or DEFAULT_RESULTS_DIR / f"server-libero-{timestamp()}.json"
     image_keys = tuple(args.image_key or DEFAULT_IMAGE_KEYS)
-    camera_keys = tuple(args.camera_key or DEFAULT_LIBERO_CAMERA_KEYS)
     request_builder = partial(
         build_model_server_request,
         state_dim=args.state_dim,
         image_keys=image_keys,
-        camera_keys=camera_keys,
     )
     policy = ModelServerPolicy(
         request_builder=request_builder,
@@ -230,7 +227,6 @@ def main() -> int:
                 "server_command": server_command(args) if args.launch_server else None,
                 "server_env": parse_server_env(args.server_env),
                 "image_keys": list(image_keys),
-                "camera_keys": list(camera_keys),
                 "state_dim": args.state_dim,
                 "env_action_dim": args.env_action_dim,
                 "libero_config_path": str(args.libero_config_path.expanduser()),

@@ -82,6 +82,23 @@ static bool smolvla_vision_build_each_run_enabled() {
     return build_each_run;
 }
 
+static bool gguf_string_array(gguf_context * gguf, const char * key, std::vector<std::string> & out) {
+    const int idx = gguf_find_key(gguf, key);
+    if (idx < 0) {
+        return false;
+    }
+    if (gguf_get_kv_type(gguf, idx) != GGUF_TYPE_ARRAY || gguf_get_arr_type(gguf, idx) != GGUF_TYPE_STRING) {
+        throw std::runtime_error(std::string("invalid GGUF string-array metadata type: ") + key);
+    }
+    const size_t count = gguf_get_arr_n(gguf, idx);
+    out.clear();
+    out.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        out.emplace_back(gguf_get_arr_str(gguf, idx, i));
+    }
+    return true;
+}
+
 static const char * smolvla_buft_name(ggml_backend_buffer_type_t buft) {
     return buft ? ggml_backend_buft_name(buft) : "(null)";
 }
@@ -400,6 +417,11 @@ protected:
         this->f32_arr3_or(gguf, "smolvla.vision.image_mean", ctx_->image_mean, default_mean);
         this->f32_arr3_or(gguf, "smolvla.vision.image_std", ctx_->image_std, default_std);
 
+        if (!gguf_string_array(gguf, "smolvla.image_keys", ctx_->image_keys) || ctx_->image_keys.empty()) {
+            this->set_error("missing required GGUF metadata: smolvla.image_keys");
+            return false;
+        }
+
         if (verbosity_ >= 1) {
             LOG_INF("%s: vision config: image=%d patch=%d hidden=%d layers=%d heads=%d\n",
                     __func__,
@@ -408,6 +430,9 @@ protected:
                     ctx_->hidden_size,
                     ctx_->n_layers,
                     ctx_->n_heads);
+            for (size_t i = 0; i < ctx_->image_keys.size(); ++i) {
+                LOG_INF("%s: image_key[%zu]=%s\n", __func__, i, ctx_->image_keys[i].c_str());
+            }
         }
 
         return true;

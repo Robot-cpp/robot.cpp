@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <set>
+#include <string>
 #include <vector>
 
 namespace robotcpp::pi0 {
@@ -40,6 +40,19 @@ std::vector<ResizeCoord> build_resize_coords(int src_size, int dst_size) {
 
 inline float normalize_u8(float value) {
     return value * (2.0f / 255.0f) - 1.0f;
+}
+
+bool is_empty_camera_key(const std::string & key) {
+    return key.find(".empty_camera_") != std::string::npos;
+}
+
+int find_real_image_key(const std::vector<std::string> & keys, const std::string & name) {
+    for (size_t i = 0; i < keys.size(); ++i) {
+        if (!is_empty_camera_key(keys[i]) && keys[i] == name) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
 }
 
 } // namespace
@@ -95,17 +108,23 @@ bool validate_and_preprocess_pi0(
         out.noise.assign(raw.noise, raw.noise + raw.noise_count);
     }
 
-    std::set<std::string> required;
-    for (const std::string & key : config.common.image_keys) {
-        if (key.find(".empty_camera_") == std::string::npos) {
-            required.insert(key);
-        }
+    if (config.common.image_keys.empty()) {
+        return pi0_preprocess_error("model config has no image_keys");
     }
-    out.images.reserve(raw.image_count);
+
+    std::vector<Pi0ImageTensor> images_by_key(config.common.image_keys.size());
+    std::vector<bool> seen_by_key(config.common.image_keys.size(), false);
     for (size_t i = 0; i < raw.image_count; ++i) {
         const Pi0RawImageView & image = raw.images[i];
         if (image.name == nullptr || image.data == nullptr) {
             return pi0_preprocess_error("image view has null name or data");
+        }
+        const int key_index = find_real_image_key(config.common.image_keys, image.name);
+        if (key_index < 0) {
+            return pi0_preprocess_error(std::string("observation has unknown image view: ") + image.name);
+        }
+        if (seen_by_key[static_cast<size_t>(key_index)]) {
+            return pi0_preprocess_error(std::string("observation has duplicate image view: ") + image.name);
         }
         if (image.width <= 0 || image.height <= 0 || image.channels <= 0 || image.channels > 4) {
             return pi0_preprocess_error("image view has invalid dimensions");
@@ -113,8 +132,6 @@ bool validate_and_preprocess_pi0(
         if (image.stride_bytes < image.width * image.channels) {
             return pi0_preprocess_error("image stride is too small");
         }
-
-        required.erase(image.name);
 
         Pi0ImageTensor tensor;
         tensor.name = image.name;
@@ -173,11 +190,20 @@ bool validate_and_preprocess_pi0(
                 dst[2] = normalize_u8(b_top * yc.lo_weight + b_bottom * yc.hi_weight);
             }
         }
-        out.images.push_back(std::move(tensor));
+        images_by_key[static_cast<size_t>(key_index)] = std::move(tensor);
+        seen_by_key[static_cast<size_t>(key_index)] = true;
     }
 
-    if (!required.empty()) {
-        return pi0_preprocess_error("observation missing required image view: " + *required.begin());
+    out.images.reserve(raw.image_count);
+    for (size_t i = 0; i < config.common.image_keys.size(); ++i) {
+        const std::string & key = config.common.image_keys[i];
+        if (is_empty_camera_key(key)) {
+            continue;
+        }
+        if (!seen_by_key[i]) {
+            return pi0_preprocess_error("observation missing required image view: " + key);
+        }
+        out.images.push_back(std::move(images_by_key[i]));
     }
 
     return true;

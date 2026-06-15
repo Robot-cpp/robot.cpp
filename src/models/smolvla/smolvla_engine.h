@@ -55,7 +55,7 @@ struct smolvla_result {
 };
 
 struct smolvla_image_view {
-    const char * name;                 // Optional camera name, used for diagnostics
+    const char * name;                 // Observation image key. Batch inference canonicalizes by this name.
     const uint8_t * data;              // RGB image memory in HWC layout
     int width;                         // Image width in pixels
     int height;                        // Image height in pixels
@@ -163,9 +163,10 @@ SMOLVLA_API struct smolvla_result smolvla_predict_raw_rgb(
 /**
  * Run one prediction with one or more raw RGB image views.
  *
- * Images are encoded in the order provided and concatenated into the SmolVLA
- * prefix before language and state tokens. This matches LeRobot SmolVLA's
- * behavior of iterating present image feature keys in config order.
+ * Images are canonicalized by observation key before encoding and concatenated
+ * into the SmolVLA prefix before language and state tokens. This matches
+ * LeRobot SmolVLA's behavior of iterating present image feature keys in config
+ * order.
  *
  * @param ctx          Engine context
  * @param images       Array of RGB/HWC/uint8 image views

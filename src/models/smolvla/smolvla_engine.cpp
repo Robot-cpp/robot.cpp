@@ -142,6 +142,20 @@ static bool smolvla_load_language_config(smolvla_context * ctx) {
     return true;
 }
 
+static int smolvla_find_image_key(
+    const std::vector<std::string> & image_keys,
+    const char * name) {
+    if (!name || name[0] == '\0') {
+        return -1;
+    }
+    for (size_t i = 0; i < image_keys.size(); ++i) {
+        if (image_keys[i] == name) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
 static bool smolvla_env_has_value(const char * name) {
     const char * value = std::getenv(name);
     return value && value[0] != '\0';
@@ -1065,7 +1079,7 @@ struct smolvla_result smolvla_predict_raw_rgb(
     const char * task)
 {
     smolvla_image_view image{};
-    image.name = "image";
+    image.name = ctx && ctx->vision && !ctx->vision->image_keys.empty() ? ctx->vision->image_keys.front().c_str() : nullptr;
     image.data = rgb;
     image.width = width;
     image.height = height;
@@ -1102,11 +1116,48 @@ struct smolvla_result smolvla_predict_raw_rgb_batch(
         fprintf(stderr, "[SmolVLA] predict_raw_rgb_batch: image_count=%zu\n", image_count);
     }
 
-    const auto t_vision0 = smolvla_clock::now();
-    std::vector<std::vector<float>> camera_embs;
-    camera_embs.reserve(image_count);
+    const std::vector<std::string> & image_keys = ctx->vision->image_keys;
+    if (image_keys.empty()) {
+        fprintf(stderr, "[SmolVLA] Error: model has no declared image keys\n");
+        return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+    }
+
+    std::vector<const smolvla_image_view *> images_by_key(image_keys.size(), nullptr);
     for (size_t i = 0; i < image_count; ++i) {
         const smolvla_image_view & image = images[i];
+        const int key_index = smolvla_find_image_key(image_keys, image.name);
+        if (key_index < 0) {
+            fprintf(stderr,
+                "[SmolVLA] Error: unknown image view name: %s\n",
+                image.name ? image.name : "(unnamed)");
+            return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+        }
+        if (images_by_key[static_cast<size_t>(key_index)] != nullptr) {
+            fprintf(stderr,
+                "[SmolVLA] Error: duplicate image view name: %s\n",
+                image.name);
+            return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+        }
+        images_by_key[static_cast<size_t>(key_index)] = &image;
+    }
+
+    std::vector<const smolvla_image_view *> ordered_images;
+    ordered_images.reserve(image_count);
+    for (const smolvla_image_view * image : images_by_key) {
+        if (image != nullptr) {
+            ordered_images.push_back(image);
+        }
+    }
+    if (ordered_images.empty()) {
+        fprintf(stderr, "[SmolVLA] Error: no declared image views were provided\n");
+        return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+    }
+
+    const auto t_vision0 = smolvla_clock::now();
+    std::vector<std::vector<float>> camera_embs;
+    camera_embs.reserve(ordered_images.size());
+    for (size_t i = 0; i < ordered_images.size(); ++i) {
+        const smolvla_image_view & image = *ordered_images[i];
         if (!image.data || image.width <= 0 || image.height <= 0 || image.channels != 3) {
             fprintf(stderr,
                 "[SmolVLA] Error: image %zu must be RGB/HWC/uint8 "

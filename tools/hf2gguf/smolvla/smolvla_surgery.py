@@ -200,6 +200,15 @@ def extract_smolvla_components(model_path, output_dir):
         _copy_vlm_files(config, output_dir)
     else:
         raise RuntimeError(f"Missing required config.json: {config_file}")
+
+    policy_preprocessor_file = None
+    for candidate in (pretrained_path / "policy_preprocessor.json", model_path / "policy_preprocessor.json"):
+        if candidate.exists():
+            policy_preprocessor_file = candidate
+            break
+    if policy_preprocessor_file is not None:
+        shutil.copy(policy_preprocessor_file, output_dir / "policy_preprocessor.json")
+        print(f"📋 Copied policy_preprocessor.json")
     
     # Copy normalizer stats (for denormalization during inference)
     normalizer_file = pretrained_path / "policy_preprocessor_step_5_normalizer_processor.safetensors"
