@@ -29,6 +29,7 @@ set(VLACPP_LLAMA_INCLUDE_DIRS
 
 set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
 set(ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
+set(ROBOT_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_client)
 
 add_library(smolvla_runtime STATIC
     src/models/ggml_backend.cpp
@@ -134,10 +135,13 @@ if(VLACPP_BUILD_ROBOT_SERVER)
     target_compile_features(robot_server_core PUBLIC cxx_std_17)
 
     add_library(model_client_cpp STATIC
-        ${ROBOT_SERVER_DIR}/client/cpp/model_client.cpp
-        ${ROBOT_SERVER_DIR}/client/cpp/model_client.h
+        ${ROBOT_CLIENT_DIR}/cpp/model_client.cpp
+        ${ROBOT_CLIENT_DIR}/cpp/model_client.h
     )
-    target_include_directories(model_client_cpp PUBLIC ${ROBOT_SERVER_DIR})
+    target_include_directories(model_client_cpp PUBLIC
+        ${ROBOT_CLIENT_DIR}
+        ${ROBOT_SERVER_DIR}
+    )
     target_link_libraries(model_client_cpp PUBLIC robot_server_common)
     target_compile_features(model_client_cpp PUBLIC cxx_std_17)
 
@@ -160,7 +164,7 @@ if(VLACPP_BUILD_ROBOT_SERVER)
     target_link_libraries(model-server PRIVATE robot_server_core robotcpp)
     target_compile_features(model-server PRIVATE cxx_std_17)
 
-    add_executable(model-cpp-client-example ${ROBOT_SERVER_DIR}/examples/cpp/minimal_predict.cpp)
+    add_executable(model-cpp-client-example ${ROBOT_CLIENT_DIR}/examples/cpp/minimal_example.cpp)
     set_target_properties(model-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_link_libraries(model-cpp-client-example PRIVATE model_client_cpp)
     target_compile_features(model-cpp-client-example PRIVATE cxx_std_17)

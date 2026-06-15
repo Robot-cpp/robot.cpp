@@ -5,11 +5,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "python"))
 
 import numpy as np
 
-from client.python.model_client import ModelClient
+from model_client import ModelClient
 
 
 HOST = "127.0.0.1"

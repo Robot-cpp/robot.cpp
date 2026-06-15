@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from client.python.model_client import image_to_rgb_hwc_u8_bytes, state_to_list
+from model_client import image_to_rgb_hwc_u8_bytes, state_to_list
 
 DEFAULT_PROMPT = "grab the block."
 

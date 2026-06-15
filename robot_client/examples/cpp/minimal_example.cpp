@@ -1,4 +1,4 @@
-#include "client/cpp/model_client.h"
+#include "cpp/model_client.h"
 
 #include <cstdint>
 #include <iomanip>

@@ -60,16 +60,16 @@ The server currently listens only on `127.0.0.1`.
 Python client:
 
 ```text
-robot_server/client/python/model_client.py
-robot_server/examples/python/minimal_predict.py
+robot_client/python/model_client.py
+robot_client/examples/python/minimal_example.py
 robot_server/examples/python/robot_client/
 ```
 
 C++ client:
 
 ```text
-robot_server/client/cpp/model_client.{h,cpp}
-robot_server/examples/cpp/minimal_predict.cpp
+robot_client/cpp/model_client.{h,cpp}
+robot_client/examples/cpp/minimal_example.cpp
 ```
 
 Useful smoke and latency scripts:

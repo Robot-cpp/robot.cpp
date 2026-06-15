@@ -6,7 +6,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
-from client.python.model_client import ModelClient, ModelResponse
+from model_client import ModelClient, ModelResponse
 
 from robot_client.observation import make_predict_observation
 
