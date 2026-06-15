@@ -140,7 +140,7 @@ PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-server \
 CPU helper script:
 
 ```sh
-bash robot_server/shell/launch_pi0_server_cpu.sh
+MODEL_TYPE=pi0 bash robot_server/shell/launch_robot_server_linux_cpu.sh
 ```
 
 The server listens on `127.0.0.1` in this phase. Request images must include the

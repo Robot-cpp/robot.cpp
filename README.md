@@ -38,8 +38,9 @@ longer registers CTest targets or the old `vlacpp` shared C ABI.
   --port 5555
 ```
 
-The helper script `robot_server/shell/launch_robot_server_mac_cpu.sh` wraps the
-same command for the local SmolVLA CPU path.
+The helper scripts under `robot_server/shell/` wrap the same command for common
+local setups. Use `MODEL_TYPE=smolvla` or `MODEL_TYPE=pi0` with the Linux
+launchers when switching models.
 
 ## pi0 Server
 
