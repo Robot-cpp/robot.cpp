@@ -510,7 +510,7 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
             ctx->backends,
             ctx->sched,
             ctx->buft_policy,
-            true,
+            robotcpp_backend_use_accel_from_env(true),
             scheduler_config,
             verbosity)) {
         LOG_ERR("%s: failed to initialize vision backend: %s\n", __func__, backend.error().c_str());

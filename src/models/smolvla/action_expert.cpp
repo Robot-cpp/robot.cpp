@@ -12,6 +12,7 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
+#include "models/ggml_backend.h"
 #include "models/gguf_loader.h"
 #include "smolvla_compat.h"
 
@@ -73,27 +74,8 @@ static std::string fmt(const char * f, ...) {
     return std::string(buf.data(), n);
 }
 
-static bool smolvla_env_flag_enabled(const char * name) {
-    const char * value = std::getenv(name);
-    if (!value || value[0] == '\0') {
-        return false;
-    }
-
-    if (strcmp(value, "0") == 0 ||
-        strcmp(value, "false") == 0 ||
-        strcmp(value, "FALSE") == 0 ||
-        strcmp(value, "off") == 0 ||
-        strcmp(value, "OFF") == 0 ||
-        strcmp(value, "no") == 0 ||
-        strcmp(value, "NO") == 0) {
-        return false;
-    }
-
-    return true;
-}
-
 static bool smolvla_action_expert_use_accel_backend() {
-    return smolvla_env_flag_enabled("SMOLVLA_ACTION_USE_ACCEL_BACKEND");
+    return robotcpp_backend_use_accel_from_env(false);
 }
 
 static void smolvla_free_model_buffers(std::vector<ggml_backend_buffer_t> & bufs) {

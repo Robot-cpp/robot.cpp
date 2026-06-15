@@ -69,7 +69,7 @@ case "${MODEL_TYPE}" in
         )
         ;;
     pi0)
-        export PI0_USE_ACCEL_BACKEND="${PI0_USE_ACCEL_BACKEND:-1}"
+        export ROBOTCPP_BACKEND="${ROBOTCPP_BACKEND:-cuda}"
         MODEL_BASENAME="${MODEL_BASENAME:-vlacpp-pi0-libero-finetuned-v044}"
         VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
         MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"

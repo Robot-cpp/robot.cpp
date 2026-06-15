@@ -107,7 +107,7 @@ python -m eval.libero.run_model_server_eval \
   --launch-server \
   --host 127.0.0.1 \
   --port 5555 \
-  --server-env PI0_USE_ACCEL_BACKEND=1 \
+  --server-env ROBOTCPP_BACKEND=cuda \
   --suite libero_object \
   --task-ids 0 \
   --n-episodes 1 \
@@ -135,8 +135,8 @@ python -m eval.libero.run_model_server_eval \
 
 The `--server-command ...` block is passed directly to `model-server` and must
 stay last because it consumes the rest of the command line. The runner itself is
-model-agnostic; pi0-specific values appear only in this launch command and the
-optional `PI0_USE_ACCEL_BACKEND` environment override.
+model-agnostic; pi0-specific values appear only in this launch command. The
+optional `ROBOTCPP_BACKEND` environment override selects the server backend.
 
 The reusable model-server policy and server lifecycle helpers live in
 `eval/model_server_policy.py`. This LIBERO runner supplies only the

@@ -1,6 +1,7 @@
 #include "models/pi0/pi0_engine.h"
 
 #include "models/pi0/action.h"
+#include "models/ggml_backend.h"
 #include "models/pi0/load.h"
 #include "models/pi0/pi0_context.h"
 #include "models/pi0/preprocess.h"
@@ -50,20 +51,6 @@ void pi0_log_error(const std::string & message) {
     std::fprintf(stderr, "[Pi0] Error: %s\n", message.c_str());
 }
 
-bool pi0_env_flag_enabled(const char * name, bool default_value) {
-    const char * value = std::getenv(name);
-    if (value == nullptr || value[0] == '\0') {
-        return default_value;
-    }
-    return std::strcmp(value, "0") != 0 &&
-        std::strcmp(value, "false") != 0 &&
-        std::strcmp(value, "FALSE") != 0 &&
-        std::strcmp(value, "off") != 0 &&
-        std::strcmp(value, "OFF") != 0 &&
-        std::strcmp(value, "no") != 0 &&
-        std::strcmp(value, "NO") != 0;
-}
-
 } // namespace
 
 struct pi0_context {
@@ -103,7 +90,7 @@ pi0_context * pi0_init(pi0_params params) {
     paths.action_decoder = params.action_decoder_path ? params.action_decoder_path : "";
 
     robotcpp::pi0::Pi0BackendConfig backend;
-    backend.use_accel = pi0_env_flag_enabled("PI0_USE_ACCEL_BACKEND", true);
+    backend.use_accel = robotcpp_backend_use_accel_from_env(true);
     backend.n_threads = params.n_threads;
 
     robotcpp::pi0::Pi0ModelConfig config;

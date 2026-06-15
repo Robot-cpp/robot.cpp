@@ -41,7 +41,7 @@ pi0:
 GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
 MODEL=vlacpp-pi0-libero-finetuned-v044
 
-PI0_USE_ACCEL_BACKEND=1 ./build-cuda/bin/model-server \
+ROBOTCPP_BACKEND=cuda ./build-cuda/bin/model-server \
   --model-type pi0 \
   --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
   --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
