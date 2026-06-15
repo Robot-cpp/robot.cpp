@@ -61,6 +61,25 @@ The result JSON reports `processor_ms`, `policy_ms`, and `total_ms` after
 discarding warmup iterations. Use `--compile-model` or `--no-compile-model` to
 override the checkpoint's `compile_model` setting.
 
+For a local SmolVLA checkpoint, point the benchmark at local SmolVLM2
+config/tokenizer/processor assets. SmolVLA latency benchmarking skips the
+extra base VLM weight load because the local policy checkpoint already contains
+the VLM tensors in `model.safetensors`:
+
+```sh
+python -m eval.libero.benchmark_lerobot_policy \
+  --policy-path ckpts/smolvla \
+  --smolvla-vlm-path /path/to/SmolVLM2-500M-Video-Instruct-assets \
+  --device cuda \
+  --no-compile-model \
+  --warmup 5 \
+  --loops 30
+```
+
+The SmolVLA benchmark maps input image keys through `policy_preprocessor.json`
+before generating random observations, and uses normalizer stats to infer the
+state dimension when they differ from `config.json`.
+
 ## model-server rollout
 
 Download the pi0 v044 split GGUF files:
