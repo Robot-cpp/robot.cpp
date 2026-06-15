@@ -55,8 +55,9 @@ target_link_libraries(vlacpp PRIVATE ggml llama mtmd)
 target_compile_definitions(vlacpp PRIVATE VLACPP_HAVE_GGML=1 VLACPP_HAVE_MTMD=1)
 
 if(VLACPP_BUILD_SMOLVLA)
-    set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
-    set(SMOLVLA_ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
+set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
+set(SMOLVLA_ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
+set(SMOLVLA_ROBOT_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_client)
     add_library(smolvla OBJECT
         src/models/ggml_backend.cpp
         src/models/ggml_backend.h
@@ -127,10 +128,13 @@ if(VLACPP_BUILD_SMOLVLA)
     target_compile_features(smolvla_robot_server PUBLIC cxx_std_17)
 
     add_library(model_client_cpp STATIC
-        ${SMOLVLA_ROBOT_SERVER_DIR}/client/cpp/model_client.cpp
-        ${SMOLVLA_ROBOT_SERVER_DIR}/client/cpp/model_client.h
+        ${SMOLVLA_ROBOT_CLIENT_DIR}/cpp/model_client.cpp
+        ${SMOLVLA_ROBOT_CLIENT_DIR}/cpp/model_client.h
     )
-    target_include_directories(model_client_cpp PUBLIC ${SMOLVLA_ROBOT_SERVER_DIR})
+    target_include_directories(model_client_cpp PUBLIC
+        ${SMOLVLA_ROBOT_CLIENT_DIR}
+        ${SMOLVLA_ROBOT_SERVER_DIR}
+    )
     target_link_libraries(model_client_cpp PUBLIC smolvla_robot_common)
     target_compile_features(model_client_cpp PUBLIC cxx_std_17)
 
@@ -152,7 +156,7 @@ if(VLACPP_BUILD_SMOLVLA)
     target_link_libraries(model-server PRIVATE robotcpp smolvla_robot_server ggml llama)
     target_compile_features(model-server PRIVATE cxx_std_17)
 
-    add_executable(model-cpp-client-example ${SMOLVLA_ROBOT_SERVER_DIR}/examples/cpp/minimal_predict.cpp)
+    add_executable(model-cpp-client-example ${SMOLVLA_ROBOT_CLIENT_DIR}/examples/cpp/minimal_example.cpp)
     set_target_properties(model-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_link_libraries(model-cpp-client-example PRIVATE model_client_cpp)
     target_compile_features(model-cpp-client-example PRIVATE cxx_std_17)

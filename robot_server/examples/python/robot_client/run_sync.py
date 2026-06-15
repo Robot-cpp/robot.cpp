@@ -12,13 +12,15 @@ from types import ModuleType
 
 _EXAMPLES_PYTHON = Path(__file__).resolve().parent.parent
 _ROBOT_SERVER = _EXAMPLES_PYTHON.parent
+_VLA_CPP_ROOT = _ROBOT_SERVER.parent
+_MODEL_CLIENT_PYTHON = _VLA_CPP_ROOT / "robot_client" / "python"
 
 if str(_EXAMPLES_PYTHON) not in sys.path:
     sys.path.insert(0, str(_EXAMPLES_PYTHON))
-if str(_ROBOT_SERVER) not in sys.path:
-    sys.path.insert(0, str(_ROBOT_SERVER))
+if str(_MODEL_CLIENT_PYTHON) not in sys.path:
+    sys.path.insert(0, str(_MODEL_CLIENT_PYTHON))
 
-from client.python.model_client import ModelClient
+from model_client import ModelClient
 from robot_client.observation import server_from_env
 from robot_client.sync_loop import SyncControlLoop, SyncLoopConfig
 

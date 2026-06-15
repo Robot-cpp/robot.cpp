@@ -104,7 +104,7 @@ python -m robot_client
 
 ```bash
 source local_env.sh
-bash robot_server/shell/client_example.sh
+bash robot_client/shell/client_example.sh
 # 或：python robot_server/test/benchmark_latency.py --warmup 0 --loops 1
 ```
 
@@ -144,4 +144,3 @@ cd robot_server/examples/python/lerobot_so101
 cd robot_server/examples/python/lerobot_so101
 ./shell/local_record_dataset.sh
 ```
-

@@ -1,4 +1,4 @@
-# SmolVLA Robot Server 使用说明
+# SmolVLA Robot Server
 
 这个目录实现的是 Step2 的本机 SmolVLA policy daemon：模型在后台进程中常驻加载，robot/control client 通过 `127.0.0.1` TCP loopback 发送 observation/state/raw RGB image，server 返回 action chunk。（实现哲学是针对 edge on-device，因此采用的是轻量的进程通信，而不是 websocket、gRPC 之类的通用网络服务。）
 
@@ -6,7 +6,7 @@
 * [ ] 其他backend测试
 * [ ] clean merge
 
-## server编译与启动
+## 编译与启动
 
 ### 一键编译与启动
 
@@ -29,49 +29,3 @@ bash robot_server/shell/launch_robot_server_mac_cpu.sh
 ```
 
 停止 server 直接 `Ctrl-C` 即可
-
-## client
-
-server 启动后，robot 侧只需要把当前 observation 传给 client，client 会把图像转成 `RGB / HWC / uint8` 的连续 bytes，然后发给 server，拿回 action chunk。
-
-### python client
-
-最小 TCP 预测例子：
-
-```text
-robot_server/test/benchmark_latency.py                          # 随机观测 smoke / 压测
-robot_server/examples/python/robot_client/                     # RobotClientBase + run_sync 入口
-robot_server/examples/python/lerobot_so101/so101_client.py    # SO101 硬件实现
-```
-
-启动 server 后运行（记得先填写相关环境变量）：
-
-```bash
-bash robot_server/shell/client_example.sh
-# SO101 真机
-bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
-```
-
-- `response.actions`：二维 list，形状是 `[chunk_size][action_dim]`。
-- `response.actions_flat`：一维 action buffer，长度是 `chunk_size * action_dim`。
-- `response.timings`：server 返回的分段耗时，包括 `vision_ms`、`llm_ms`、`phase2_ms`、`model_total_ms` 等。
-
-### C++ client
-
-C++ 可复用 client 在：
-
-```text
-robot_server/client/cpp/model_client.{h,cpp}
-```
-
-最小 C++ example 在：
-
-```text
-robot_server/examples/cpp/minimal_predict.cpp
-```
-
-启动 server 后运行（记得先填写相关环境变量）：
-
-```bash
-bash robot_server/shell/cpp_client_example.sh
-```

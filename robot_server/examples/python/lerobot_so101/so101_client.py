@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
-from client.python.model_client import ModelClient
+from model_client import ModelClient
 from robot_client.base import RobotClientBase
 from robot_client.observation import DEFAULT_PROMPT
 from utils.robot import build_camera_config, extract_home_action

@@ -8,11 +8,11 @@ import struct
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "robot_client" / "python"))
 
 import numpy as np
 
-from client.python.model_client import ModelClient
+from model_client import ModelClient
 
 
 DEFAULT_STATE = (
