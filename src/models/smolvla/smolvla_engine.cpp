@@ -545,12 +545,12 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     return ctx;
 }
 
-// Prepare the real camera vision embedding for prefix assembly.
-static bool smolvla_prepare_vision_embedding(
+// Prepare camera vision embeddings for prefix assembly.
+static bool smolvla_prepare_vision_embeddings(
     struct smolvla_context * ctx,
-    const std::vector<float> & main_cam_emb
+    const std::vector<std::vector<float>> & camera_embs
 ) {
-    if (!ctx || !ctx->vision || main_cam_emb.empty()) {
+    if (!ctx || !ctx->vision || camera_embs.empty()) {
         if (ctx) {
             ctx->vision_emb.clear();
         }
@@ -560,17 +560,20 @@ static bool smolvla_prepare_vision_embedding(
     const int n_tokens_per_cam = smolvla_vision_n_tokens(ctx->vision);
     const int proj_dim = ctx->vision->proj_dim;
     const size_t one_cam_size = (size_t) n_tokens_per_cam * proj_dim;
-    // TODO: 这里现在是写死了一个主摄像头
-    if (main_cam_emb.size() != one_cam_size) {
-        fprintf(stderr, "[SmolVLA] Error: vision output size mismatch (%zu vs %zu)\n",
-                main_cam_emb.size(), one_cam_size);
-        ctx->vision_emb.clear();
-        return false;
+    for (size_t i = 0; i < camera_embs.size(); ++i) {
+        if (camera_embs[i].size() != one_cam_size) {
+            fprintf(stderr, "[SmolVLA] Error: vision output size mismatch for camera %zu (%zu vs %zu)\n",
+                    i, camera_embs[i].size(), one_cam_size);
+            ctx->vision_emb.clear();
+            return false;
+        }
     }
 
     ctx->vision_emb.clear();
-    ctx->vision_emb.reserve(one_cam_size);
-    ctx->vision_emb.insert(ctx->vision_emb.end(), main_cam_emb.begin(), main_cam_emb.end());
+    ctx->vision_emb.reserve(one_cam_size * camera_embs.size());
+    for (const std::vector<float> & camera_emb : camera_embs) {
+        ctx->vision_emb.insert(ctx->vision_emb.end(), camera_emb.begin(), camera_emb.end());
+    }
 
     // Match SmolVLA Python: img_emb = img_emb * sqrt(hidden_size)
     const float vision_scale = std::sqrt((float) proj_dim);
@@ -579,8 +582,13 @@ static bool smolvla_prepare_vision_embedding(
     }
 
     if (ctx->verbosity >= 1) {
-        fprintf(stdout, "[SmolVLA] vision tokens: cameras=1 tokens_per_camera=%d\n", n_tokens_per_cam);
-        fprintf(stdout, "[SmolVLA] vision output shape: [%d, %d]\n", n_tokens_per_cam, proj_dim);
+        fprintf(stdout, "[SmolVLA] vision tokens: cameras=%zu tokens_per_camera=%d total=%zu\n",
+                camera_embs.size(),
+                n_tokens_per_cam,
+                camera_embs.size() * (size_t) n_tokens_per_cam);
+        fprintf(stdout, "[SmolVLA] vision output shape: [%zu, %d]\n",
+                camera_embs.size() * (size_t) n_tokens_per_cam,
+                proj_dim);
         fprintf(stdout, "[SmolVLA] vision output (first 10): [");
         for (int i = 0; i < 10 && i < (int) ctx->vision_emb.size(); i++) {
             fprintf(stdout, "%.6f%s", ctx->vision_emb[i], i < 9 ? ", " : "");
@@ -597,6 +605,15 @@ static bool smolvla_prepare_vision_embedding(
     }
 
     return true;
+}
+
+static bool smolvla_prepare_vision_embedding(
+    struct smolvla_context * ctx,
+    const std::vector<float> & main_cam_emb
+) {
+    std::vector<std::vector<float>> camera_embs;
+    camera_embs.push_back(main_cam_emb);
+    return smolvla_prepare_vision_embeddings(ctx, camera_embs);
 }
 
 // 产生noise：如果是debug模式就产生sin波，否则产生高斯噪声
@@ -753,6 +770,17 @@ static struct smolvla_result smolvla_predict_impl(
         const int n_total = n_vis + n_task + n_state;
         if (n_vis <= 0 || n_total <= 0) {
             fprintf(stderr, "[SmolVLA] Error: invalid merged token count\n");
+            return result;
+        }
+        if (n_total > ctx->n_ctx) {
+            fprintf(stderr, "[SmolVLA] Error: prefix length %d exceeds n_ctx=%d\n", n_total, ctx->n_ctx);
+            return result;
+        }
+        ctx->fixed_prefix_seq_len = n_total;
+        if (ctx->expert &&
+            !smolvla_action_expert_init_fixed_prefix_runtime(ctx->expert, ctx->fixed_prefix_seq_len)) {
+            fprintf(stderr, "[SmolVLA] Error: failed to prepare fixed prefix runtime (seq_len=%d)\n",
+                    ctx->fixed_prefix_seq_len);
             return result;
         }
 
@@ -1036,6 +1064,24 @@ struct smolvla_result smolvla_predict_raw_rgb(
     int state_dim,
     const char * task)
 {
+    smolvla_image_view image{};
+    image.name = "image";
+    image.data = rgb;
+    image.width = width;
+    image.height = height;
+    image.channels = channels;
+    image.stride_bytes = stride_bytes;
+    return smolvla_predict_raw_rgb_batch(ctx, &image, 1, state, state_dim, task);
+}
+
+struct smolvla_result smolvla_predict_raw_rgb_batch(
+    struct smolvla_context * ctx,
+    const struct smolvla_image_view * images,
+    size_t image_count,
+    const float * state,
+    int state_dim,
+    const char * task)
+{
     if (!ctx) {
         return smolvla_empty_result();
     }
@@ -1044,40 +1090,76 @@ struct smolvla_result smolvla_predict_raw_rgb(
     smolvla_reset_last_stage_timings(ctx);
 
     ctx->vision_emb.clear();
-    if (!ctx->vision || !rgb || width <= 0 || height <= 0 || channels != 3) {
+    if (!ctx->vision || !images || image_count == 0) {
         fprintf(stderr,
-            "[SmolVLA] Error: predict_raw_rgb requires RGB/HWC/uint8 image memory and vision model "
-            "(rgb=%p width=%d height=%d channels=%d)\n",
-            (const void *) rgb, width, height, channels);
-        return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
-    }
-
-    if (stride_bytes <= 0) {
-        stride_bytes = width * channels;
-    }
-    if (stride_bytes < width * channels) {
-        fprintf(stderr,
-            "[SmolVLA] Error: predict_raw_rgb invalid stride_bytes=%d for width=%d channels=%d\n",
-            stride_bytes, width, channels);
+            "[SmolVLA] Error: predict_raw_rgb_batch requires at least one RGB/HWC/uint8 image and vision model "
+            "(images=%p image_count=%zu)\n",
+            (const void *) images, image_count);
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
     if (ctx->verbosity >= 1) {
-        fprintf(stderr,
-            "[SmolVLA] predict_raw_rgb: width=%d height=%d channels=%d stride_bytes=%d\n",
-            width, height, channels, stride_bytes);
+        fprintf(stderr, "[SmolVLA] predict_raw_rgb_batch: image_count=%zu\n", image_count);
     }
 
     const auto t_vision0 = smolvla_clock::now();
-    std::vector<float> main_cam_emb = smolvla_vision_encode_raw(
-        ctx->vision, rgb, width, height, channels, stride_bytes, ctx->n_threads);
+    std::vector<std::vector<float>> camera_embs;
+    camera_embs.reserve(image_count);
+    for (size_t i = 0; i < image_count; ++i) {
+        const smolvla_image_view & image = images[i];
+        if (!image.data || image.width <= 0 || image.height <= 0 || image.channels != 3) {
+            fprintf(stderr,
+                "[SmolVLA] Error: image %zu must be RGB/HWC/uint8 "
+                "(name=%s data=%p width=%d height=%d channels=%d)\n",
+                i,
+                image.name ? image.name : "(unnamed)",
+                (const void *) image.data,
+                image.width,
+                image.height,
+                image.channels);
+            ctx->last_timings.vision_ms = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
+            return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+        }
+
+        int stride_bytes = image.stride_bytes;
+        if (stride_bytes <= 0) {
+            stride_bytes = image.width * image.channels;
+        }
+        if (stride_bytes < image.width * image.channels) {
+            fprintf(stderr,
+                "[SmolVLA] Error: image %zu invalid stride_bytes=%d for width=%d channels=%d\n",
+                i, stride_bytes, image.width, image.channels);
+            ctx->last_timings.vision_ms = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
+            return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
+        }
+
+        if (ctx->verbosity >= 1) {
+            fprintf(stderr,
+                "[SmolVLA] image[%zu]: name=%s width=%d height=%d channels=%d stride_bytes=%d\n",
+                i,
+                image.name ? image.name : "(unnamed)",
+                image.width,
+                image.height,
+                image.channels,
+                stride_bytes);
+        }
+
+        camera_embs.push_back(smolvla_vision_encode_raw(
+            ctx->vision,
+            image.data,
+            image.width,
+            image.height,
+            image.channels,
+            stride_bytes,
+            ctx->n_threads));
+    }
     ctx->last_timings.vision_ms = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
-    if (!smolvla_prepare_vision_embedding(ctx, main_cam_emb)) {
-        fprintf(stderr, "[SmolVLA] Error: vision encode failed for raw RGB input\n");
+    if (!smolvla_prepare_vision_embeddings(ctx, camera_embs)) {
+        fprintf(stderr, "[SmolVLA] Error: vision encode failed for raw RGB batch input\n");
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb)", state, state_dim, task), t_total0);
+    return smolvla_finish_predict(ctx, smolvla_predict_impl(ctx, "(raw-rgb-batch)", state, state_dim, task), t_total0);
 }
 
 struct smolvla_stage_timings smolvla_get_last_stage_timings(const struct smolvla_context * ctx) {

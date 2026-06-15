@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import math
 import os
+import sys
 import statistics
 import subprocess
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
 
-from robot_server.client.python.model_client import ModelClient
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "robot_client" / "python"))
+
+from model_client import ModelClient  # noqa: E402
 
 
 RequestBuilder = Callable[[Any, str], dict[str, Any]]

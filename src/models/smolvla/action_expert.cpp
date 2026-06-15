@@ -674,9 +674,11 @@ bool smolvla_action_expert_embed_suffix(
     return true;
 }
 static bool attention_runtime_is_ready(
-    const smolvla_action_expert * ctx) {
+    const smolvla_action_expert * ctx,
+    int prefix_seq_len) {
     return ctx &&
-        ctx->attention_runtime.prepared;
+        ctx->attention_runtime.prepared &&
+        ctx->attention_runtime.prefix_seq_len == prefix_seq_len;
 }
 
 static bool init_attention_runtime(
@@ -714,8 +716,36 @@ static bool init_attention_runtime(
 static bool create_attention_runtime_tensors(
     smolvla_action_expert * ctx,
     int prefix_seq_len) {
-    if (!ctx || prefix_seq_len <= 0 || !ctx->attention_runtime.ctx_data) {
+    if (!ctx || prefix_seq_len <= 0) {
         LOG_ERR("%s: invalid arguments\n", __func__);
+        return false;
+    }
+
+    if (ctx->attention_runtime.prefix_seq_len == prefix_seq_len &&
+        ctx->attention_runtime.ctx_data != nullptr &&
+        ctx->attention_runtime.buffer != nullptr &&
+        ctx->attention_runtime.self_pos != nullptr &&
+        ctx->attention_runtime.cross_pos != nullptr &&
+        ctx->attention_runtime.self_mask != nullptr &&
+        ctx->attention_runtime.cross_mask != nullptr) {
+        ctx->attention_runtime.prepared = false;
+        return true;
+    }
+
+    clear_attention_runtime(ctx);
+
+    const size_t tensor_count = 4 + 1;
+    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    struct ggml_init_params params = {
+        /*.mem_size   =*/ ctx_size,
+        /*.mem_buffer =*/ nullptr,
+        /*.no_alloc   =*/ true,
+    };
+
+    ctx->attention_runtime.ctx_data = ggml_init(params);
+    if (!ctx->attention_runtime.ctx_data) {
+        LOG_ERR("%s: failed to init attention runtime ctx\n", __func__);
+        clear_attention_runtime(ctx);
         return false;
     }
 
@@ -764,8 +794,18 @@ bool smolvla_action_expert_prepare_attention_cache(
         return false;
     }
 
-    if (attention_runtime_is_ready(ctx)) {
+    if (attention_runtime_is_ready(ctx, prefix_seq_len)) {
         return true;
+    }
+    if (ctx->attention_runtime.prefix_seq_len != prefix_seq_len ||
+        !ctx->attention_runtime.self_pos ||
+        !ctx->attention_runtime.cross_pos ||
+        !ctx->attention_runtime.self_mask ||
+        !ctx->attention_runtime.cross_mask) {
+        if (!create_attention_runtime_tensors(ctx, prefix_seq_len)) {
+            LOG_ERR("%s: failed to create attention runtime tensors\n", __func__);
+            return false;
+        }
     }
 
     std::vector<int32_t> self_position_ids((size_t) ctx->chunk_size);
@@ -1189,7 +1229,7 @@ bool smolvla_action_expert_eval_transformer_project_velocity(
     }
 
     const int prefix_seq_len = ctx->prefix_kv_runtime.prefix_seq_len;
-    if (!attention_runtime_is_ready(ctx)) {
+    if (!attention_runtime_is_ready(ctx, prefix_seq_len)) {
         LOG_ERR("%s: attention cache is not prepared\n", __func__);
         return false;
     }

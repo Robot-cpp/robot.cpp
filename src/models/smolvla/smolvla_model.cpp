@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <memory>
 #include <new>
+#include <vector>
 
 namespace robotcpp {
 namespace {
@@ -72,24 +73,36 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
         error = "SmolVLA model is not initialized";
         return false;
     }
-    if (obs.images.size() != 1) {
-        error = "SmolVLA currently requires exactly one image; received " + std::to_string(obs.images.size()) + " images";
+    if (obs.images.empty()) {
+        error = "SmolVLA requires at least one image";
         return false;
     }
-    const model_image & image = obs.images[0];
+    std::vector<smolvla_image_view> views;
+    views.reserve(obs.images.size());
+    for (const model_image & image : obs.images) {
+        if (image.data == nullptr) {
+            error = "SmolVLA image data is null";
+            return false;
+        }
+        smolvla_image_view view{};
+        view.name = image.name.empty() ? nullptr : image.name.c_str();
+        view.data = image.data;
+        view.width = image.width;
+        view.height = image.height;
+        view.channels = image.channels;
+        view.stride_bytes = image.stride_bytes;
+        views.push_back(view);
+    }
 
-    const smolvla_result result = smolvla_predict_raw_rgb(
+    const smolvla_result result = smolvla_predict_raw_rgb_batch(
         ctx_,
-        image.data,
-        image.width,
-        image.height,
-        image.channels,
-        image.stride_bytes,
+        views.data(),
+        views.size(),
         obs.state.empty() ? nullptr : obs.state.data(),
         static_cast<int>(obs.state.size()),
         obs.task.empty() ? "grab the block." : obs.task.c_str());
     if (result.actions == nullptr) {
-        error = "smolvla_predict_raw_rgb failed";
+        error = "smolvla_predict_raw_rgb_batch failed";
         return false;
     }
 
