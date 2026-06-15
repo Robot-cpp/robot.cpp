@@ -93,22 +93,51 @@ ggml_tensor * persistent_f32(
         throw std::runtime_error("failed to allocate pi0 persistent runtime buffer");
     }
 
-    try {
-        runtime.persistent_contexts.push_back(ctx);
-        runtime.persistent_buffers.push_back(buffer);
-    } catch (...) {
-        if (!runtime.persistent_contexts.empty() && runtime.persistent_contexts.back() == ctx) {
-            runtime.persistent_contexts.pop_back();
-        }
-        ggml_backend_buffer_free(buffer);
-        ggml_free(ctx);
-        throw;
-    }
+    Pi0PersistentAllocation allocation(ctx, buffer);
+    runtime.persistent_allocations.push_back(std::move(allocation));
     *slot = tensor;
     return tensor;
 }
 
 } // namespace
+
+Pi0PersistentAllocation::Pi0PersistentAllocation(ggml_context * context, ggml_backend_buffer_t backend_buffer)
+    : ctx(context),
+      buffer(backend_buffer) {
+}
+
+Pi0PersistentAllocation::~Pi0PersistentAllocation() {
+    reset();
+}
+
+Pi0PersistentAllocation::Pi0PersistentAllocation(Pi0PersistentAllocation && other) noexcept
+    : ctx(other.ctx),
+      buffer(other.buffer) {
+    other.ctx = nullptr;
+    other.buffer = nullptr;
+}
+
+Pi0PersistentAllocation & Pi0PersistentAllocation::operator=(Pi0PersistentAllocation && other) noexcept {
+    if (this != &other) {
+        reset();
+        ctx = other.ctx;
+        buffer = other.buffer;
+        other.ctx = nullptr;
+        other.buffer = nullptr;
+    }
+    return *this;
+}
+
+void Pi0PersistentAllocation::reset() {
+    if (buffer != nullptr) {
+        ggml_backend_buffer_free(buffer);
+        buffer = nullptr;
+    }
+    if (ctx != nullptr) {
+        ggml_free(ctx);
+        ctx = nullptr;
+    }
+}
 
 Pi0ComponentRuntime::~Pi0ComponentRuntime() {
     reset();
@@ -120,13 +149,11 @@ Pi0ComponentRuntime::Pi0ComponentRuntime(Pi0ComponentRuntime && other) noexcept
       backends(std::move(other.backends)),
       buft_policy(other.buft_policy),
       n_threads(other.n_threads),
-      persistent_contexts(std::move(other.persistent_contexts)),
-      persistent_buffers(std::move(other.persistent_buffers)) {
+      persistent_allocations(std::move(other.persistent_allocations)) {
     other.backend_cpu = nullptr;
     other.sched = nullptr;
     other.backends.clear();
-    other.persistent_contexts.clear();
-    other.persistent_buffers.clear();
+    other.persistent_allocations.clear();
     other.buft_policy = {};
     other.n_threads = 0;
 }
@@ -139,13 +166,11 @@ Pi0ComponentRuntime & Pi0ComponentRuntime::operator=(Pi0ComponentRuntime && othe
         backends = std::move(other.backends);
         buft_policy = other.buft_policy;
         n_threads = other.n_threads;
-        persistent_contexts = std::move(other.persistent_contexts);
-        persistent_buffers = std::move(other.persistent_buffers);
+        persistent_allocations = std::move(other.persistent_allocations);
         other.backend_cpu = nullptr;
         other.sched = nullptr;
         other.backends.clear();
-        other.persistent_contexts.clear();
-        other.persistent_buffers.clear();
+        other.persistent_allocations.clear();
         other.buft_policy = {};
         other.n_threads = 0;
     }
@@ -153,18 +178,7 @@ Pi0ComponentRuntime & Pi0ComponentRuntime::operator=(Pi0ComponentRuntime && othe
 }
 
 void Pi0ComponentRuntime::reset() {
-    for (ggml_backend_buffer_t buffer : persistent_buffers) {
-        if (buffer != nullptr) {
-            ggml_backend_buffer_free(buffer);
-        }
-    }
-    persistent_buffers.clear();
-    for (ggml_context * ctx : persistent_contexts) {
-        if (ctx != nullptr) {
-            ggml_free(ctx);
-        }
-    }
-    persistent_contexts.clear();
+    persistent_allocations.clear();
     if (sched != nullptr) {
         ggml_backend_sched_free(sched);
         sched = nullptr;

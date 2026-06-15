@@ -12,14 +12,30 @@
 
 namespace robotcpp::pi0 {
 
+struct Pi0PersistentAllocation {
+    ggml_context * ctx = nullptr;
+    ggml_backend_buffer_t buffer = nullptr;
+
+    Pi0PersistentAllocation() = default;
+    Pi0PersistentAllocation(ggml_context * context, ggml_backend_buffer_t backend_buffer);
+    ~Pi0PersistentAllocation();
+
+    Pi0PersistentAllocation(const Pi0PersistentAllocation &) = delete;
+    Pi0PersistentAllocation & operator=(const Pi0PersistentAllocation &) = delete;
+
+    Pi0PersistentAllocation(Pi0PersistentAllocation && other) noexcept;
+    Pi0PersistentAllocation & operator=(Pi0PersistentAllocation && other) noexcept;
+
+    void reset();
+};
+
 struct Pi0ComponentRuntime {
     ggml_backend_t backend_cpu = nullptr;
     ggml_backend_sched_t sched = nullptr;
     std::vector<ggml_backend_t> backends;
     backend_buft_policy buft_policy;
     int n_threads = 0;
-    mutable std::vector<ggml_context *> persistent_contexts;
-    mutable std::vector<ggml_backend_buffer_t> persistent_buffers;
+    mutable std::vector<Pi0PersistentAllocation> persistent_allocations;
 
     Pi0ComponentRuntime() = default;
     ~Pi0ComponentRuntime();
