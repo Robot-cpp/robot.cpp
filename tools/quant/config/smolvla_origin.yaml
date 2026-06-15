@@ -1,0 +1,243 @@
+version: 1
+model_type: smolvla
+
+# Usage:
+#   GGUF_DIR=/path/to/smolvla/gguf \
+#   QUANT_OUTPUT_DIR=debug/artifacts/quant/smolvla_outputs \
+#   python tools/quant/quantize-vla-gguf.py tools/quant/config/smolvla_plan.yaml --dry-run
+#
+# Users normally only edit group "type" values. Patterns are expanded against
+# the real GGUF tensor directory at runtime, and every tensor must be matched
+# exactly once.
+
+components:
+  llm:
+    input: "${GGUF_DIR}/smolvla-llm-f32.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/smolvla-llm-quant.gguf"
+    groups:
+      token_embeddings:
+        quantizable: false
+        type: f16
+        reason: current runtime host lookup supports only float types
+        patterns:
+          - token_embd.weight
+      norms:
+        quantizable: false
+        type: f32
+        reason: norm tensors stay float
+        patterns:
+          - blk.*.attn_norm.weight
+          - blk.*.ffn_norm.weight
+          - output_norm.weight
+      llm_attention_q:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.attn_q.weight
+      llm_attention_k:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.attn_k.weight
+      llm_attention_v:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.attn_v.weight
+      llm_attention_output:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.attn_output.weight
+      llm_ffn_gate:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.ffn_gate.weight
+      llm_ffn_up:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.ffn_up.weight
+      llm_ffn_down:
+        quantizable: true
+        type: f16
+        patterns:
+          - blk.*.ffn_down.weight
+      output_weight:
+        quantizable: true
+        type: f16
+        patterns:
+          - output.weight
+
+  vision:
+    input: "${GGUF_DIR}/mmproj-smolvla-f32.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/mmproj-smolvla-quant.gguf"
+    groups:
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - "*.bias"
+      patch_embeddings:
+        quantizable: false
+        type: f32
+        reason: patch embeddings are protected in the first quant pass
+        patterns:
+          - v.patch_embd.weight
+      position_embeddings:
+        quantizable: false
+        type: f32
+        reason: positional embeddings stay float
+        patterns:
+          - v.position_embd.weight
+      norms:
+        quantizable: false
+        type: f32
+        reason: vision norm tensors stay float
+        patterns:
+          - v.blk.*.ln1.weight
+          - v.blk.*.ln2.weight
+          - v.post_ln.weight
+      vision_attention_q:
+        quantizable: true
+        type: f16
+        patterns:
+          - v.blk.*.attn_q.weight
+      vision_attention_k:
+        quantizable: true
+        type: f16
+        patterns:
+          - v.blk.*.attn_k.weight
+      vision_attention_v:
+        quantizable: true
+        type: f16
+        patterns:
+          - v.blk.*.attn_v.weight
+      vision_attention_output:
+        quantizable: true
+        type: f16
+        patterns:
+          - v.blk.*.attn_out.weight
+      vision_ffn_up:
+        quantizable: true
+        type: f16
+        patterns:
+          - v.blk.*.ffn_up.weight
+      vision_ffn_down:
+        quantizable: true
+        type: f16
+        patterns:
+          - v.blk.*.ffn_down.weight
+      connector:
+        quantizable: true
+        type: f16
+        patterns:
+          - mm.*.weight
+
+  state_proj:
+    input: "${GGUF_DIR}/state-proj-smolvla-f32.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/state-proj-smolvla-quant.gguf"
+    groups:
+      norm_stats:
+        quantizable: false
+        type: f32
+        reason: runtime reads normalizer stats as f32
+        patterns:
+          - smolvla.norm.*
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - "*.bias"
+      state_proj_projection:
+        quantizable: true
+        type: f32
+        reason: default f32 because state_proj is accuracy sensitive
+        patterns:
+          - smolvla.state_proj.weight
+
+  action_expert:
+    input: "${GGUF_DIR}/action-expert-smolvla-f32.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/action-expert-smolvla-quant.gguf"
+    groups:
+      unnorm_stats:
+        quantizable: false
+        type: f32
+        reason: runtime reads unnormalizer stats as f32
+        patterns:
+          - smolvla.unnorm.*
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - "*.bias"
+      norms:
+        quantizable: false
+        type: f32
+        reason: norm tensors stay float
+        patterns:
+          - smolvla.expert.blk.*.attn_norm.weight
+          - smolvla.expert.blk.*.ffn_norm.weight
+      final_norm:
+        quantizable: false
+        type: f32
+        reason: final norm tensor stays float
+        patterns:
+          - smolvla.lm_expert.norm.weight
+      action_input_proj:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.action_in_proj.weight
+      action_output_proj:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.action_out_proj.weight
+      time_mlp:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.time_mlp.*.weight
+      attention_q:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.attn_q.weight
+      attention_k:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.attn_k.weight
+      attention_v:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.attn_v.weight
+      attention_output:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.attn_output.weight
+      ffn_gate:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.ffn_gate.weight
+      ffn_up:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.ffn_up.weight
+      ffn_down:
+        quantizable: true
+        type: f16
+        patterns:
+          - smolvla.expert.blk.*.ffn_down.weight
+
+report:
+  path: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/smolvla_quant_report.json"
