@@ -1,8 +1,5 @@
 #pragma once
 
-#include "core/types.h"
-#include "vlacpp.h"
-
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -12,6 +9,7 @@ namespace robotcpp {
 
 enum class model_type {
     smolvla,
+    pi0,
 };
 
 struct model_image {
@@ -41,7 +39,6 @@ struct model_result {
     std::vector<model_metric> metrics;
 };
 
-
 struct model_args {
     model_type type = model_type::smolvla;
     int threads = 0;
@@ -56,8 +53,13 @@ struct model_args {
     int n_ctx = 2048;
     int noise_mode = 0;
     int64_t noise_seed = -1;
-};
 
+    // pi0
+    std::string vit_path;
+    std::string tokenizer_path;
+    std::string state_path;
+    std::string action_decoder_path;
+};
 
 class Model {
 public:
@@ -76,12 +78,3 @@ bool make_model(
     std::string & error);
 
 } // namespace robotcpp
-
-namespace vlacpp {
-
-vlacpp_status load_model_from_path(
-    const std::string & path,
-    const BackendConfig & backend,
-    std::unique_ptr<RuntimeModel> & out);
-
-} // namespace vlacpp

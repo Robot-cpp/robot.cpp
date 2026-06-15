@@ -31,6 +31,10 @@ bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
         out = robotcpp::model_type::smolvla;
         return true;
     }
+    if (value == "pi0") {
+        out = robotcpp::model_type::pi0;
+        return true;
+    }
     return false;
 }
 
@@ -49,10 +53,12 @@ bool parse_noise_mode(const std::string & value, int & out_mode) {
 void print_usage(const char * prog) {
     std::fprintf(stderr, "\nModel CLI - robotcpp::Model frontend\n\n");
     std::fprintf(stderr, "Usage:\n");
-    std::fprintf(stderr, "  %s --model-type smolvla [options]\n\n", prog);
+    std::fprintf(stderr, "  %s --model-type smolvla [options]\n", prog);
+    std::fprintf(stderr, "  %s --model-type pi0 [options]\n\n", prog);
     std::fprintf(stderr, "Common options:\n");
     std::fprintf(stderr, "  --model-type <type>      Model type (default: smolvla)\n");
-    std::fprintf(stderr, "  --image <path>           Input image (JPEG/PNG)\n");
+    std::fprintf(stderr, "  --image <path>           Input image (repeatable; order matches --image-name)\n");
+    std::fprintf(stderr, "  --image-name <name>      Observation image name (repeatable; default: image for single-image input)\n");
     std::fprintf(stderr, "  --state <csv>            Proprio/state values (comma-separated)\n");
     std::fprintf(stderr, "  --task <str>             Task instruction (default: \"grab the block.\")\n");
     std::fprintf(stderr, "  --threads <n>            Number of threads (default: auto)\n");
@@ -67,6 +73,13 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "  --n-ctx <n>              LLM context size (default: 2048)\n");
     std::fprintf(stderr, "  --noise-mode <mode>      gaussian|debug-sin (default: gaussian)\n");
     std::fprintf(stderr, "  --noise-seed <n>         Noise RNG seed, <0 means auto (default: -1)\n");
+    std::fprintf(stderr, "\nPi0 options:\n");
+    std::fprintf(stderr, "  --vit <path>             ViT GGUF path\n");
+    std::fprintf(stderr, "  --mmproj <path>          Merger GGUF path\n");
+    std::fprintf(stderr, "  --llm <path>             LLM GGUF path\n");
+    std::fprintf(stderr, "  --tokenizer <path>       Tokenizer GGUF path\n");
+    std::fprintf(stderr, "  --state-gguf <path>      State projector GGUF path\n");
+    std::fprintf(stderr, "  --action-decoder <path>  Action decoder GGUF path\n");
 }
 
 bool parse_state(const char * csv, std::vector<float> & out) {
@@ -110,9 +123,10 @@ bool load_rgb_image(const std::string & path, loaded_image & out) {
 
 int main(int argc, char ** argv) {
     robotcpp::model_args args;
-    std::string image_path;
+    std::vector<std::string> image_paths;
+    std::vector<std::string> image_names;
     std::string state_csv;
-    std::string task = "grab the block.";
+    std::string task;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -131,12 +145,22 @@ int main(int argc, char ** argv) {
             args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
+        } else if (arg == "--vit" && i + 1 < argc) {
+            args.vit_path = argv[++i];
+        } else if (arg == "--tokenizer" && i + 1 < argc) {
+            args.tokenizer_path = argv[++i];
+        } else if (arg == "--state-gguf" && i + 1 < argc) {
+            args.state_path = argv[++i];
+        } else if (arg == "--action-decoder" && i + 1 < argc) {
+            args.action_decoder_path = argv[++i];
         } else if (arg == "--state-proj" && i + 1 < argc) {
             args.state_proj_path = argv[++i];
         } else if (arg == "--action-expert" && i + 1 < argc) {
             args.action_expert_path = argv[++i];
         } else if (arg == "--image" && i + 1 < argc) {
-            image_path = argv[++i];
+            image_paths.push_back(argv[++i]);
+        } else if (arg == "--image-name" && i + 1 < argc) {
+            image_names.push_back(argv[++i]);
         } else if (arg == "--state" && i + 1 < argc) {
             state_csv = argv[++i];
         } else if (arg == "--task" && i + 1 < argc) {
@@ -161,9 +185,23 @@ int main(int argc, char ** argv) {
         }
     }
 
-    if (image_path.empty()) {
+    if (image_paths.empty()) {
         std::fprintf(stderr, "Error: --image is required\n");
         print_usage(argv[0]);
+        return 1;
+    }
+    if (image_names.empty()) {
+        if (image_paths.size() != 1) {
+            std::fprintf(stderr, "Error: multiple --image inputs require one --image-name per image\n");
+            return 1;
+        }
+        image_names.push_back("image");
+    }
+    if (image_names.size() != image_paths.size()) {
+        std::fprintf(stderr,
+            "Error: --image count (%zu) must match --image-name count (%zu)\n",
+            image_paths.size(),
+            image_names.size());
         return 1;
     }
 
@@ -172,9 +210,12 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    loaded_image image;
-    if (!load_rgb_image(image_path, image)) {
-        return 1;
+    std::vector<loaded_image> images;
+    images.resize(image_paths.size());
+    for (size_t i = 0; i < image_paths.size(); ++i) {
+        if (!load_rgb_image(image_paths[i], images[i])) {
+            return 1;
+        }
     }
 
     const auto init_start = std::chrono::high_resolution_clock::now();
@@ -189,14 +230,18 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "[model-cli] Model initialization: %.2f seconds\n", init_time.count());
 
     robotcpp::observation obs;
-    robotcpp::model_image model_image;
-    model_image.name = "image";
-    model_image.data = image.data.data();
-    model_image.width = image.width;
-    model_image.height = image.height;
-    model_image.channels = image.channels;
-    model_image.stride_bytes = image.stride_bytes;
-    obs.images.push_back(model_image);
+    obs.images.reserve(image_names.size());
+    for (size_t i = 0; i < image_names.size(); ++i) {
+        const loaded_image & image = images[i];
+        robotcpp::model_image model_image;
+        model_image.name = image_names[i];
+        model_image.data = image.data.data();
+        model_image.width = image.width;
+        model_image.height = image.height;
+        model_image.channels = image.channels;
+        model_image.stride_bytes = image.stride_bytes;
+        obs.images.push_back(model_image);
+    }
     obs.state = state_vec;
     obs.task = task;
 

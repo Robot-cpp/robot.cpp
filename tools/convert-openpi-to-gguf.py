@@ -1,68 +1,207 @@
 #!/usr/bin/env python3
-"""Convert OpenPI-style checkpoints and tensor-map manifests into vlacpp GGUF.
-
-The production pi0 tensor map is still intentionally narrow, but this writes a
-real GGUF v3 container with metadata and F32 tensors consumed by the C++ runtime.
-"""
+"""Convert a pi0 checkpoint directory or safetensors file into split pi0 GGUF."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import re
-import struct
-import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from gguf_writer import write_gguf, write_gguf_arrays
 
-
 ACTION_HEAD_TENSORS = {
-    "vlacpp.openpi.action_in_proj.weight",
-    "vlacpp.openpi.action_in_proj.bias",
-    "vlacpp.openpi.action_time_mlp_in.weight",
-    "vlacpp.openpi.action_time_mlp_in.bias",
-    "vlacpp.openpi.action_time_mlp_out.weight",
-    "vlacpp.openpi.action_time_mlp_out.bias",
-    "vlacpp.openpi.action_out_proj.weight",
-    "vlacpp.openpi.action_out_proj.bias",
+    "pi0.action_decoder.action_in_proj.weight",
+    "pi0.action_decoder.action_in_proj.bias",
+    "pi0.action_decoder.action_time_mlp_in.weight",
+    "pi0.action_decoder.action_time_mlp_in.bias",
+    "pi0.action_decoder.action_time_mlp_out.weight",
+    "pi0.action_decoder.action_time_mlp_out.bias",
+    "pi0.action_decoder.action_out_proj.weight",
+    "pi0.action_decoder.action_out_proj.bias",
+}
+ACTION_HEAD_SOURCE_NAMES = {
+    "state_proj.weight",
+    "state_proj.bias",
+    "action_in_proj.weight",
+    "action_in_proj.bias",
+    "action_time_mlp_in.weight",
+    "action_time_mlp_in.bias",
+    "action_time_mlp_out.weight",
+    "action_time_mlp_out.bias",
+    "action_out_proj.weight",
+    "action_out_proj.bias",
 }
 
-def resolve_checkpoint(checkpoint: str | None) -> Path | None:
-    if checkpoint is None:
+PI0_LLM_PREFIX = "pi0.llm."
+PI0_MERGER_PREFIX = "pi0.merger."
+PI0_ACTION_DECODER_PREFIX = "pi0.action_decoder."
+PI0_STATE_PREFIX = "pi0.action_decoder.state_proj."
+PI0_VIT_PREFIX = "pi0.vit."
+PI0_WEIGHT_COMPONENTS = ("vit", "mmproj", "llm", "state", "action_decoder")
+DTYPE_CHOICES = ("preserve", "fp32", "f16", "bf16")
+LEROBOT_ACTION_EXPERT_PREFIX = "paligemma_with_expert.gemma_expert.model."
+LEROBOT_LLM_PREFIX = "paligemma_with_expert.paligemma.model.language_model."
+LEROBOT_LM_HEAD_PREFIX = "paligemma_with_expert.paligemma.lm_head."
+LEROBOT_VISION_PREFIX = "paligemma_with_expert.paligemma.model.vision_tower.vision_model."
+LEROBOT_PROJECTOR_PREFIX = "paligemma_with_expert.paligemma.model.multi_modal_projector.linear."
+LEROBOT_REPO_FILES = (
+    ".gitattributes",
+    "README.md",
+    "config.json",
+    "model.safetensors",
+    "policy_postprocessor.json",
+    "policy_postprocessor_step_0_unnormalizer_processor.safetensors",
+    "policy_preprocessor.json",
+    "policy_preprocessor_step_5_normalizer_processor.safetensors",
+    "train_config.json",
+)
+
+
+def canonical_dtype(value: str | None, *, allow_preserve: bool) -> str:
+    if value is None:
+        return "preserve" if allow_preserve else "fp32"
+    dtype = str(value)
+    if allow_preserve and dtype == "preserve":
+        return "preserve"
+    if dtype == "fp32":
+        return "fp32"
+    if dtype == "f16":
+        return "f16"
+    if dtype == "bf16":
+        return "bf16"
+    raise argparse.ArgumentTypeError(f"unsupported dtype: {value}")
+
+
+def parse_dtype_arg(value: str) -> str:
+    return canonical_dtype(value, allow_preserve=True)
+
+
+def torch_tensor_dtype_name(dtype: Any) -> str:
+    name = str(dtype).lower()
+    if name in {"torch.float32", "float32", "float"}:
+        return "fp32"
+    if name in {"torch.float16", "float16", "half"}:
+        return "f16"
+    if name in {"torch.bfloat16", "bfloat16"}:
+        return "bf16"
+    raise SystemExit(f"unsupported safetensors tensor dtype: {dtype}")
+
+
+def concrete_tensor_dtype(component_dtypes: dict[str, str], component: str | None, source_dtype: str) -> str:
+    if component is None:
+        return canonical_dtype(source_dtype, allow_preserve=False)
+    policy = component_dtypes.get(component, "preserve")
+    if policy == "preserve":
+        return canonical_dtype(source_dtype, allow_preserve=False)
+    return canonical_dtype(policy, allow_preserve=False)
+
+
+def strip_model_prefix(name: str) -> str:
+    return name[len("model.") :] if name.startswith("model.") else name
+
+
+def pi0_runtime_tensor_name(name: str) -> str:
+    stripped = strip_model_prefix(name)
+    if (
+        stripped.startswith(PI0_ACTION_DECODER_PREFIX)
+        or stripped.startswith(PI0_LLM_PREFIX)
+        or stripped.startswith(PI0_MERGER_PREFIX)
+        or stripped.startswith(PI0_VIT_PREFIX)
+    ):
+        return stripped
+    if stripped in ACTION_HEAD_SOURCE_NAMES:
+        return PI0_ACTION_DECODER_PREFIX + stripped
+    if stripped.startswith(LEROBOT_ACTION_EXPERT_PREFIX):
+        return PI0_ACTION_DECODER_PREFIX + stripped[len(LEROBOT_ACTION_EXPERT_PREFIX) :]
+    if stripped.startswith(LEROBOT_PROJECTOR_PREFIX):
+        return PI0_MERGER_PREFIX + stripped[len(LEROBOT_PROJECTOR_PREFIX) :]
+    if stripped.startswith(LEROBOT_VISION_PREFIX):
+        return PI0_VIT_PREFIX + stripped[len(LEROBOT_VISION_PREFIX) :]
+    if stripped.startswith(LEROBOT_LLM_PREFIX):
+        return PI0_LLM_PREFIX + stripped[len(LEROBOT_LLM_PREFIX) :]
+    if stripped.startswith(LEROBOT_LM_HEAD_PREFIX):
+        return PI0_LLM_PREFIX + "lm_head." + stripped[len(LEROBOT_LM_HEAD_PREFIX) :]
+    return stripped
+
+
+def is_pi0_rms_norm_weight(name: str) -> bool:
+    stripped = pi0_runtime_tensor_name(name)
+    if stripped.startswith(PI0_VIT_PREFIX):
+        return False
+    return stripped.endswith(".norm.weight") or stripped.endswith("layernorm.weight")
+
+
+def pi0_rms_norm_scale_name(name: str) -> str:
+    if not name.endswith(".weight"):
+        raise SystemExit(f"norm tensor {name} does not end with .weight")
+    return name[:-len(".weight")] + ".scale"
+
+
+def rms_norm_scale_data(data: Any) -> list[float]:
+    return [1.0 + float(value) for value in data]
+
+
+def parse_lerobot_repo(spec: str) -> str | None:
+    if spec.startswith("http://") or spec.startswith("https://"):
+        parsed = urlparse(spec)
+        parts = [part for part in parsed.path.split("/") if part]
+        if "models" in parts:
+            idx = parts.index("models")
+            if len(parts) >= idx + 3:
+                return "/".join(parts[idx + 1 : idx + 3])
         return None
-    if checkpoint.startswith("hf://"):
-        try:
-            from huggingface_hub import hf_hub_download
-        except ImportError as exc:
-            raise SystemExit("hf:// checkpoints require huggingface_hub") from exc
-        repo_and_file = checkpoint[len("hf://") :]
-        parts = repo_and_file.split("/", 2)
-        if len(parts) != 3:
-            raise SystemExit("hf:// checkpoints must look like hf://owner/repo/path/to/checkpoint.json")
-        return Path(hf_hub_download(repo_id=f"{parts[0]}/{parts[1]}", filename=parts[2]))
-    return Path(checkpoint)
+    if spec.startswith("lerobot/") and len(spec.split("/")) == 2:
+        return spec
+    return None
 
 
-def resolve_repo_file_url(spec: str) -> str:
-    if spec.startswith("hf://"):
-        base = "https://huggingface.co"
-        ref = "main"
-        repo_and_file = spec[len("hf://") :]
-    elif spec.startswith("ms://"):
-        base = "https://modelscope.cn/models"
-        ref = "master"
-        repo_and_file = spec[len("ms://") :]
-    else:
-        raise SystemExit("remote repo paths must start with hf:// or ms://")
-    parts = repo_and_file.split("/", 2)
-    if len(parts) != 3:
-        raise SystemExit("remote repo paths must look like hf://owner/repo/path or ms://owner/repo/path")
-    owner, repo, filename = parts
-    return f"{base}/{owner}/{repo}/resolve/{ref}/{quote(filename)}"
+def download_lerobot_repo(repo_id: str, root: Path) -> Path:
+    out_dir = root / repo_id.replace("/", "-") / "lerobot"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    base = f"https://modelscope.cn/models/{repo_id}/resolve/master"
+    for name in LEROBOT_REPO_FILES:
+        dest = out_dir / name
+        if dest.exists() and dest.stat().st_size > 0:
+            continue
+        req = Request(f"{base}/{name}", headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(req, timeout=300) as response:
+            dest.write_bytes(response.read())
+    return out_dir.parent
+
+
+def download_modelscope_file(repo_id: str, filename: str, target: Path) -> Path | None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    req = Request(
+        f"https://modelscope.cn/models/{repo_id}/resolve/master/{filename}",
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+    try:
+        with urlopen(req, timeout=300) as response:
+            target.write_bytes(response.read())
+    except Exception:
+        return None
+    return target
+
+
+def resolve_input(input_path: str) -> Path:
+    repo_id = parse_lerobot_repo(input_path)
+    if repo_id is not None:
+        return download_lerobot_repo(repo_id, Path("ckpts"))
+    return Path(input_path)
+
+
+def resolve_pi0_dir(input_path: Path) -> tuple[Path, Path | None]:
+    if input_path.is_file():
+        return input_path, None
+    checkpoint = input_path / "lerobot" / "model.safetensors"
+    config = input_path / "lerobot" / "config.json"
+    if not checkpoint.exists():
+        raise SystemExit(f"pi0 input directory must contain {checkpoint.relative_to(input_path)}")
+    return checkpoint, config if config.exists() else None
 
 
 def load_json(path: Path | None) -> dict[str, Any]:
@@ -74,13 +213,33 @@ def load_json(path: Path | None) -> dict[str, Any]:
 def load_json_arg(spec: str | None) -> dict[str, Any]:
     if spec is None:
         return {}
-    if spec.startswith("hf://") or spec.startswith("ms://"):
-        with urlopen(resolve_repo_file_url(spec), timeout=60) as response:
-            return json.loads(response.read().decode("utf-8"))
-    if spec.startswith("https://") or spec.startswith("http://"):
-        with urlopen(spec, timeout=60) as response:
-            return json.loads(response.read().decode("utf-8"))
     return load_json(Path(spec))
+
+
+def normalize_pi0_config(config: dict[str, Any]) -> dict[str, Any]:
+    result = dict(config)
+    if "type" in result and "model_type" not in result:
+        result["model_type"] = result["type"]
+    if "max_state_dim" in result:
+        result["state_dim"] = result["max_state_dim"]
+    if "max_action_dim" in result:
+        result["action_dim"] = result["max_action_dim"]
+    if "chunk_size" in result:
+        result["action_horizon"] = result["chunk_size"]
+    if "image_resolution" in result and len(result["image_resolution"]) == 2:
+        result["image_height"], result["image_width"] = result["image_resolution"]
+    if "tokenizer_max_length" in result:
+        result["max_token_len"] = result["tokenizer_max_length"]
+    if result.get("paligemma_variant") == "gemma_2b":
+        result.setdefault("pi0_vision_heads", 16)
+        result.setdefault("pi0_vision_norm_epsilon", 1e-6)
+    image_keys = []
+    for name, feature in result.get("input_features", {}).items():
+        if feature.get("type") == "VISUAL" and "empty_camera" not in name:
+            image_keys.append(name)
+    if image_keys:
+        result["image_keys"] = image_keys
+    return result
 
 
 def fit_stats_vector(values: Any, width: int, fill: float, name: str) -> list[float]:
@@ -115,11 +274,57 @@ def load_safetensors_norm_stats(path: Path) -> dict[str, Any]:
         }
 
 
+def processor_state_file(lerobot_dir: Path, policy_json_name: str, registry_name: str) -> Path | None:
+    policy_path = lerobot_dir / policy_json_name
+    if not policy_path.exists():
+        return None
+    policy = load_json(policy_path)
+    for step in policy.get("steps", []):
+        if step.get("registry_name") == registry_name and "state_file" in step:
+            return lerobot_dir / step["state_file"]
+    return None
+
+
+def load_lerobot_processor_norm_stats(input_path: Path) -> dict[str, Any]:
+    if not input_path.is_dir():
+        return {}
+    lerobot_dir = input_path / "lerobot"
+    preprocessor = processor_state_file(
+        lerobot_dir,
+        "policy_preprocessor.json",
+        "normalizer_processor",
+    )
+    postprocessor = processor_state_file(
+        lerobot_dir,
+        "policy_postprocessor.json",
+        "unnormalizer_processor",
+    )
+    if preprocessor is None and postprocessor is None:
+        return {}
+    try:
+        from safetensors import safe_open
+    except ImportError as exc:
+        raise SystemExit("LeRobot processor stats require the safetensors Python package") from exc
+
+    result: dict[str, Any] = {"source": "lerobot-policy-processors"}
+    if preprocessor is not None:
+        with safe_open(preprocessor, framework="np") as handle:
+            result["state"] = {
+                "mean": handle.get_tensor("observation.state.mean").astype("float32").reshape(-1).tolist(),
+                "std": handle.get_tensor("observation.state.std").astype("float32").reshape(-1).tolist(),
+            }
+    if postprocessor is not None:
+        with safe_open(postprocessor, framework="np") as handle:
+            result["actions"] = {
+                "mean": handle.get_tensor("action.mean").astype("float32").reshape(-1).tolist(),
+                "std": handle.get_tensor("action.std").astype("float32").reshape(-1).tolist(),
+            }
+    return result
+
+
 def load_norm_stats_arg(spec: str | None) -> dict[str, Any]:
     if spec is None:
         return {}
-    if spec.startswith("hf://") or spec.startswith("ms://") or spec.startswith("https://") or spec.startswith("http://"):
-        return load_json_arg(spec)
     path = Path(spec)
     if path.suffix.lower() == ".safetensors":
         return load_safetensors_norm_stats(path)
@@ -141,29 +346,6 @@ def apply_norm_stats(metadata: dict[str, Any], norm_stats: dict[str, Any]) -> No
         raise SystemExit("norm stats state mean/std must match state_dim")
     if len(metadata["action_mean"]) != int(metadata["action_dim"]) or len(metadata["action_std"]) != int(metadata["action_dim"]):
         raise SystemExit("norm stats action mean/std must match action_dim")
-
-
-def default_paligemma_tokenizer_path() -> Path | None:
-    candidates = [
-        Path.home() / ".cache" / "openpi" / "big_vision" / "paligemma_tokenizer.model",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def should_auto_embed_tokenizer(args: argparse.Namespace) -> bool:
-    if args.tokenizer_model is not None:
-        return True
-    if args.mtmd_vision_metadata:
-        return False
-    for spec in (args.config, args.checkpoint):
-        if spec is not None and not spec.startswith(("hf://", "ms://", "http://", "https://")):
-            parts = Path(spec).parts
-            if "ckpts" in parts or "checkpoints" in parts:
-                return True
-    return False
 
 
 def load_sentencepiece_tokenizer_metadata(path: Path) -> dict[str, Any]:
@@ -207,7 +389,35 @@ def load_sentencepiece_tokenizer_metadata(path: Path) -> dict[str, Any]:
     return metadata
 
 
-def load_safetensors(path: Path) -> dict[str, Any]:
+def lerobot_tokenizer_name(input_path: Path) -> str | None:
+    if not input_path.is_dir():
+        return None
+    policy = load_json(input_path / "lerobot" / "policy_preprocessor.json")
+    for step in policy.get("steps", []):
+        if step.get("registry_name") == "tokenizer_processor":
+            name = step.get("config", {}).get("tokenizer_name")
+            return str(name) if name else None
+    return None
+
+
+def resolve_tokenizer_model(input_path: Path, explicit: Path | None) -> Path | None:
+    if explicit is not None:
+        return explicit
+    if not input_path.is_dir():
+        return None
+    local = input_path / "lerobot" / "tokenizer.model"
+    if local.exists():
+        return local
+    tokenizer_name = lerobot_tokenizer_name(input_path)
+    if tokenizer_name is None:
+        return None
+    downloaded = download_modelscope_file(tokenizer_name, "tokenizer.model", local)
+    if downloaded is None:
+        print(f"warning: failed to download tokenizer.model from ModelScope repo {tokenizer_name}; pass --tokenizer-model")
+    return downloaded
+
+
+def load_safetensors_shapes(path: Path) -> dict[str, Any]:
     try:
         from safetensors import safe_open
     except ImportError as exc:
@@ -215,288 +425,123 @@ def load_safetensors(path: Path) -> dict[str, Any]:
 
     tensors: dict[str, dict[str, Any]] = {}
     metadata: dict[str, Any] = {}
+    vision_layers: set[int] = set()
     with safe_open(path, framework="np") as handle:
         raw_metadata = handle.metadata() or {}
-        if "vlacpp.metadata" in raw_metadata:
-            metadata = json.loads(raw_metadata["vlacpp.metadata"])
-        allowed = ACTION_HEAD_TENSORS | PI05_ACTION_HEAD_TENSORS
+        if "pi0.metadata" in raw_metadata:
+            metadata = json.loads(raw_metadata["pi0.metadata"])
         for name in handle.keys():
-            if name not in allowed:
-                continue
-            array = handle.get_tensor(name)
-            tensors[name] = {
-                "shape": list(array.shape),
-                "data": array.astype("float32").reshape(-1).tolist(),
-            }
+            stripped = strip_model_prefix(name)
+            if stripped == LEROBOT_VISION_PREFIX + "embeddings.patch_embedding.weight":
+                shape = handle.get_slice(name).get_shape()
+                metadata["pi0_vision_width"] = int(shape[0])
+                metadata["pi0_vision_patch_height"] = int(shape[2])
+                metadata["pi0_vision_patch_width"] = int(shape[3])
+            match = re.search(r"vision_model\.encoder\.layers\.(\d+)\.", stripped)
+            if match:
+                vision_layers.add(int(match.group(1)))
+            target = pi0_runtime_tensor_name(name)
+            if is_pi0_runtime_tensor(target):
+                tensors[target] = {"shape": list(handle.get_slice(name).get_shape()), "data": []}
+    if vision_layers:
+        if vision_layers != set(range(len(vision_layers))):
+            raise SystemExit("pi0 vision layer indices are not contiguous")
+        metadata["pi0_vision_layers"] = len(vision_layers)
     return {"metadata": metadata, "tensors": tensors}
 
 
-def read_remote_range(url: str, begin: int, end: int) -> bytes:
-    request = Request(url, headers={"Range": f"bytes={begin}-{end}"})
-    for attempt in range(3):
-        try:
-            with urlopen(request, timeout=60) as response:
-                return response.read()
-        except Exception:
-            if attempt == 2:
-                raise
-            time.sleep(0.5 * (attempt + 1))
-    raise RuntimeError("unreachable")
+def is_pi0_runtime_tensor(name: str) -> bool:
+    return (
+        name.startswith(PI0_ACTION_DECODER_PREFIX)
+        or name.startswith(PI0_LLM_PREFIX)
+        or name.startswith(PI0_MERGER_PREFIX)
+        or name.startswith(PI0_VIT_PREFIX)
+    )
 
 
-def read_local_range(path: Path, begin: int, end: int) -> bytes:
-    with path.open("rb") as handle:
-        handle.seek(begin)
-        return handle.read(end - begin + 1)
+def pi0_component_for_tensor(name: str) -> str | None:
+    if name.startswith(PI0_STATE_PREFIX):
+        return "state"
+    if name.startswith(PI0_VIT_PREFIX):
+        return "vit"
+    if name.startswith(PI0_MERGER_PREFIX):
+        return "mmproj"
+    if name.startswith(PI0_LLM_PREFIX):
+        return "llm"
+    if name.startswith(PI0_ACTION_DECODER_PREFIX):
+        return "action_decoder"
+    return None
 
 
-def dtype_nbytes(dtype: str) -> int:
-    if dtype == "F32":
-        return 4
-    if dtype in ("F16", "BF16"):
-        return 2
-    raise SystemExit(f"unsupported mapped tensor dtype {dtype}; expected F32, F16, or BF16")
+def component_tensor_filter(component: str, tensors: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {name: tensor for name, tensor in tensors.items() if pi0_component_for_tensor(name) == component}
 
 
-def element_count(shape: list[int]) -> int:
-    count = 1
-    for dim in shape:
-        count *= int(dim)
-    return count
+def iter_component_safetensors_arrays(path: Path, component: str, component_dtypes: dict[str, str]):
+    for name, shape, array, dtype in iter_safetensors_arrays(path, component_dtypes):
+        if pi0_component_for_tensor(name) == component:
+            yield name, shape, array, dtype
 
 
-def validate_tensor_payload(name: str, dtype: str, shape: list[int], raw: bytes) -> None:
-    expected = element_count(shape) * dtype_nbytes(dtype)
-    if len(raw) != expected:
-        raise SystemExit(f"truncated tensor payload for {name}: expected {expected} bytes, got {len(raw)}")
-
-
-def bfloat16_to_float32(raw: bytes) -> list[float]:
-    values = []
-    for (bits,) in struct.iter_unpack("<H", raw):
-        values.append(struct.unpack("<f", struct.pack("<I", bits << 16))[0])
-    return values
-
-
-def tensor_payload_to_float32(dtype: str, raw: bytes) -> list[float]:
-    if dtype == "F32":
-        if len(raw) % 4 != 0:
-            raise SystemExit("F32 tensor payload byte count is not divisible by 4")
-        return list(struct.unpack("<" + "f" * (len(raw) // 4), raw))
-    if dtype == "F16":
-        if len(raw) % 2 != 0:
-            raise SystemExit("F16 tensor payload byte count is not divisible by 2")
-        try:
-            import numpy as np
-        except ImportError as exc:
-            raise SystemExit("F16 safetensors conversion requires numpy") from exc
-        return np.frombuffer(raw, dtype="<f2").astype("float32").tolist()
-    if dtype == "BF16":
-        if len(raw) % 2 != 0:
-            raise SystemExit("BF16 tensor payload byte count is not divisible by 2")
-        return bfloat16_to_float32(raw)
-    dtype_nbytes(dtype)
-    raise RuntimeError("unreachable")
-
-
-def tensor_payload_to_float32_array(dtype: str, raw: bytes):
+def iter_safetensors_arrays(path: Path, component_dtypes: dict[str, str]):
     try:
         import numpy as np
+        import torch
+        from safetensors import safe_open
     except ImportError as exc:
-        raise SystemExit("mapped safetensors conversion requires numpy") from exc
-    if dtype == "F32":
-        if len(raw) % 4 != 0:
-            raise SystemExit("F32 tensor payload byte count is not divisible by 4")
-        return np.frombuffer(raw, dtype="<f4")
-    if dtype == "F16":
-        if len(raw) % 2 != 0:
-            raise SystemExit("F16 tensor payload byte count is not divisible by 2")
-        return np.frombuffer(raw, dtype="<f2").astype("float32")
-    if dtype == "BF16":
-        if len(raw) % 2 != 0:
-            raise SystemExit("BF16 tensor payload byte count is not divisible by 2")
-        bits = np.frombuffer(raw, dtype="<u2").astype(np.uint32) << 16
-        return bits.view("<f4")
-    dtype_nbytes(dtype)
-    raise RuntimeError("unreachable")
+        raise SystemExit("safetensors checkpoints require safetensors, numpy, and torch") from exc
 
-
-def load_remote_safetensors(spec: str) -> dict[str, Any]:
-    url = resolve_repo_file_url(spec) if spec.startswith("hf://") or spec.startswith("ms://") else spec
-    header_len = struct.unpack("<Q", read_remote_range(url, 0, 7))[0]
-    header = json.loads(read_remote_range(url, 8, 8 + header_len - 1).decode("utf-8"))
-    raw_metadata = header.get("__metadata__", {})
-    metadata = json.loads(raw_metadata.get("vlacpp.metadata", "{}"))
-    names = set(header)
-    if ACTION_HEAD_TENSORS.issubset(names):
-        required = ACTION_HEAD_TENSORS
-    elif PI05_ACTION_HEAD_TENSORS.issubset(names):
-        required = PI05_ACTION_HEAD_TENSORS
-    else:
-        required = ACTION_HEAD_TENSORS
-    missing = sorted(required - names)
-    if missing:
-        available = sorted(name for name in header if name != "__metadata__")
-        preview = ", ".join(available[:20])
-        raise SystemExit(
-            "remote safetensors checkpoint missing required tensor(s): "
-            f"{', '.join(missing)}. First available tensors: {preview}"
-        )
-
-    tensors: dict[str, dict[str, Any]] = {}
-    data_begin = 8 + header_len
-    for name in sorted(required):
-        meta = header[name]
-        if meta["dtype"] != "F32":
-            raise SystemExit(f"remote tensor {name} has unsupported dtype {meta['dtype']}; expected F32")
-        begin, end = meta["data_offsets"]
-        raw = read_remote_range(url, data_begin + begin, data_begin + end - 1)
-        validate_tensor_payload(name, meta["dtype"], meta["shape"], raw)
-        count = len(raw) // 4
-        tensors[name] = {
-            "shape": meta["shape"],
-            "data": list(struct.unpack("<" + "f" * count, raw)),
-        }
-    return {"metadata": metadata, "tensors": tensors}
-
-
-def resolve_manifest_source(manifest_path: Path, source: str) -> Path:
-    path = Path(source)
-    if path.is_absolute() or path.exists():
-        return path
-    return manifest_path.parent / path
-
-
-def load_tensor_map_manifest(manifest_path: Path) -> dict[str, Any]:
-    manifest = load_json(manifest_path)
-    source = manifest["source"]
-    if (
-        source.startswith("hf://") or
-        source.startswith("ms://") or
-        source.startswith("https://") or
-        source.startswith("http://")
-    ):
-        url = resolve_repo_file_url(source) if source.startswith("hf://") or source.startswith("ms://") else source
-        read_range = lambda begin, end: read_remote_range(url, begin, end)
-    else:
-        source_path = resolve_manifest_source(manifest_path, source)
-        read_range = lambda begin, end: read_local_range(source_path, begin, end)
-    header_len = struct.unpack("<Q", read_range(0, 7))[0]
-    data_begin = 8 + header_len
-    tensors: dict[str, dict[str, Any]] = {}
-    for tensor in manifest["tensors"]:
-        begin, end = tensor["data_offsets"]
-        raw = read_range(data_begin + begin, data_begin + end - 1)
-        validate_tensor_payload(tensor["target"], tensor["dtype"], tensor["shape"], raw)
-        tensors[tensor["target"]] = {
-            "shape": tensor["shape"],
-            "data": tensor_payload_to_float32(tensor["dtype"], raw),
-        }
-    return {"metadata": manifest.get("metadata", {}), "tensors": tensors}
-
-
-def load_tensor_map_manifest_shapes(manifest_path: Path) -> dict[str, Any]:
-    manifest = load_json(manifest_path)
-    tensors: dict[str, dict[str, Any]] = {}
-    for tensor in manifest["tensors"]:
-        tensors[tensor["target"]] = {
-            "shape": tensor["shape"],
-            "data": [],
-        }
-    return {"metadata": manifest.get("metadata", {}), "tensors": tensors}
-
-
-def manifest_range_reader(manifest_path: Path, source: str):
-    if (
-        source.startswith("hf://") or
-        source.startswith("ms://") or
-        source.startswith("https://") or
-        source.startswith("http://")
-    ):
-        url = resolve_repo_file_url(source) if source.startswith("hf://") or source.startswith("ms://") else source
-        return lambda begin, end: read_remote_range(url, begin, end)
-    source_path = resolve_manifest_source(manifest_path, source)
-    return lambda begin, end: read_local_range(source_path, begin, end)
-
-
-def iter_tensor_map_manifest_arrays(manifest_path: Path):
-    manifest = load_json(manifest_path)
-    read_range = manifest_range_reader(manifest_path, manifest["source"])
-    header_len = struct.unpack("<Q", read_range(0, 7))[0]
-    data_begin = 8 + header_len
     targets = set()
-    vision_width = None
-    is_mtmd_vision = manifest.get("family") == "pi0-vision-mtmd"
-    for tensor in manifest["tensors"]:
-        begin, end = tensor["data_offsets"]
-        raw = read_range(data_begin + begin, data_begin + end - 1)
-        validate_tensor_payload(tensor["target"], tensor["dtype"], tensor["shape"], raw)
-        targets.add(tensor["target"])
-        if tensor["target"] == "mm.input_projection.weight":
-            vision_width = int(tensor["shape"][1])
-        array = tensor_payload_to_float32_array(tensor["dtype"], raw)
-        shape = [int(v) for v in tensor["shape"]]
-        if is_mtmd_vision and tensor["target"] == "mm.input_projection.weight":
-            import numpy as np
-
-            array = np.asarray(array, dtype=np.float32).reshape(shape).T.reshape(-1)
-            shape = [shape[1], shape[0]]
-        yield tensor["target"], shape, array
-    if "mm.input_projection.bias" in targets and "mm.soft_emb_norm.weight" not in targets:
-        import numpy as np
-
-        if vision_width is None:
-            raise SystemExit("mtmd OpenPI sidecar requires mm.input_projection.weight")
-        yield "mm.soft_emb_norm.weight", [vision_width], np.ones((vision_width,), dtype=np.float32)
+    deferred_norm_scales = []
+    with safe_open(path, framework="pt") as handle:
+        for source_name in handle.keys():
+            target = pi0_runtime_tensor_name(source_name)
+            if not is_pi0_runtime_tensor(target):
+                continue
+            source_tensor = handle.get_tensor(source_name).detach().cpu()
+            dtype = concrete_tensor_dtype(
+                component_dtypes,
+                pi0_component_for_tensor(target),
+                torch_tensor_dtype_name(source_tensor.dtype),
+            )
+            array = source_tensor.to(dtype=torch.float32).numpy()
+            shape = [int(v) for v in array.shape]
+            if is_pi0_rms_norm_weight(target):
+                deferred_norm_scales.append((pi0_rms_norm_scale_name(target), shape, array.reshape(-1), dtype))
+                continue
+            targets.add(target)
+            yield target, shape, array.reshape(-1), dtype
+    for name, shape, array, dtype in deferred_norm_scales:
+        if name not in targets:
+            yield name, shape, np.asarray(array, dtype=np.float32) + 1.0, dtype
 
 
 def load_checkpoint(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
     suffix = path.suffix.lower()
-    if suffix == ".json":
-        return load_json(path)
     if suffix == ".safetensors":
-        return load_safetensors(path)
-    raise SystemExit(f"unsupported checkpoint format for {path}; expected .json or .safetensors")
-
-
-def load_checkpoint_arg(checkpoint: str | None) -> dict[str, Any]:
-    if checkpoint is None:
-        return {}
-    if (
-        checkpoint.startswith("hf://") or
-        checkpoint.startswith("ms://") or
-        checkpoint.startswith("https://") or
-        checkpoint.startswith("http://")
-    ) and (
-        checkpoint.endswith(".safetensors")
-    ):
-        return load_remote_safetensors(checkpoint)
-    return load_checkpoint(resolve_checkpoint(checkpoint))
+        return load_safetensors_shapes(path)
+    raise SystemExit(f"unsupported checkpoint format for {path}; expected .safetensors")
 
 
 def infer_metadata_from_tensors(tensors: dict[str, dict[str, Any]]) -> dict[str, Any]:
     inferred: dict[str, Any] = {}
-    action_in = tensors.get("vlacpp.openpi.action_in_proj.weight")
+    action_in = tensors.get("pi0.action_decoder.action_in_proj.weight")
     if action_in is not None and len(action_in["shape"]) == 2:
         inferred["action_dim"] = int(action_in["shape"][1])
-    action_out = tensors.get("vlacpp.openpi.action_out_proj.weight")
+    action_out = tensors.get("pi0.action_decoder.action_out_proj.weight")
     if action_out is not None and len(action_out["shape"]) == 2:
         inferred["action_dim"] = int(action_out["shape"][0])
-    state_proj = tensors.get("vlacpp.openpi.state_proj.weight")
+    state_proj = tensors.get("pi0.action_decoder.state_proj.weight")
     if state_proj is not None and len(state_proj["shape"]) == 2:
         inferred["state_dim"] = int(state_proj["shape"][1])
     return inferred
 
 
-def strip_model_prefix(name: str) -> str:
-    return name[len("model.") :] if name.startswith("model.") else name
-
-
 def find_shape(tensors: dict[str, dict[str, Any]], suffix: str) -> list[int] | None:
     for name, tensor in tensors.items():
-        if strip_model_prefix(name) == suffix:
+        if pi0_runtime_tensor_name(name) == suffix:
             return [int(v) for v in tensor["shape"]]
     return None
 
@@ -505,7 +550,7 @@ def layer_count(tensors: dict[str, dict[str, Any]], pattern: str) -> int | None:
     regex = re.compile(pattern)
     indices = set()
     for name in tensors:
-        match = regex.match(strip_model_prefix(name))
+        match = regex.match(pi0_runtime_tensor_name(name))
         if match:
             indices.add(int(match.group(1)))
     if not indices:
@@ -513,73 +558,61 @@ def layer_count(tensors: dict[str, dict[str, Any]], pattern: str) -> int | None:
     return len(indices)
 
 
-def infer_openpi_graph_metadata(tensors: dict[str, dict[str, Any]]) -> dict[str, int]:
+def infer_pi0_graph_metadata(tensors: dict[str, dict[str, Any]]) -> dict[str, int]:
     inferred: dict[str, int] = {}
-    action_in = find_shape(tensors, "vlacpp.openpi.action_in_proj.weight") or find_shape(tensors, "action_in_proj.weight")
-    vision_projector = find_shape(tensors, "vlacpp.openpi.vision_projector.weight")
-    patch = find_shape(
-        tensors,
-        "paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.weight",
-    )
+    action_in = find_shape(tensors, "pi0.action_decoder.action_in_proj.weight")
+    merger = find_shape(tensors, "pi0.merger.weight")
     language_q = find_shape(
         tensors,
-        "paligemma_with_expert.paligemma.model.language_model.layers.0.self_attn.q_proj.weight",
+        "pi0.llm.layers.0.self_attn.q_proj.weight",
     )
     language_k = find_shape(
         tensors,
-        "paligemma_with_expert.paligemma.model.language_model.layers.0.self_attn.k_proj.weight",
+        "pi0.llm.layers.0.self_attn.k_proj.weight",
     )
     language_down = find_shape(
         tensors,
-        "paligemma_with_expert.paligemma.model.language_model.layers.0.mlp.down_proj.weight",
+        "pi0.llm.layers.0.mlp.down_proj.weight",
     )
     expert_q = find_shape(
         tensors,
-        "paligemma_with_expert.gemma_expert.model.layers.0.self_attn.q_proj.weight",
+        "pi0.action_decoder.layers.0.self_attn.q_proj.weight",
     )
     expert_k = find_shape(
         tensors,
-        "paligemma_with_expert.gemma_expert.model.layers.0.self_attn.k_proj.weight",
+        "pi0.action_decoder.layers.0.self_attn.k_proj.weight",
     )
     expert_down = find_shape(
         tensors,
-        "paligemma_with_expert.gemma_expert.model.layers.0.mlp.down_proj.weight",
+        "pi0.action_decoder.layers.0.mlp.down_proj.weight",
     )
     if action_in is not None and len(action_in) == 2:
-        inferred["openpi_action_width"] = action_in[0]
-    if patch is not None and len(patch) == 4:
-        inferred["openpi_vision_width"] = patch[0]
-        inferred["openpi_vision_patch_height"] = patch[2]
-        inferred["openpi_vision_patch_width"] = patch[3]
-    if vision_projector is not None and len(vision_projector) == 2:
-        inferred.setdefault("openpi_vision_width", vision_projector[1])
-        inferred.setdefault("openpi_language_width", vision_projector[0])
+        inferred["pi0_action_width"] = action_in[0]
+    if merger is not None and len(merger) == 2:
+        inferred.setdefault("pi0_vision_width", merger[1])
+        inferred.setdefault("pi0_language_width", merger[0])
     if language_q is not None and len(language_q) == 2:
-        inferred["openpi_language_width"] = language_q[1]
-        inferred["openpi_language_q_out"] = language_q[0]
+        inferred["pi0_language_width"] = language_q[1]
+        inferred["pi0_language_q_out"] = language_q[0]
     if language_k is not None and len(language_k) == 2:
-        inferred["openpi_language_kv_out"] = language_k[0]
+        inferred["pi0_language_kv_out"] = language_k[0]
     if language_down is not None and len(language_down) == 2:
-        inferred["openpi_language_mlp_width"] = language_down[1]
+        inferred["pi0_language_mlp_width"] = language_down[1]
     if expert_q is not None and len(expert_q) == 2:
-        inferred["openpi_action_expert_width"] = expert_q[1]
-        inferred["openpi_action_expert_q_out"] = expert_q[0]
+        inferred["pi0_action_expert_width"] = expert_q[1]
+        inferred["pi0_action_expert_q_out"] = expert_q[0]
     if expert_k is not None and len(expert_k) == 2:
-        inferred["openpi_action_expert_kv_out"] = expert_k[0]
+        inferred["pi0_action_expert_kv_out"] = expert_k[0]
     if expert_down is not None and len(expert_down) == 2:
-        inferred["openpi_action_expert_mlp_width"] = expert_down[1]
+        inferred["pi0_action_expert_mlp_width"] = expert_down[1]
     counts = {
-        "openpi_vision_layers": layer_count(
+        "pi0_language_layers": layer_count(
             tensors,
-            r"paligemma_with_expert\.paligemma\.model\.vision_tower\.vision_model\.encoder\.layers\.(\d+)\.",
+            r"pi0\.llm\.layers\.(\d+)\.",
         ),
-        "openpi_language_layers": layer_count(
+        "pi0_action_expert_layers": layer_count(
             tensors,
-            r"paligemma_with_expert\.paligemma\.model\.language_model\.layers\.(\d+)\.",
-        ),
-        "openpi_action_expert_layers": layer_count(
-            tensors,
-            r"paligemma_with_expert\.gemma_expert\.model\.layers\.(\d+)\.",
+            r"pi0\.action_decoder\.layers\.(\d+)\.",
         ),
     }
     for key, value in counts.items():
@@ -588,55 +621,15 @@ def infer_openpi_graph_metadata(tensors: dict[str, dict[str, Any]]) -> dict[str,
     return inferred
 
 
-def infer_mtmd_vision_metadata(args: argparse.Namespace, tensors: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    patch = find_shape(
-        tensors,
-        "paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.weight",
-    ) or find_shape(tensors, "v.patch_embd.weight")
-    projector = find_shape(tensors, "mm.input_projection.weight")
-    ffn = find_shape(tensors, "v.blk.0.ffn_up.weight")
-    if patch is None or len(patch) != 4:
-        raise SystemExit("--mtmd-vision-metadata requires v.patch_embd.weight")
-    if projector is None or len(projector) != 2:
-        raise SystemExit("--mtmd-vision-metadata requires mm.input_projection.weight")
-
-    vision_width = int(patch[0])
-    patch_size = int(patch[2])
-    projection_dim = int(projector[0])
-    return {
-        "general.architecture": "clip",
-        "clip.has_vision_encoder": True,
-        "clip.has_audio_encoder": False,
-        # Upstream llama.cpp does not have an OpenPI projector type. Store the
-        # sidecar as loadable Gemma3 SigLIP and keep only the bias adjustment
-        # in vlacpp.
-        "clip.projector_type": "gemma3",
-        "clip.vision.projector.scale_factor": 1,
-        "clip.use_gelu": True,
-        "clip.vision.image_size": int(args.image_width),
-        "clip.vision.patch_size": patch_size,
-        "clip.vision.embedding_length": vision_width,
-        "clip.vision.feed_forward_length": int(ffn[0]) if ffn is not None and len(ffn) == 2 else 4 * vision_width,
-        "clip.vision.block_count": int(layer_count(tensors, r"v\.blk\.(\d+)\.") or 0),
-        "clip.vision.projection_dim": projection_dim,
-        "clip.vision.attention.head_count": 16 if vision_width == 1152 else 12,
-        "clip.vision.attention.layer_norm_epsilon": 1.0e-6,
-        "clip.vision.image_mean": [0.5, 0.5, 0.5],
-        "clip.vision.image_std": [0.5, 0.5, 0.5],
-        "vlacpp.openpi.mtmd_projector": True,
-        "vlacpp.openpi.mtmd_output_width": projection_dim,
-    }
-
-
 def build_metadata(args: argparse.Namespace, checkpoint: dict[str, Any]) -> dict[str, Any]:
     metadata = checkpoint.get("metadata", {})
     tensors = checkpoint.get("tensors", {})
-    inferred = {**infer_metadata_from_tensors(tensors), **infer_openpi_graph_metadata(tensors)}
+    inferred = {**infer_metadata_from_tensors(tensors), **infer_pi0_graph_metadata(tensors)}
     source = {**checkpoint, **inferred, **metadata}
     state_dim = int(source.get("state_dim", args.state_dim))
     action_dim = int(source.get("action_dim", args.action_dim))
     model_type = source.get("model_type", args.model_type or "pi0")
-    default_action_horizon = 50 if "openpi_action_expert_layers" in inferred else 32
+    default_action_horizon = 50 if "pi0_action_expert_layers" in inferred else 32
     action_horizon = source.get("action_horizon", args.action_horizon)
     if action_horizon is None:
         action_horizon = default_action_horizon
@@ -653,156 +646,219 @@ def build_metadata(args: argparse.Namespace, checkpoint: dict[str, Any]) -> dict
         "state_std": source.get("state_std", [1.0] * state_dim),
         "action_mean": source.get("action_mean", [0.0] * action_dim),
         "action_std": source.get("action_std", [1.0] * action_dim),
-        "source_checkpoint": args.checkpoint or "",
-        "format": "vlacpp-json-metadata-v0",
+        "source_checkpoint": str(args.input_path or ""),
+        "component_dtypes": {
+            "vit": canonical_dtype(args.vit_dtype or args.dtype, allow_preserve=True),
+            "mmproj": canonical_dtype(args.mmproj_dtype or args.dtype, allow_preserve=True),
+            "llm": canonical_dtype(args.llm_dtype or args.dtype, allow_preserve=True),
+            "state": canonical_dtype(args.state_dtype or args.dtype, allow_preserve=True),
+            "action_decoder": canonical_dtype(args.action_decoder_dtype or args.dtype, allow_preserve=True),
+            "tokenizer": "metadata",
+        },
+        "format": "pi0-components-v1",
     }
-    for key in inferred:
-        if key.startswith("openpi_"):
-            result[key] = int(inferred[key])
-    if args.mtmd_vision_metadata:
-        result.update(infer_mtmd_vision_metadata(args, tensors))
+    for key, value in source.items():
+        if key == "pi0_vision_norm_epsilon":
+            result[key] = float(value)
+        elif key.startswith("pi0_"):
+            result[key] = int(value)
     return result
 
 
-def build_tensors(
-    metadata: dict[str, Any],
-    checkpoint: dict[str, Any],
-    tensor_map_manifest: Path | None,
-) -> dict[str, dict[str, Any]]:
-    if tensor_map_manifest is not None:
-        return checkpoint.get("tensors", {})
-
+def build_tensors(checkpoint: dict[str, Any], component_dtypes: dict[str, str]) -> dict[str, dict[str, Any]]:
     tensors = checkpoint.get("tensors")
     if not tensors:
         raise SystemExit("checkpoint does not contain tensors")
     normalized: dict[str, dict[str, Any]] = {}
-    for name, tensor in tensors.items():
+    for source_name, tensor in tensors.items():
+        name = pi0_runtime_tensor_name(source_name)
         shape = [int(v) for v in tensor["shape"]]
         data = [float(v) for v in tensor["data"]]
+        dtype = concrete_tensor_dtype(
+            component_dtypes,
+            pi0_component_for_tensor(name),
+            canonical_dtype(tensor.get("dtype"), allow_preserve=False),
+        )
         n = 1
         for dim in shape:
             n *= dim
         if n != len(data):
             raise SystemExit(f"tensor {name} shape {shape} expects {n} values, got {len(data)}")
-        normalized[name] = {"shape": shape, "data": data}
-    has_action_head = ACTION_HEAD_TENSORS.issubset(normalized)
-    if not has_action_head:
+        if is_pi0_rms_norm_weight(name):
+            scale_name = pi0_rms_norm_scale_name(name)
+            if scale_name not in normalized:
+                normalized[scale_name] = {
+                    "shape": shape,
+                    "data": rms_norm_scale_data(data),
+                    "dtype": dtype,
+                }
+            continue
+        normalized[name] = {"shape": shape, "data": data, "dtype": dtype}
+    if not ACTION_HEAD_TENSORS.issubset(normalized):
         missing_action_head = sorted(ACTION_HEAD_TENSORS - set(normalized))
         raise SystemExit(
-            "checkpoint must contain mapped action-head tensors; "
-            f"missing action-head: {', '.join(missing_action_head)}"
+            "checkpoint must contain mapped action decoder tensors; "
+            f"missing action decoder: {', '.join(missing_action_head)}"
         )
-    action_dim = int(metadata["action_dim"])
-    if has_action_head:
-        in_weight = normalized["vlacpp.openpi.action_in_proj.weight"]["shape"]
-        if len(in_weight) != 2 or in_weight[1] != action_dim:
-            raise SystemExit("action_in_proj.weight shape must be [width, action_dim]")
-        width = in_weight[0]
-        expected = {
-            "vlacpp.openpi.action_in_proj.bias": [width],
-            "vlacpp.openpi.action_time_mlp_in.weight": [width, 2 * width],
-            "vlacpp.openpi.action_time_mlp_in.bias": [width],
-            "vlacpp.openpi.action_time_mlp_out.weight": [width, width],
-            "vlacpp.openpi.action_time_mlp_out.bias": [width],
-            "vlacpp.openpi.action_out_proj.weight": [action_dim, width],
-            "vlacpp.openpi.action_out_proj.bias": [action_dim],
-        }
-        for name, shape in expected.items():
-            if normalized[name]["shape"] != shape:
-                raise SystemExit(f"{name} shape must be {shape}")
-    if "mm.input_projection.bias" in normalized and "mm.soft_emb_norm.weight" not in normalized:
-        projector = normalized.get("mm.input_projection.weight")
-        if projector is None or len(projector["shape"]) != 2:
-            raise SystemExit("mtmd OpenPI sidecar requires mm.input_projection.weight")
-        vision_width = int(projector["shape"][1])
-        normalized["mm.soft_emb_norm.weight"] = {
-            "shape": [vision_width],
-            "data": [1.0] * vision_width,
-        }
-    if metadata.get("model_type") == "pi0" and "mm.input_projection.weight" in normalized:
-        projector = normalized["mm.input_projection.weight"]
-        if len(projector["shape"]) == 2:
-            import numpy as np
-
-            shape = [int(v) for v in projector["shape"]]
-            projector["data"] = (
-                np.asarray(projector["data"], dtype=np.float32).reshape(shape).T.reshape(-1).tolist()
-            )
-            projector["shape"] = [shape[1], shape[0]]
     return normalized
 
 
+def require_full_pi0_metadata(metadata: dict[str, Any]) -> None:
+    required = [
+        "pi0_vision_width",
+        "pi0_vision_patch_height",
+        "pi0_vision_patch_width",
+        "pi0_vision_layers",
+        "pi0_vision_heads",
+        "pi0_vision_norm_epsilon",
+        "pi0_language_width",
+        "pi0_language_q_out",
+        "pi0_language_kv_out",
+        "pi0_language_mlp_width",
+        "pi0_language_layers",
+        "pi0_action_width",
+        "pi0_action_expert_width",
+        "pi0_action_expert_q_out",
+        "pi0_action_expert_kv_out",
+        "pi0_action_expert_mlp_width",
+        "pi0_action_expert_layers",
+    ]
+    missing = [key for key in required if key not in metadata]
+    if missing:
+        raise SystemExit("full pi0 component conversion requires metadata: " + ", ".join(missing))
+
+
 def gguf_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    component_dtypes = metadata.get("component_dtypes", {})
     result = {
-        "general.architecture": "gemma" if "tokenizer.ggml.model" in metadata else metadata["model_type"],
-        "vlacpp.model_type": metadata["model_type"],
-        "vlacpp.image_width": metadata["image_width"],
-        "vlacpp.image_height": metadata["image_height"],
-        "vlacpp.state_dim": metadata["state_dim"],
-        "vlacpp.action_dim": metadata["action_dim"],
-        "vlacpp.action_horizon": metadata["action_horizon"],
-        "vlacpp.max_token_len": metadata["max_token_len"],
-        "vlacpp.image_keys": metadata["image_keys"],
-        "vlacpp.state_mean": metadata["state_mean"],
-        "vlacpp.state_std": metadata["state_std"],
-        "vlacpp.action_mean": metadata["action_mean"],
-        "vlacpp.action_std": metadata["action_std"],
+        "general.architecture": metadata["model_type"],
+        "pi0.model_type": metadata["model_type"],
+        "pi0.gguf.schema": "pi0-unified-v1",
+        "pi0.image_width": metadata["image_width"],
+        "pi0.image_height": metadata["image_height"],
+        "pi0.state_dim": metadata["state_dim"],
+        "pi0.action_dim": metadata["action_dim"],
+        "pi0.action_horizon": metadata["action_horizon"],
+        "pi0.max_token_len": metadata["max_token_len"],
+        "pi0.image_keys": metadata["image_keys"],
+        "pi0.state_mean": metadata["state_mean"],
+        "pi0.state_std": metadata["state_std"],
+        "pi0.action_mean": metadata["action_mean"],
+        "pi0.action_std": metadata["action_std"],
+        "pi0.source_checkpoint": metadata.get("source_checkpoint", ""),
+        "pi0.component.vit.architecture": "pi0-vit",
+        "pi0.component.vit.prefix": PI0_VIT_PREFIX,
+        "pi0.component.vit.backend": "inherit",
+        "pi0.component.vit.dtype": component_dtypes.get("vit", "preserve"),
+        "pi0.component.mmproj.architecture": "pi0-mmproj",
+        "pi0.component.mmproj.prefix": PI0_MERGER_PREFIX,
+        "pi0.component.mmproj.backend": "inherit",
+        "pi0.component.mmproj.dtype": component_dtypes.get("mmproj", "preserve"),
+        "pi0.component.llm.architecture": "gemma",
+        "pi0.component.llm.prefix": PI0_LLM_PREFIX,
+        "pi0.component.llm.backend": "inherit",
+        "pi0.component.llm.dtype": component_dtypes.get("llm", "preserve"),
+        "pi0.component.tokenizer.architecture": "sentencepiece",
+        "pi0.component.tokenizer.backend": "inherit",
+        "pi0.component.tokenizer.dtype": component_dtypes.get("tokenizer", "metadata"),
+        "pi0.component.state.architecture": "pi0-state-proj",
+        "pi0.component.state.prefix": PI0_STATE_PREFIX,
+        "pi0.component.state.backend": "inherit",
+        "pi0.component.state.dtype": component_dtypes.get("state", "preserve"),
+        "pi0.component.action_decoder.architecture": "pi0-action-decoder",
+        "pi0.component.action_decoder.prefix": PI0_ACTION_DECODER_PREFIX,
+        "pi0.component.action_decoder.backend": "inherit",
+        "pi0.component.action_decoder.dtype": component_dtypes.get("action_decoder", "preserve"),
     }
     optional_ints = {
-        "vlacpp.openpi.action_width": "openpi_action_width",
-        "vlacpp.openpi.vision_width": "openpi_vision_width",
-        "vlacpp.openpi.vision_patch_height": "openpi_vision_patch_height",
-        "vlacpp.openpi.vision_patch_width": "openpi_vision_patch_width",
-        "vlacpp.openpi.vision_layers": "openpi_vision_layers",
-        "vlacpp.openpi.language_width": "openpi_language_width",
-        "vlacpp.openpi.language_q_out": "openpi_language_q_out",
-        "vlacpp.openpi.language_kv_out": "openpi_language_kv_out",
-        "vlacpp.openpi.language_mlp_width": "openpi_language_mlp_width",
-        "vlacpp.openpi.language_layers": "openpi_language_layers",
-        "vlacpp.openpi.action_expert_width": "openpi_action_expert_width",
-        "vlacpp.openpi.action_expert_q_out": "openpi_action_expert_q_out",
-        "vlacpp.openpi.action_expert_kv_out": "openpi_action_expert_kv_out",
-        "vlacpp.openpi.action_expert_mlp_width": "openpi_action_expert_mlp_width",
-        "vlacpp.openpi.action_expert_layers": "openpi_action_expert_layers",
+        "pi0.action_decoder.width": "pi0_action_width",
+        "pi0.vit.width": "pi0_vision_width",
+        "pi0.vit.patch_height": "pi0_vision_patch_height",
+        "pi0.vit.patch_width": "pi0_vision_patch_width",
+        "pi0.vit.layers": "pi0_vision_layers",
+        "pi0.vit.heads": "pi0_vision_heads",
+        "pi0.llm.width": "pi0_language_width",
+        "pi0.llm.q_out": "pi0_language_q_out",
+        "pi0.llm.kv_out": "pi0_language_kv_out",
+        "pi0.llm.mlp_width": "pi0_language_mlp_width",
+        "pi0.llm.layers": "pi0_language_layers",
+        "pi0.action_decoder.expert_width": "pi0_action_expert_width",
+        "pi0.action_decoder.q_out": "pi0_action_expert_q_out",
+        "pi0.action_decoder.kv_out": "pi0_action_expert_kv_out",
+        "pi0.action_decoder.mlp_width": "pi0_action_expert_mlp_width",
+        "pi0.action_decoder.layers": "pi0_action_expert_layers",
     }
     for key, source in optional_ints.items():
         if source in metadata:
             result[key] = int(metadata[source])
-    for key, value in metadata.items():
-        if key.startswith("tokenizer.ggml."):
-            result[key] = value
-    if "clip.projector_type" in metadata:
-        result["general.architecture"] = metadata.get("general.architecture", "clip")
-        for key, value in metadata.items():
-            if key.startswith("clip.") or key.startswith("vlacpp.openpi.mtmd_"):
-                result[key] = value
+    if "pi0_vision_norm_epsilon" in metadata:
+        result["pi0.vit.norm_epsilon"] = float(metadata["pi0_vision_norm_epsilon"])
     return result
 
 
-def tokenizer_sidecar_path(output: Path) -> Path:
-    if output.suffix:
-        return output.with_suffix(".tokenizer.gguf")
-    return Path(str(output) + ".tokenizer.gguf")
+def component_output_paths(output: Path) -> dict[str, Path]:
+    base = output.with_suffix("") if output.suffix else output
+    components = {
+        "vit": Path(str(base) + ".vit.gguf"),
+        "mmproj": Path(str(base) + ".mmproj.gguf"),
+        "llm": Path(str(base) + ".llm.gguf"),
+        "tokenizer": Path(str(base) + ".tokenizer.gguf"),
+        "state": Path(str(base) + ".state.gguf"),
+        "action_decoder": Path(str(base) + ".action_decoder.gguf"),
+    }
+    return components
 
 
-def tokenizer_only_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
-    result = {"general.architecture": "gemma"}
-    for key, value in metadata.items():
-        if key.startswith("tokenizer.ggml."):
-            result[key] = value
+def component_metadata(metadata: dict[str, Any], role: str) -> dict[str, Any]:
+    result = gguf_metadata(metadata)
+    result["general.architecture"] = f"pi0-{role}"
+    result["pi0.gguf.schema"] = "pi0-component-v1"
+    result["pi0.component.role"] = role
     return result
+
+
+def write_split_component_ggufs(
+    output: Path,
+    metadata: dict[str, Any],
+    tensors: dict[str, dict[str, Any]],
+) -> None:
+    components = component_output_paths(output)
+    for role, path in components.items():
+        if role == "tokenizer":
+            continue
+        write_gguf(path, component_metadata(metadata, role), component_tensor_filter(role, tensors))
+
+
+def write_split_component_gguf_arrays(output: Path, metadata: dict[str, Any], input_file: Path) -> None:
+    components = component_output_paths(output)
+    component_dtypes = metadata.get("component_dtypes", {})
+    for role, path in components.items():
+        if role == "tokenizer":
+            continue
+        write_gguf_arrays(path, component_metadata(metadata, role), iter_component_safetensors_arrays(input_file, role, component_dtypes))
+
+
+def write_tokenizer_component(output: Path, metadata: dict[str, Any], tokenizer_metadata: dict[str, Any]) -> None:
+    if not tokenizer_metadata:
+        raise SystemExit("pi0 component conversion requires a tokenizer.model; pass --tokenizer-model")
+    component_meta = component_metadata(metadata, "tokenizer")
+    component_meta["general.architecture"] = "gemma"
+    component_meta.update(tokenizer_metadata)
+    write_gguf_arrays(component_output_paths(output)["tokenizer"], component_meta, [])
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint")
-    parser.add_argument("--config", help="optional JSON metadata/config file, local path, hf:// URI, or ms:// URI")
-    parser.add_argument("--norm-stats", help="optional OpenPI norm_stats JSON file, local path, hf:// URI, or ms:// URI")
-    parser.add_argument("--tokenizer-model", type=Path, help="optional PaliGemma sentencepiece tokenizer.model; defaults to the OpenPI cache when present")
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--output-format", choices=["auto", "json", "gguf"], default="auto")
-    parser.add_argument("--mtmd-vision-metadata", action="store_true", help="write llama.cpp mtmd metadata for pi0 vision GGUFs")
-    parser.add_argument("--tensor-map-manifest", type=Path, help="convert tensors listed in a map-openpi-tensors manifest")
+    parser.add_argument(
+        "--input",
+        dest="input_path",
+        required=True,
+        help="local pi0 checkpoint directory, lerobot/<repo>, ModelScope model URL, or safetensors file",
+    )
+    parser.add_argument("--config", help="optional local JSON metadata/config file")
+    parser.add_argument("--norm-stats", help="optional local OpenPI norm_stats JSON or safetensors file")
+    parser.add_argument("--tokenizer-model", type=Path, help="optional PaliGemma sentencepiece tokenizer.model for output.tokenizer.gguf")
+    parser.add_argument("output", type=Path)
     parser.add_argument("--model-type", choices=["pi0"])
     parser.add_argument("--image-width", type=int, default=224)
     parser.add_argument("--image-height", type=int, default=224)
@@ -811,48 +867,62 @@ def main() -> None:
     parser.add_argument("--action-horizon", type=int)
     parser.add_argument("--max-token-len", type=int, default=250)
     parser.add_argument("--image-key", action="append", default=["base_0_rgb"])
+    parser.add_argument(
+        "--dtype",
+        type=parse_dtype_arg,
+        choices=DTYPE_CHOICES,
+        default="preserve",
+        help="default output tensor dtype for weight components: preserve, fp32, f16, or bf16",
+    )
+    parser.add_argument("--vit-dtype", type=parse_dtype_arg, choices=DTYPE_CHOICES, help="override ViT output tensor dtype")
+    parser.add_argument(
+        "--mmproj-dtype",
+        type=parse_dtype_arg,
+        choices=DTYPE_CHOICES,
+        help="override multimodal projector output tensor dtype",
+    )
+    parser.add_argument("--llm-dtype", type=parse_dtype_arg, choices=DTYPE_CHOICES, help="override LLM output tensor dtype")
+    parser.add_argument("--state-dtype", type=parse_dtype_arg, choices=DTYPE_CHOICES, help="override state projector output tensor dtype")
+    parser.add_argument(
+        "--action-decoder-dtype",
+        type=parse_dtype_arg,
+        choices=DTYPE_CHOICES,
+        help="override action decoder output tensor dtype",
+    )
     args = parser.parse_args()
 
-    checkpoint = (
-        load_tensor_map_manifest_shapes(args.tensor_map_manifest)
-        if args.tensor_map_manifest is not None else
-        load_checkpoint_arg(args.checkpoint)
-    )
-    config = load_json_arg(args.config)
+    input_config = None
+    resolved_input = resolve_input(args.input_path)
+    if resolved_input.is_dir():
+        input_file, input_config = resolve_pi0_dir(resolved_input)
+    else:
+        input_file = resolved_input
+
+    checkpoint = load_checkpoint(input_file)
+    config = normalize_pi0_config(load_json(input_config)) if input_config is not None and args.config is None else {}
+    config = {**config, **normalize_pi0_config(load_json_arg(args.config))}
     if config:
         checkpoint = {**checkpoint, "metadata": {**config, **checkpoint.get("metadata", {})}}
     metadata = build_metadata(args, checkpoint)
-    norm_stats = load_norm_stats_arg(args.norm_stats)
+    norm_stats = load_norm_stats_arg(args.norm_stats) or load_lerobot_processor_norm_stats(resolved_input)
     if norm_stats:
         apply_norm_stats(metadata, norm_stats)
-    output_format = args.output_format
-    if output_format == "auto":
-        output_format = "json" if args.output.suffix.lower() == ".json" else "gguf"
-    tokenizer_model = args.tokenizer_model or (default_paligemma_tokenizer_path() if should_auto_embed_tokenizer(args) else None)
-    if (
-        output_format != "json" and
-        tokenizer_model is not None and
-        metadata.get("model_type") == "pi0" and
-        not args.mtmd_vision_metadata
-    ):
-        metadata.update(load_sentencepiece_tokenizer_metadata(tokenizer_model))
+    require_full_pi0_metadata(metadata)
+    tokenizer_metadata: dict[str, Any] = {}
+    tokenizer_model = resolve_tokenizer_model(resolved_input, args.tokenizer_model)
+    if tokenizer_model is not None:
+        tokenizer_metadata = load_sentencepiece_tokenizer_metadata(tokenizer_model)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    if output_format == "json":
-        args.output.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+
+    if input_file is not None and input_file.suffix.lower() == ".safetensors":
+        write_split_component_gguf_arrays(args.output, metadata, input_file)
+        write_tokenizer_component(args.output, metadata, tokenizer_metadata)
         return
 
-    gguf_meta = gguf_metadata(metadata)
-    if args.tensor_map_manifest is not None:
-        write_gguf_arrays(args.output, gguf_meta, iter_tensor_map_manifest_arrays(args.tensor_map_manifest))
-        if "tokenizer.ggml.model" in gguf_meta:
-            write_gguf_arrays(tokenizer_sidecar_path(args.output), tokenizer_only_metadata(gguf_meta), [])
-        return
-
-    tensors = build_tensors(metadata, checkpoint, args.tensor_map_manifest)
-    write_gguf(args.output, gguf_meta, tensors)
-    if "tokenizer.ggml.model" in gguf_meta:
-        write_gguf(tokenizer_sidecar_path(args.output), tokenizer_only_metadata(gguf_meta), {})
+    tensors = build_tensors(checkpoint, metadata.get("component_dtypes", {}))
+    write_split_component_ggufs(args.output, metadata, tensors)
+    write_tokenizer_component(args.output, metadata, tokenizer_metadata)
 
 
 if __name__ == "__main__":

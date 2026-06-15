@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a vlacpp tensor-mapping manifest from an OpenPI safetensors header."""
+"""Create a pi0 tensor-mapping manifest from an OpenPI safetensors header."""
 
 from __future__ import annotations
 
@@ -14,23 +14,23 @@ from typing import Any
 
 
 ACTION_EXPERT_MAP = {
-    "state_proj.weight": "vlacpp.openpi.state_proj.weight",
-    "state_proj.bias": "vlacpp.openpi.state_proj.bias",
-    "action_in_proj.weight": "vlacpp.openpi.action_in_proj.weight",
-    "action_in_proj.bias": "vlacpp.openpi.action_in_proj.bias",
-    "action_out_proj.weight": "vlacpp.openpi.action_out_proj.weight",
-    "action_out_proj.bias": "vlacpp.openpi.action_out_proj.bias",
-    "action_time_mlp_in.weight": "vlacpp.openpi.action_time_mlp_in.weight",
-    "action_time_mlp_in.bias": "vlacpp.openpi.action_time_mlp_in.bias",
-    "action_time_mlp_out.weight": "vlacpp.openpi.action_time_mlp_out.weight",
-    "action_time_mlp_out.bias": "vlacpp.openpi.action_time_mlp_out.bias",
+    "state_proj.weight": "pi0.action_decoder.state_proj.weight",
+    "state_proj.bias": "pi0.action_decoder.state_proj.bias",
+    "action_in_proj.weight": "pi0.action_decoder.action_in_proj.weight",
+    "action_in_proj.bias": "pi0.action_decoder.action_in_proj.bias",
+    "action_out_proj.weight": "pi0.action_decoder.action_out_proj.weight",
+    "action_out_proj.bias": "pi0.action_decoder.action_out_proj.bias",
+    "action_time_mlp_in.weight": "pi0.action_decoder.action_time_mlp_in.weight",
+    "action_time_mlp_in.bias": "pi0.action_decoder.action_time_mlp_in.bias",
+    "action_time_mlp_out.weight": "pi0.action_decoder.action_time_mlp_out.weight",
+    "action_time_mlp_out.bias": "pi0.action_decoder.action_time_mlp_out.bias",
 }
 
 VISION_PROJECTOR_MAP = {
     "paligemma_with_expert.paligemma.model.multi_modal_projector.linear.weight":
-        "vlacpp.openpi.vision_projector.weight",
+        "pi0.merger.weight",
     "paligemma_with_expert.paligemma.model.multi_modal_projector.linear.bias":
-        "vlacpp.openpi.vision_projector.bias",
+        "pi0.merger.bias",
 }
 
 PI0_RUNTIME_ALIAS_MAP = {
@@ -162,12 +162,12 @@ def inspect_header(source: str) -> dict[str, Any]:
 
 
 def manifest_metadata(header: dict[str, Any]) -> dict[str, Any]:
-    raw = header.get("metadata", {}).get("vlacpp.metadata")
+    raw = header.get("metadata", {}).get("pi0.metadata")
     if not raw:
         return {}
     decoded = json.loads(raw)
     if not isinstance(decoded, dict):
-        raise SystemExit("vlacpp.metadata must decode to a JSON object")
+        raise SystemExit("pi0.metadata must decode to a JSON object")
     return decoded
 
 
@@ -254,7 +254,7 @@ def build_manifest(
 
     manifest = {
         "source": source,
-        "format": "vlacpp-openpi-tensor-map-v0",
+        "format": "pi0-tensor-map-v1",
         "family": family,
         "metadata": manifest_metadata(header),
         "expected_count": len(mapping),

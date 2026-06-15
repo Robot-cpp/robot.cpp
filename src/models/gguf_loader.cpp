@@ -63,6 +63,13 @@ bool gguf_loader::load(
             return false;
         }
 
+        if (n_tensors == 0) {
+            out.gguf = gguf;
+            gguf = nullptr;
+            cleanup();
+            return true;
+        }
+
         size_t model_size = 0;
         for (int i = 0; i < n_tensors; ++i) {
             const char * name = gguf_get_tensor_name(gguf, i);
