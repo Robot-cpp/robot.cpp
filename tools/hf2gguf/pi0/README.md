@@ -3,6 +3,8 @@
 This directory contains the pi0/OpenPI to split-GGUF converter used by the
 `pi0_engine` runtime.
 
+Use the shared converter environment documented in `../README.md`.
+
 The converter writes six GGUF components:
 
 - `<prefix>.vit.gguf`

@@ -1,0 +1,13 @@
+name: gguf_converter
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - torch
+      - numpy
+      - safetensors
+      - sentencepiece
+      - transformers==4.53.2
+      - pyyaml

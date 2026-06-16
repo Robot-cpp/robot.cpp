@@ -4,7 +4,6 @@
 
 * [X] 当前只处理 SmolVLA f32 f16
 * [X] 支持其他精度，譬如bf16
-* [ ] 抽象支持其他model
 
 SmolVLA runtime 长期按四个 GGUF 文件加载：
 
@@ -15,14 +14,11 @@ SmolVLA runtime 长期按四个 GGUF 文件加载：
 
 # 一键转换
 
-python环境配置
+python环境配置见父级文档：
 
 ```
-conda create -n smolvla-gguf python=3.11 -y
-conda activate smolvla-gguf
-
-python -m pip install --upgrade pip
-python -m pip install torch transformers 
+conda env create -f tools/hf2gguf/environment.yaml
+conda activate gguf_converter
 ```
 
 在set好对应的环境变量之后，直接通过该脚本可以一键完成smolvla的转换
@@ -31,9 +27,9 @@ python -m pip install torch transformers
 export VLA_CPP_ROOT="/pth/to/vla.cpp"
 export CHECKPOINT_DIR="/pth/to/pretrained_model"
 export OUTPUT_DIR="/pth/to/output_dir"
-export PYTHON_BIN="pth/to/python"
+export PYTHON_BIN="$(which python)"
 export DTYPE="f32"
-bash /Users/lxsy/research/vla.cpp-step3/tools/hf2gguf/smolvla/convert_smolvla_all.sh
+bash /path/to/vla.cpp/tools/hf2gguf/smolvla/convert_smolvla_all.sh
 ```
 
 ## 环境变量说明
