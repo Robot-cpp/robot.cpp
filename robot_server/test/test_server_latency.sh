@@ -88,7 +88,7 @@ bash "${LAUNCH_SHELL}" "${MODEL_TYPE}" >"${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 
 echo "== wait server =="
-sleep 3
+sleep 5
 
 echo "== run latency benchmark =="
 "${PYTHON}" "${BENCHMARK_SCRIPT}" \
