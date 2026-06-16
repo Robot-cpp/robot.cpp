@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from base_client.base import RobotClientBase
+from base_policy.base import BasePolicy
 from utils.stdin import StdinCBreak
 
 
@@ -35,9 +35,9 @@ class SyncLoopConfig:
 
 
 class SyncControlLoop:
-    """Platform-agnostic sync loop built on ``RobotClientBase``."""
+    """Platform-agnostic sync loop built on ``BasePolicy``."""
 
-    def __init__(self, robot: RobotClientBase, cfg: SyncLoopConfig | None = None):
+    def __init__(self, robot: BasePolicy, cfg: SyncLoopConfig | None = None):
         self.robot = robot
         self.cfg = cfg or SyncLoopConfig()
         self._dt = 1.0 / max(1, self.cfg.fps)
@@ -78,7 +78,12 @@ class SyncControlLoop:
 
         image = obs[camera_key]
         proprio = [float(obs[k]) for k in self.robot.action_keys if k in obs]
-        response = self.robot.predict(image, proprio, self.cfg.task, image_name=self.robot.camera_key)
+        response = self.robot.predict(
+            image,
+            proprio,
+            self.cfg.task,
+            image_name=self.robot.model_image_name,
+        )
         logging.info(
             "chunk_size=%d action_dim=%d first_action=%s timings=%s",
             response.chunk_size,

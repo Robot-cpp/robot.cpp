@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
 from model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes, state_to_list
 
 
-class RobotClientBase(ABC):
-    """Base class for vla.cpp robot clients.
-
-    Subclasses implement hardware connect/observe/act hooks. This layer owns
-    synchronous and asynchronous ``ModelClient.predict`` calls.
-    """
+class BasePolicy(ABC):
+    """Base class for robot policy clients."""
 
     def __init__(self, policy: ModelClient):
         self._policy = policy
@@ -40,21 +35,6 @@ class RobotClientBase(ABC):
             "prompt": prompt,
         }
         return self._policy.predict(observation)
-
-    async def predict_async(
-        self,
-        image: Any,
-        state: Any,
-        prompt: str,
-        *,
-        image_name: str = "camera1",
-    ) -> ModelResponse:
-        """Asynchronous policy inference (non-blocking TCP call)."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.predict(image, state, prompt, image_name=image_name),
-        )
 
     def health(self) -> str:
         return self._policy.health()
@@ -86,6 +66,11 @@ class RobotClientBase(ABC):
     @abstractmethod
     def camera_key(self) -> str:
         """Primary camera key inside ``get_observation()``."""
+
+    @property
+    def model_image_name(self) -> str:
+        """Image key sent to the model server (defaults to ``camera_key``)."""
+        return self.camera_key
 
     @property
     @abstractmethod

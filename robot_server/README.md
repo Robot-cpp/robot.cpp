@@ -61,7 +61,7 @@ Python client:
 
 ```text
 robot_client/python/model_client.py
-robot_client/examples/python/base_client/
+robot_client/base_policy/
 robot_client/examples/python/minimal_example.py
 eval/lerobot_so101/
 ```

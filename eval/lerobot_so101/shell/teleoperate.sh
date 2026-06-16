@@ -6,7 +6,6 @@ set -euo pipefail
 
 source "$(dirname "$0")/so101_env.sh"
 
-require_robot_port
 require_teleop_port
 
 echo "[teleoperate] robot=${ROBOT_PORT} teleop=${TELEOP_PORT} camera_key=${CAMERA_KEY}"

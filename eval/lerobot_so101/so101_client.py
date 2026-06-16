@@ -1,4 +1,4 @@
-"""LeRobot SO101 implementation of ``RobotClientBase``."""
+"""LeRobot SO101 implementation of ``BasePolicy``."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
 from model_client import ModelClient
-from base_client.base import RobotClientBase
+from base_policy.base import BasePolicy
 from utils.robot import build_camera_config, extract_home_action
 
 DEFAULT_FPS = 25
@@ -23,6 +23,7 @@ class SO101ClientConfig:
     robot_cameras: str
     task: str
     camera_key: str = "camera1"
+    model_image_name: str = "observation.images.camera1"
     fps: int = DEFAULT_FPS
     loops: int = 0
     use_degrees: bool = True
@@ -47,14 +48,14 @@ def config_from_env() -> SO101ClientConfig:
         robot_cameras=robot_cameras,
         task=task,
         camera_key=os.environ.get("CAMERA_KEY", "camera1"),
+        model_image_name=os.environ.get("MODEL_IMAGE_NAME", "observation.images.camera1"),
         fps=int(os.environ.get("FPS", str(DEFAULT_FPS))),
         loops=int(os.environ.get("LOOPS", "0")),
         use_degrees=use_degrees,
     )
 
 
-class SO101RobotClient(RobotClientBase):
-    """SO101 follower arm wired through LeRobot ``SOFollower``."""
+class SO101RobotClient(BasePolicy):
 
     def __init__(self, policy: ModelClient, cfg: SO101ClientConfig | None = None):
         super().__init__(policy)
@@ -68,6 +69,10 @@ class SO101RobotClient(RobotClientBase):
         return self.cfg.camera_key
 
     @property
+    def model_image_name(self) -> str:
+        return self.cfg.model_image_name
+
+    @property
     def action_keys(self) -> list[str]:
         if self._robot is None:
             return []
@@ -76,7 +81,7 @@ class SO101RobotClient(RobotClientBase):
     def connect(self) -> None:
         health = self._policy.health()
         logging.info(
-            "Connected to vla.cpp model server at %s:%s (%s)",
+            "Connected to robot server at %s:%s (%s)",
             self._policy.host,
             self._policy.port,
             health,

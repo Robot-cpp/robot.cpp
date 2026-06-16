@@ -5,25 +5,20 @@
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VLA_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
 
-if [[ -f "${VLA_CPP_ROOT}/local_env.sh" ]]; then
-  # shellcheck source=/dev/null
-  source "${VLA_CPP_ROOT}/local_env.sh"
-fi
-
-export LEROBOT_SO101_ROOT="${LEROBOT_SO101_ROOT:-${ROOT}}"
 export CONDA_ENV="${CONDA_ENV:-lerobot-demo}"
 
-export PYTHONPATH="${LEROBOT_SO101_ROOT}:${LEROBOT_SO101_ROOT}/lerobot_camera_opencv_crop:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_client/examples/python"
+export PYTHONPATH="${ROOT}:${ROOT}/lerobot_camera_opencv_crop:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_client"
 
 # --- Robot serial ports ---
-export ROBOT_PORT="${ROBOT_PORT:?ROBOT_PORT must be set}"
-export TELEOP_PORT="${TELEOP_PORT:?TELEOP_PORT must be set}"
+export ROBOT_PORT="/dev/tty.usbmodem5B3E1195731"
+export TELEOP_PORT="/dev/tty.usbmodem5B3E1198201"
 export ROBOT_TYPE="${ROBOT_TYPE:-so101_follower}"
 export TELEOP_TYPE="${TELEOP_TYPE:-so101_leader}"
 export ROBOT_USE_DEGREES="${ROBOT_USE_DEGREES:-true}"
 
 # --- Camera ---
 export CAMERA_KEY="${CAMERA_KEY:-camera1}"
+export MODEL_IMAGE_NAME="${MODEL_IMAGE_NAME:-observation.images.camera1}"
 export CAMERA_INDEX="${CAMERA_INDEX:-0}"
 CAMERA_WIDTH="${CAMERA_WIDTH:-1280}"
 CAMERA_HEIGHT="${CAMERA_HEIGHT:-720}"
@@ -41,23 +36,16 @@ EOF
 fi
 export ROBOT_CAMERAS="${ROBOT_CAMERAS//$'\n'/}"
 
-# --- Inference client ---
+# --- Inference client (python -m base_policy) ---
+export ROBOT_PLATFORM="lerobot_so101"
 export SERVER="${SERVER:-127.0.0.1:5555}"
 export TASK="${TASK:-grab the block.}"
 export FPS="${FPS:-25}"
-export LOOPS="${LOOPS:-0}"
 
-require_robot_port() {
-  if [[ -z "${ROBOT_PORT}" ]]; then
-    echo "[error] ROBOT_PORT is not set." >&2
-    echo "  Edit shell/so101_env.sh or export ROBOT_PORT=/dev/tty.usbmodemXXXX" >&2
-    exit 1
-  fi
-}
 
 require_teleop_port() {
   if [[ -z "${TELEOP_PORT}" ]]; then
-    echo "[error] TELEOP_PORT is not set (required for teleop/record)." >&2
+    echo "[error] TELEOP_PORT is not set (required for teleop/record/leader calibrate)." >&2
     echo "  Edit shell/so101_env.sh or export TELEOP_PORT=/dev/tty.usbmodemYYYY" >&2
     exit 1
   fi
@@ -67,7 +55,6 @@ run_python() {
   if [[ "${CONDA_DEFAULT_ENV:-}" == "${CONDA_ENV}" ]]; then
     python "$@"
   else
-    # Do not wrap with `env VAR=...` — that drops ROBOT_PORT and other exports.
     conda run --no-capture-output -n "${CONDA_ENV}" python "$@"
   fi
 }
@@ -75,5 +62,16 @@ run_python() {
 run_lerobot_script() {
   local module="$1"
   shift
-  run_python -m "${module}" "$@"
+  # LeRobot CLI auto-discovers pip-installed lerobot_camera_* plugins only.
+  # Import explicitly so dev workflows work with PYTHONPATH (no pip install -e).
+  run_python -c '
+import runpy
+import sys
+
+import lerobot_camera_opencv_crop  # noqa: F401 — registers type "opencv_crop"
+
+module = sys.argv[1]
+sys.argv = [module, *sys.argv[2:]]
+runpy.run_module(module, run_name="__main__")
+' "$module" "$@"
 }
