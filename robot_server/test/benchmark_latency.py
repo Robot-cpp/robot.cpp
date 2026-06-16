@@ -26,13 +26,14 @@ def make_random_state(dim: int, seed: int) -> np.ndarray:
     return rng.uniform(-1.0, 1.0, size=(dim,)).astype(np.float32)
 
 
-def make_random_observation(width: int, height: int, state_dim: int, prompt: str, image_name: str) -> dict:
+def make_random_observation(width: int, height: int, state_dim: int, prompt: str, image_names: list[str]) -> dict:
     return {
         "images": [
             {
                 "name": image_name,
-                "image": make_random_rgb_image(width, height, seed=0),
+                "image": make_random_rgb_image(width, height, seed=index),
             }
+            for index, image_name in enumerate(image_names)
         ],
         "state": make_random_state(state_dim, seed=1),
         "prompt": prompt,
@@ -115,20 +116,24 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=int(os.environ.get("SMOLVLA_PORT", "5555")))
     parser.add_argument("--width", type=int, default=224)
     parser.add_argument("--height", type=int, default=224)
-    parser.add_argument("--image-name", default=os.environ.get("IMAGE_NAME", "image"))
+    parser.add_argument("--image-name", action="append")
     parser.add_argument("--state-dim", type=int, default=6)
     parser.add_argument("--prompt", default=os.environ.get("SMOLVLA_PROMPT", "grab the block."))
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--loops", type=int, default=10)
     parser.add_argument("--result-tsv")
     args = parser.parse_args()
+    image_names = args.image_name or os.environ.get("IMAGE_NAMES", os.environ.get("IMAGE_NAME", "image")).split(",")
+    image_names = [name.strip() for name in image_names if name.strip()]
+    if not image_names:
+        raise ValueError("at least one image name is required")
 
     observation = make_random_observation(
         width=args.width,
         height=args.height,
         state_dim=args.state_dim,
         prompt=args.prompt,
-        image_name=args.image_name,
+        image_names=image_names,
     )
     client = ModelClient(host=args.host, port=args.port)
 

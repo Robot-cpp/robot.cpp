@@ -44,10 +44,24 @@ HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5569}"
 THREADS="${THREADS:-8}"
 PROMPT="${PROMPT:-grab the block.}"
-IMAGE_NAME="${IMAGE_NAME:-observation.images.front}"
+case "${MODEL_TYPE}" in
+    smolvla)
+        DEFAULT_IMAGE_NAMES="observation.images.front"
+        DEFAULT_STATE_DIM="6"
+        ;;
+    pi0)
+        DEFAULT_IMAGE_NAMES="observation.images.image,observation.images.image2"
+        DEFAULT_STATE_DIM="32"
+        ;;
+    *)
+        DEFAULT_IMAGE_NAMES="image"
+        DEFAULT_STATE_DIM="6"
+        ;;
+esac
+IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-${DEFAULT_IMAGE_NAMES}}}"
 IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
 IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
-STATE_DIM="${STATE_DIM:-6}"
+STATE_DIM="${STATE_DIM:-${DEFAULT_STATE_DIM}}"
 WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-100}"
 DTYPE="${DTYPE:-f32}"
@@ -59,6 +73,13 @@ BENCHMARK_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/benchmark_latency.py"
 
 SERVER_LOG="${ARTIFACT_DIR}/server.log"
 RESULT_TSV="${ARTIFACT_DIR}/benchmark_server.tsv"
+BENCHMARK_IMAGE_ARGS=()
+IFS=',' read -r -a IMAGE_NAME_LIST <<< "${IMAGE_NAMES}"
+for IMAGE_NAME_ITEM in "${IMAGE_NAME_LIST[@]}"; do
+    if [ -n "${IMAGE_NAME_ITEM}" ]; then
+        BENCHMARK_IMAGE_ARGS+=(--image-name "${IMAGE_NAME_ITEM}")
+    fi
+done
 
 # once exit the shell script, make sure to kill the server process if it's still running
 cleanup() {
@@ -106,7 +127,7 @@ echo "== run latency benchmark =="
 "${PYTHON}" "${BENCHMARK_SCRIPT}" \
     --host "${HOST}" \
     --port "${PORT}" \
-    --image-name "${IMAGE_NAME}" \
+    "${BENCHMARK_IMAGE_ARGS[@]}" \
     --width "${IMAGE_WIDTH}" \
     --height "${IMAGE_HEIGHT}" \
     --state-dim "${STATE_DIM}" \
