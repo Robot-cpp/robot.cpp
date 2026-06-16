@@ -4,12 +4,35 @@ set -e
 # ====== change these if needed ======
 VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
-BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
+BACKEND="${BACKEND:-metal}"
+if [ "${1:-}" = "cpu" ] || [ "${1:-}" = "metal" ]; then
+    BACKEND="$1"
+    shift
+fi
+MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
+
+case "${BACKEND}" in
+    cpu)
+        BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
+        ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency}"
+        LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
+        ;;
+    metal)
+        BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_metal}"
+        ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency_metal}"
+        LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_metal.sh"
+        ;;
+    *)
+        echo "unsupported BACKEND=${BACKEND}" >&2
+        exit 1
+        ;;
+esac
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5569}"
 THREADS="${THREADS:-8}"
 PROMPT="${PROMPT:-grab the block.}"
+IMAGE_NAME="${IMAGE_NAME:-observation.images.front}"
 IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
 IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
 STATE_DIM="${STATE_DIM:-6}"
@@ -18,11 +41,8 @@ LOOPS="${LOOPS:-50}"
 DTYPE="${DTYPE:-f32}"
 
 PYTHON="${PYTHON:-python3}"
-CMAKE_BIN="${CMAKE_BIN:-cmake}"
-ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency}"
 # ====================================
 
-LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
 BENCHMARK_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/benchmark_latency.py"
 
 SERVER_LOG="${ARTIFACT_DIR}/server.log"
@@ -38,22 +58,6 @@ cleanup() {
 SERVER_PID=""
 trap cleanup EXIT
 
-
-echo "== configure =="
-"${CMAKE_BIN}" -S "${VLA_CPP_ROOT}" -B "${BUILD_DIR}" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DGGML_NATIVE=OFF \
-    -DGGML_BLAS=ON \
-    -DGGML_BLAS_VENDOR=Apple \
-    -DGGML_OPENMP=OFF \
-    -DGGML_METAL=OFF \
-    -DVLACPP_BUILD_ROBOT_SERVER=ON
-
-echo "== build =="
-"${CMAKE_BIN}" --build "${BUILD_DIR}" \
-    --target model-server \
-    -j8
-
 echo "== prepare outputs =="
 mkdir -p "${ARTIFACT_DIR}"
 rm -f "${RESULT_TSV}"
@@ -61,20 +65,26 @@ rm -f "${RESULT_TSV}"
 echo "== launch server =="
 VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
 BUILD_DIR="${BUILD_DIR}" \
+MODEL_TYPE="${MODEL_TYPE}" \
 GGUF_DIR="${GGUF_DIR}" \
 DTYPE="${DTYPE}" \
 LLM_GGUF="${LLM_GGUF:-}" \
+MMPROJ_GGUF="${MMPROJ_GGUF:-}" \
 VISION_GGUF="${VISION_GGUF:-}" \
 STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-}" \
 ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-}" \
+MODEL_BASENAME="${MODEL_BASENAME:-}" \
+VIT_GGUF="${VIT_GGUF:-}" \
+TOKENIZER_GGUF="${TOKENIZER_GGUF:-}" \
+STATE_GGUF="${STATE_GGUF:-}" \
+ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-}" \
 HOST="${HOST}" \
 PORT="${PORT}" \
 THREADS="${THREADS}" \
 TASK="${PROMPT}" \
 NOISE_MODE="gaussian" \
 NOISE_SEED="-1" \
-SKIP_BUILD="1" \
-bash "${LAUNCH_SHELL}" >"${SERVER_LOG}" 2>&1 &
+bash "${LAUNCH_SHELL}" "${MODEL_TYPE}" >"${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 
 echo "== wait server =="
@@ -84,6 +94,7 @@ echo "== run latency benchmark =="
 "${PYTHON}" "${BENCHMARK_SCRIPT}" \
     --host "${HOST}" \
     --port "${PORT}" \
+    --image-name "${IMAGE_NAME}" \
     --width "${IMAGE_WIDTH}" \
     --height "${IMAGE_HEIGHT}" \
     --state-dim "${STATE_DIM}" \
@@ -93,5 +104,6 @@ echo "== run latency benchmark =="
     --result-tsv "${RESULT_TSV}"
 
 echo "== done =="
+echo "backend: ${BACKEND}"
 echo "result tsv: ${RESULT_TSV}"
 echo "server log: ${SERVER_LOG}"

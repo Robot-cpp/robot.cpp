@@ -26,11 +26,11 @@ def make_random_state(dim: int, seed: int) -> np.ndarray:
     return rng.uniform(-1.0, 1.0, size=(dim,)).astype(np.float32)
 
 
-def make_random_observation(width: int, height: int, state_dim: int, prompt: str) -> dict:
+def make_random_observation(width: int, height: int, state_dim: int, prompt: str, image_name: str) -> dict:
     return {
         "images": [
             {
-                "name": "image",
+                "name": image_name,
                 "image": make_random_rgb_image(width, height, seed=0),
             }
         ],
@@ -115,6 +115,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=int(os.environ.get("SMOLVLA_PORT", "5555")))
     parser.add_argument("--width", type=int, default=224)
     parser.add_argument("--height", type=int, default=224)
+    parser.add_argument("--image-name", default=os.environ.get("IMAGE_NAME", "image"))
     parser.add_argument("--state-dim", type=int, default=6)
     parser.add_argument("--prompt", default=os.environ.get("SMOLVLA_PROMPT", "grab the block."))
     parser.add_argument("--warmup", type=int, default=1)
@@ -127,6 +128,7 @@ def main() -> int:
         height=args.height,
         state_dim=args.state_dim,
         prompt=args.prompt,
+        image_name=args.image_name,
     )
     client = ModelClient(host=args.host, port=args.port)
 

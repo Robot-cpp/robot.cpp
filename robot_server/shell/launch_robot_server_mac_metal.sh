@@ -4,8 +4,8 @@ set -e
 # ====== change these if needed ======
 VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
+MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_metal}"
-
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
@@ -21,10 +21,6 @@ DTYPE="${DTYPE:-f32}"
 
 # ====================================
 
-LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
-VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}"
-STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
-ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
 SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
@@ -44,17 +40,54 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -j8
 fi
 
+case "${MODEL_TYPE}" in
+    smolvla)
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
+        MODEL_ARGS=(
+            --model-type smolvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${VISION_GGUF}"
+            --state-proj "${STATE_PROJ_GGUF}"
+            --action-expert "${ACTION_EXPERT_GGUF}"
+        )
+        ;;
+    pi0)
+        export ROBOTCPP_BACKEND="${ROBOTCPP_BACKEND:-metal}"
+        MODEL_BASENAME="${MODEL_BASENAME:-vlacpp-pi0-libero-finetuned-v044}"
+        VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"
+        TOKENIZER_GGUF="${TOKENIZER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.tokenizer.gguf}"
+        STATE_GGUF="${STATE_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.state.gguf}"
+        ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf}"
+        MODEL_ARGS=(
+            --model-type pi0
+            --vit "${VIT_GGUF}"
+            --mmproj "${MMPROJ_GGUF}"
+            --llm "${LLM_GGUF}"
+            --tokenizer "${TOKENIZER_GGUF}"
+            --state-gguf "${STATE_GGUF}"
+            --action-decoder "${ACTION_DECODER_GGUF}"
+        )
+        ;;
+    *)
+        echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
+        exit 1
+        ;;
+esac
+
 echo "== launch server =="
+echo "model_type: ${MODEL_TYPE}"
 echo "host: ${HOST}"
 echo "port: ${PORT}"
+echo "gguf_dir: ${GGUF_DIR}"
 echo "task: ${TASK}"
 
 exec "${SERVER_BIN}" \
-    --model-type smolvla \
-    --llm "${LLM_GGUF}" \
-    --mmproj "${VISION_GGUF}" \
-    --state-proj "${STATE_PROJ_GGUF}" \
-    --action-expert "${ACTION_EXPERT_GGUF}" \
+    "${MODEL_ARGS[@]}" \
     --task "${TASK}" \
     --host "${HOST}" \
     --port "${PORT}" \
