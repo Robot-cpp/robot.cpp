@@ -9,20 +9,49 @@
 ## 目录结构
 
 ```
-lerobot_so101/
+eval/lerobot_so101/
 ├── so101_client.py             # SO101RobotClient（RobotClientBase 实现）
-├── utils/robot.py              # build_camera_config 等
-├── camera/                     # opencv_crop plugin（pip install -e）
+├── utils/
+│   ├── robot.py                # build_camera_config 等
+│   └── stdin.py                # 键盘 R/Q（StdinCBreak）
+├── lerobot_camera_opencv_crop/ # opencv_crop plugin（pip install -e）
 ├── test/                       # test_camera.py, run_camera_test.sh
-└── shell/                      # local_so101_env.sh, run_robot_client.sh, local_*.sh
+└── shell/                      # so101_env.sh, run_robot_client.sh 等
 
-robot_server/examples/python/robot_client/
+robot_client/examples/python/base_client/
 ├── run_sync.py                 # 入口：ROBOT_PLATFORM -> SyncControlLoop
-├── base.py                     # RobotClientBase：sync/async predict + 抽象 robot 钩子
-├── observation.py              # make_predict_observation
-├── sync_loop.py                # 通用 observe -> predict -> act 循环
-└── stdin.py                    # 键盘 R/Q
+├── base.py                     # RobotClientBase
+└── sync_loop.py                # observe -> predict -> act 循环
 ```
+
+## 相机插件：`lerobot_camera_opencv_crop` 
+
+LeRobot 支持通过 **第三方插件包** 扩展相机类型，而不改 `third_party/lerobot` 源码。启动
+`lerobot-teleoperate`、`lerobot-record`、`lerobot-calibrate` 等 CLI 时，会调用
+`register_third_party_plugins()`，用 `importlib.metadata` 扫描已安装包名，并自动
+`import` 以特定前缀开头的 distribution：
+
+| 插件类型 | 包名前缀 |
+| --- | --- |
+| camera | `lerobot_camera_` |
+| robot | `lerobot_robot_` |
+| teleoperator | `lerobot_teleoperator_` |
+| policy | `lerobot_policy_` |
+
+因此本仓库的相机插件 **distribution 名必须是 `lerobot_camera_*`**。这里选用
+`lerobot_camera_opencv_crop`，其中：
+
+- `lerobot_camera_`：满足 LeRobot 插件发现规则；
+- `opencv_crop`：表示在 OpenCV 采图后做 center-crop + resize。
+
+插件实现 center-crop + resize，对应 `OpenCVCameraCropConfig` / `OpenCVCameraCrop`。
+
+**为何必须 `pip install -e`**：LeRobot CLI 靠已安装包的包名做发现；仅把目录加进
+`PYTHONPATH` 而不安装，校准/遥操/录数据脚本无法自动注册 `opencv_crop`。
+
+**与真机闭环 client 的关系**：`python -m base_client` 走 `utils/robot.py` 直接
+import `OpenCVCameraCropConfig`，不依赖上述自动发现；但 shell 里的 LeRobot 脚本
+仍需要安装该插件。
 
 ## 安装
 
@@ -36,7 +65,7 @@ conda activate lerobot-py312
 
 pip install -U pip setuptools wheel
 pip install -e "third_party/lerobot[feetech]"
-pip install -e "robot_server/examples/python/lerobot_so101/camera"
+pip install -e "eval/lerobot_so101/lerobot_camera_opencv_crop"
 
 source local_env.sh   # 设置 PYTHONPATH
 ```
@@ -45,7 +74,7 @@ source local_env.sh   # 设置 PYTHONPATH
 
 ## 配置
 
-**唯一配置源**：`shell/local_so101_env.sh`（机器默认值；`so101_env.sh` 与之共享 PYTHONPATH 等公共逻辑）。
+**配置源**：`shell/so101_env.sh`（按需在 shell 中 export 覆盖）。
 
 按机器修改其中的默认值：
 
@@ -85,17 +114,17 @@ bash robot_server/shell/launch_robot_server_mac_cpu.sh
 
 # Terminal 2
 source local_env.sh
-bash robot_server/examples/python/lerobot_so101/shell/run_robot_client.sh
+bash eval/lerobot_so101/shell/run_robot_client.sh
 ```
 
-真机 client 通过 ``robot_client`` 基类调用 ``ModelClient.predict``，``so101_client.py`` 实现 SO101 硬件对接。配置来自 ``local_so101_env.sh`` 的环境变量，无需命令行参数。
+真机 client 通过 ``RobotClientBase`` 调用 ``ModelClient.predict``，``so101_client.py`` 实现 SO101 硬件对接。
 
 或直接运行（需先 source env）：
 
 ```bash
 source local_env.sh
-source robot_server/examples/python/lerobot_so101/shell/local_so101_env.sh
-python -m robot_client
+source eval/lerobot_so101/shell/so101_env.sh
+python -m base_client
 ```
 
 按键：**R** 回 home，**Q** 退出。
@@ -111,7 +140,7 @@ bash robot_client/shell/client_example.sh
 ## 摄像头单独测试（无机械臂 / 无 server）
 
 ```bash
-cd robot_server/examples/python/lerobot_so101
+cd eval/lerobot_so101
 ./test/run_camera_test.sh
 
 # 换摄像头 index
@@ -119,28 +148,28 @@ export CAMERA_INDEX=1
 ./test/run_camera_test.sh --preview
 ```
 
-验证项：帧 shape/dtype（224×224 uint8 RGB）、`make_predict_observation` 的 `rgb_hwc_u8` 字节长度与 stride。
+验证项：帧 shape/dtype（224×224 uint8 RGB）、predict observation 的 `rgb_hwc_u8` 字节长度与 stride。
 
 ## 校准
 
 ```bash
-cd robot_server/examples/python/lerobot_so101
-./shell/local_calibrate_follower.sh
-./shell/local_calibrate_leader.sh
+cd eval/lerobot_so101
+./shell/calibrate_follower.sh
+./shell/calibrate_leader.sh
 ```
 
 ## 遥操
 
 ```bash
-cd robot_server/examples/python/lerobot_so101
-./shell/local_teleoperate.sh
+cd eval/lerobot_so101
+./shell/teleoperate.sh
 ```
 
 ## 录制数据集
 
-编辑 `shell/local_so101_env.sh` 中的 `DATASET_REPO_ID`，然后：
+编辑 `shell/so101_env.sh` 中的 `DATASET_REPO_ID`，然后：
 
 ```bash
-cd robot_server/examples/python/lerobot_so101
-./shell/local_record_dataset.sh
+cd eval/lerobot_so101
+./shell/record_dataset.sh
 ```

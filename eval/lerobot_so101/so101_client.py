@@ -11,8 +11,7 @@ from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
 from model_client import ModelClient
-from robot_client.base import RobotClientBase
-from robot_client.observation import DEFAULT_PROMPT
+from base_client.base import RobotClientBase
 from utils.robot import build_camera_config, extract_home_action
 
 DEFAULT_FPS = 25
@@ -22,36 +21,35 @@ DEFAULT_FPS = 25
 class SO101ClientConfig:
     robot_port: str
     robot_cameras: str
+    task: str
     camera_key: str = "camera1"
     fps: int = DEFAULT_FPS
-    task: str = DEFAULT_PROMPT
     loops: int = 0
     use_degrees: bool = True
-
-
-def _env_bool(name: str, default: bool = True) -> bool:
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    return value.lower() not in ("false", "0", "no")
 
 
 def config_from_env() -> SO101ClientConfig:
     robot_port = os.environ.get("ROBOT_PORT")
     robot_cameras = os.environ.get("ROBOT_CAMERAS")
+    task = os.environ.get("TASK")
     if not robot_port:
-        raise SystemExit("ROBOT_PORT is not set (source shell/local_so101_env.sh first)")
+        raise SystemExit("ROBOT_PORT is not set (source shell/so101_env.sh first)")
     if not robot_cameras:
-        raise SystemExit("ROBOT_CAMERAS is not set (source shell/local_so101_env.sh first)")
+        raise SystemExit("ROBOT_CAMERAS is not set (source shell/so101_env.sh first)")
+    if not task:
+        raise SystemExit("TASK is not set (source shell/so101_env.sh first)")
+
+    use_degrees_raw = os.environ.get("ROBOT_USE_DEGREES")
+    use_degrees = use_degrees_raw.lower() not in ("false", "0", "no") if use_degrees_raw else True
 
     return SO101ClientConfig(
         robot_port=robot_port,
         robot_cameras=robot_cameras,
+        task=task,
         camera_key=os.environ.get("CAMERA_KEY", "camera1"),
         fps=int(os.environ.get("FPS", str(DEFAULT_FPS))),
-        task=os.environ.get("TASK", DEFAULT_PROMPT),
         loops=int(os.environ.get("LOOPS", "0")),
-        use_degrees=_env_bool("ROBOT_USE_DEGREES", True),
+        use_degrees=use_degrees,
     )
 
 

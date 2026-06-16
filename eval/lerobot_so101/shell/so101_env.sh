@@ -3,7 +3,7 @@
 # Edit the values below for your machine (serial ports, camera index, dataset hub id, etc.).
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VLA_CPP_ROOT="$(cd "${ROOT}/../../../.." && pwd)"
+VLA_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
 
 if [[ -f "${VLA_CPP_ROOT}/local_env.sh" ]]; then
   # shellcheck source=/dev/null
@@ -11,9 +11,9 @@ if [[ -f "${VLA_CPP_ROOT}/local_env.sh" ]]; then
 fi
 
 export LEROBOT_SO101_ROOT="${LEROBOT_SO101_ROOT:-${ROOT}}"
-export CONDA_ENV="${CONDA_ENV:-mini-client}"
+export CONDA_ENV="${CONDA_ENV:-lerobot-demo}"
 
-export PYTHONPATH="${LEROBOT_SO101_ROOT}:${LEROBOT_SO101_ROOT}/..:${LEROBOT_SO101_ROOT}/camera:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_server/examples/python"
+export PYTHONPATH="${LEROBOT_SO101_ROOT}:${LEROBOT_SO101_ROOT}/lerobot_camera_opencv_crop:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_client/examples/python"
 
 # --- Robot serial ports ---
 export ROBOT_PORT="${ROBOT_PORT:?ROBOT_PORT must be set}"
@@ -72,9 +72,8 @@ run_python() {
   fi
 }
 
-# LeRobot upstream script module (registers opencv_crop via local_lerobot_entry.py first).
 run_lerobot_script() {
   local module="$1"
   shift
-  run_python "${ROOT}/lerobot_entry.py" "${module}" "$@"
+  run_python -m "${module}" "$@"
 }

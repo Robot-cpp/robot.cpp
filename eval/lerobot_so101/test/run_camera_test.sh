@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/shell/local_so101_env.sh"
+source "${ROOT}/shell/so101_env.sh"
 
 FRAMES="${FRAMES:-0}"
 PREVIEW="${PREVIEW:-1}"

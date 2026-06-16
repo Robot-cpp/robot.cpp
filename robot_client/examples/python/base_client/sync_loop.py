@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from robot_client.base import RobotClientBase
-from robot_client.observation import DEFAULT_PROMPT
-from robot_client.stdin import StdinCBreak
+from base_client.base import RobotClientBase
+from utils.stdin import StdinCBreak
 
 
 def parse_chunk_actions(
@@ -30,8 +29,8 @@ def parse_chunk_actions(
 
 @dataclass
 class SyncLoopConfig:
+    task: str
     fps: int = 25
-    task: str = DEFAULT_PROMPT
     loops: int = 0
 
 

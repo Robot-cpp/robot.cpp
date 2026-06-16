@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from lerobot.cameras.configs import Cv2Backends
-from camera.config import OpenCVCameraCropConfig
+from lerobot_camera_opencv_crop.config import OpenCVCameraCropConfig
 
 
 def extract_home_action(obs: dict[str, Any], action_keys: list[str]) -> dict[str, float]:

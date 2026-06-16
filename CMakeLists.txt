@@ -169,6 +169,11 @@ if(VLACPP_BUILD_ROBOT_SERVER)
     target_link_libraries(model-cpp-client-example PRIVATE model_client_cpp)
     target_compile_features(model-cpp-client-example PRIVATE cxx_std_17)
 
+    add_executable(model-server-minimal-predict ${ROBOT_SERVER_DIR}/examples/cpp/minimal_predict.cpp)
+    set_target_properties(model-server-minimal-predict PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(model-server-minimal-predict PRIVATE model_client_cpp)
+    target_compile_features(model-server-minimal-predict PRIVATE cxx_std_17)
+
     add_executable(smolvla-raw-predict ${ROBOT_SERVER_DIR}/test/smolvla_raw_predict.cpp)
     set_target_properties(smolvla-raw-predict PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_include_directories(smolvla-raw-predict PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMOLVLA_DIR})

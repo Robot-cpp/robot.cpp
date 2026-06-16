@@ -2,8 +2,7 @@
 set -euo pipefail
 
 # Teleoperate SO101 follower with leader + front camera (224 crop).
-# Usage: ./shell/local_teleoperate.sh
-# Override: ROBOT_PORT, TELEOP_PORT, ROBOT_CAMERAS, DISPLAY_DATA=false
+# display_data=true for GUI visualization.
 
 source "$(dirname "$0")/so101_env.sh"
 

@@ -61,8 +61,9 @@ Python client:
 
 ```text
 robot_client/python/model_client.py
+robot_client/examples/python/base_client/
 robot_client/examples/python/minimal_example.py
-robot_server/examples/python/robot_client/
+eval/lerobot_so101/
 ```
 
 C++ client:
@@ -75,8 +76,12 @@ robot_client/examples/cpp/minimal_example.cpp
 Useful smoke and latency scripts:
 
 ```text
+robot_server/examples/python/minimal_predict.py
+robot_server/examples/cpp/minimal_predict.cpp   # build target: model-server-minimal-predict
 robot_server/test/benchmark_latency.py
 robot_server/test/compare_server_model_cli.py
+robot_client/examples/python/minimal_example.py
+robot_client/examples/cpp/minimal_example.cpp   # build target: model-cpp-client-example
 ```
 
 `response.actions` is shaped `[chunk_size][action_dim]`.

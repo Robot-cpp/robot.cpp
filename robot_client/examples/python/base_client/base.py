@@ -6,9 +6,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
-from model_client import ModelClient, ModelResponse
-
-from robot_client.observation import make_predict_observation
+from model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes, state_to_list
 
 
 class RobotClientBase(ABC):
@@ -27,7 +25,20 @@ class RobotClientBase(ABC):
 
     def predict(self, image: Any, state: Any, prompt: str, *, image_name: str = "camera1") -> ModelResponse:
         """Synchronous policy inference."""
-        observation = make_predict_observation(image, state, prompt, image_name=image_name)
+        rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(image)
+        observation = {
+            "images": [
+                {
+                    "name": image_name,
+                    "rgb_hwc_u8": rgb,
+                    "width": width,
+                    "height": height,
+                    "stride_bytes": stride,
+                }
+            ],
+            "state": state_to_list(state),
+            "prompt": prompt,
+        }
         return self._policy.predict(observation)
 
     async def predict_async(
@@ -39,9 +50,11 @@ class RobotClientBase(ABC):
         image_name: str = "camera1",
     ) -> ModelResponse:
         """Asynchronous policy inference (non-blocking TCP call)."""
-        observation = make_predict_observation(image, state, prompt, image_name=image_name)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._policy.predict, observation)
+        return await loop.run_in_executor(
+            None,
+            lambda: self.predict(image, state, prompt, image_name=image_name),
+        )
 
     def health(self) -> str:
         return self._policy.health()

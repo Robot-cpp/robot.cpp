@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Standalone camera smoke test aligned with robot_sync capture path.
 
-Uses the same pipeline as ``SOFollower.get_observation`` + ``make_predict_observation``:
+Uses the same pipeline as ``SOFollower.get_observation`` + ``ModelClient.predict`` observation encoding:
   build_camera_config -> make_cameras_from_configs -> connect -> read_latest -> encode
 """
 
@@ -18,14 +18,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-import camera  # noqa: F401  # register opencv_crop CameraConfig subclass
+import lerobot_camera_opencv_crop  # noqa: F401  # register opencv_crop CameraConfig subclass
 import numpy as np
 from lerobot.cameras.configs import Cv2Backends
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.import_utils import register_third_party_plugins
 
 from utils.robot import build_camera_config
-from robot_client.observation import make_predict_observation
+from model_client import image_to_rgb_hwc_u8_bytes, state_to_list
 
 # Default matches shell/run_robot_client.sh (camera1 + warmup_s).
 DEFAULT_ROBOT_CAMERAS = (
@@ -332,7 +332,20 @@ def run_camera_test(
             read_ms = (time.perf_counter() - t0) * 1000.0
 
             validate_frame(image, camera_key, expected_hw)
-            observation = make_predict_observation(image, dummy_state, image_name=camera_key)
+            rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(image)
+            observation = {
+                "images": [
+                    {
+                        "name": camera_key,
+                        "rgb_hwc_u8": rgb,
+                        "width": width,
+                        "height": height,
+                        "stride_bytes": stride,
+                    }
+                ],
+                "state": state_to_list(dummy_state),
+                "prompt": "grab the block.",
+            }
             validate_observation_payload(observation, camera_key=camera_key, expected_hw=expected_hw)
             captured += 1
 
@@ -458,7 +471,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dummy-state-dim",
         type=int,
         default=6,
-        help="Dummy proprio state length for make_predict_observation.",
+        help="Dummy proprio state length for predict observation encoding.",
     )
     parser.add_argument(
         "-v",
