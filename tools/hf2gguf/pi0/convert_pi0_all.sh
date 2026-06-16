@@ -14,8 +14,8 @@ FORCE="${FORCE:-0}"                                                         # 1 
 LLAMA_CPP_ROOT="${LLAMA_CPP_ROOT:-${VLA_CPP_ROOT}/third_party/llama.cpp}"
 GGUF_PY_DIR="${LLAMA_CPP_ROOT}/gguf-py"
 PI0_CONVERTER_DIR="${VLA_CPP_ROOT}/tools/hf2gguf/pi0"
-CHECKPOINT_DIR="$(realpath -m "${CHECKPOINT_DIR}")"
-OUTPUT_PREFIX="$(realpath -m "${OUTPUT_PREFIX}")"
+CHECKPOINT_DIR="$("${PYTHON_BIN}" -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).expanduser().resolve(strict=False))' "${CHECKPOINT_DIR}")"
+OUTPUT_PREFIX="$("${PYTHON_BIN}" -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).expanduser().resolve(strict=False))' "${OUTPUT_PREFIX}")"
 
 # Put llama.cpp's gguf-py and repo tools first so imports use the checked-out
 # GGUF writer implementation instead of a site-packages copy.

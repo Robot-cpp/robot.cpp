@@ -194,13 +194,21 @@ def resolve_input(input_path: str) -> Path:
     return Path(input_path)
 
 
+def lerobot_payload_dir(input_path: Path) -> Path:
+    nested = input_path / "lerobot"
+    if nested.is_dir():
+        return nested
+    return input_path
+
+
 def resolve_pi0_dir(input_path: Path) -> tuple[Path, Path | None]:
     if input_path.is_file():
         return input_path, None
-    checkpoint = input_path / "lerobot" / "model.safetensors"
-    config = input_path / "lerobot" / "config.json"
+    payload_dir = lerobot_payload_dir(input_path)
+    checkpoint = payload_dir / "model.safetensors"
+    config = payload_dir / "config.json"
     if not checkpoint.exists():
-        raise SystemExit(f"pi0 input directory must contain {checkpoint.relative_to(input_path)}")
+        raise SystemExit("pi0 input directory must contain model.safetensors or lerobot/model.safetensors")
     return checkpoint, config if config.exists() else None
 
 
@@ -288,7 +296,7 @@ def processor_state_file(lerobot_dir: Path, policy_json_name: str, registry_name
 def load_lerobot_processor_norm_stats(input_path: Path) -> dict[str, Any]:
     if not input_path.is_dir():
         return {}
-    lerobot_dir = input_path / "lerobot"
+    lerobot_dir = lerobot_payload_dir(input_path)
     preprocessor = processor_state_file(
         lerobot_dir,
         "policy_preprocessor.json",
@@ -392,7 +400,10 @@ def load_sentencepiece_tokenizer_metadata(path: Path) -> dict[str, Any]:
 def lerobot_tokenizer_name(input_path: Path) -> str | None:
     if not input_path.is_dir():
         return None
-    policy = load_json(input_path / "lerobot" / "policy_preprocessor.json")
+    policy_path = lerobot_payload_dir(input_path) / "policy_preprocessor.json"
+    if not policy_path.exists():
+        return None
+    policy = load_json(policy_path)
     for step in policy.get("steps", []):
         if step.get("registry_name") == "tokenizer_processor":
             name = step.get("config", {}).get("tokenizer_name")
@@ -405,7 +416,8 @@ def resolve_tokenizer_model(input_path: Path, explicit: Path | None) -> Path | N
         return explicit
     if not input_path.is_dir():
         return None
-    local = input_path / "lerobot" / "tokenizer.model"
+    payload_dir = lerobot_payload_dir(input_path)
+    local = payload_dir / "tokenizer.model"
     if local.exists():
         return local
     tokenizer_name = lerobot_tokenizer_name(input_path)
