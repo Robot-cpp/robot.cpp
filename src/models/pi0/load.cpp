@@ -233,7 +233,10 @@ protected:
             if (!should_load_pi0_tensor(config_, name)) {
                 continue;
             }
-            if (cur->type != GGML_TYPE_F32 && cur->type != GGML_TYPE_F16 && cur->type != GGML_TYPE_BF16) {
+            if (cur->type != GGML_TYPE_F32 &&
+                cur->type != GGML_TYPE_F16 &&
+                cur->type != GGML_TYPE_BF16 &&
+                !ggml_is_quantized(cur->type)) {
                 set_error("unsupported pi0 tensor type: " + name);
                 return false;
             }

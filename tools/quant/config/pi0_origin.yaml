@@ -1,0 +1,247 @@
+version: 1
+model_type: pi0
+
+# Baseline pi0 quant plan.
+#
+# Usage:
+#   GGUF_DIR=/Users/lxsy/research/ckpts/pi0/converted \
+#   MODEL_BASENAME=pi0 \
+#   QUANT_OUTPUT_DIR=debug/artifacts/quant/pi0_outputs \
+#   python tools/quant/quantize-vla-gguf.py tools/quant/config/pi0_origin.yaml --dry-run
+#
+# This origin plan keeps every tensor at f32, but groups tensors by the modules
+# we expect to edit during quant experiments. Users normally only change group
+# "type" values after the dry-run proves exactly-once coverage.
+
+components:
+  llm:
+    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.llm.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.llm.gguf"
+    groups:
+      norms:
+        quantizable: false
+        type: f32
+        reason: norm tensors stay float
+        patterns:
+          - pi0.llm.layers.*.input_layernorm.scale
+          - pi0.llm.layers.*.post_attention_layernorm.scale
+          - pi0.llm.norm.scale
+      lm_head:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.lm_head.weight
+      attention_q:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.self_attn.q_proj.weight
+      attention_k:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.self_attn.k_proj.weight
+      attention_v:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.self_attn.v_proj.weight
+      attention_output:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.self_attn.o_proj.weight
+      ffn_gate:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.mlp.gate_proj.weight
+      ffn_up:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.mlp.up_proj.weight
+      ffn_down:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.llm.layers.*.mlp.down_proj.weight
+
+  mmproj:
+    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.mmproj.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.mmproj.gguf"
+    groups:
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - pi0.merger.bias
+      projection:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.merger.weight
+
+  vit:
+    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.vit.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.vit.gguf"
+    groups:
+      patch_embeddings:
+        quantizable: false
+        type: f32
+        reason: patch embedding tensors are protected in the first quant pass
+        patterns:
+          - pi0.vit.embeddings.patch_embedding.bias
+          - pi0.vit.embeddings.patch_embedding.weight
+      position_embeddings:
+        quantizable: false
+        type: f32
+        reason: positional embeddings stay float
+        patterns:
+          - pi0.vit.embeddings.position_embedding.weight
+      norms:
+        quantizable: false
+        type: f32
+        reason: norm tensors stay float
+        patterns:
+          - pi0.vit.encoder.layers.*.layer_norm1.bias
+          - pi0.vit.encoder.layers.*.layer_norm1.weight
+          - pi0.vit.encoder.layers.*.layer_norm2.bias
+          - pi0.vit.encoder.layers.*.layer_norm2.weight
+          - pi0.vit.post_layernorm.bias
+          - pi0.vit.post_layernorm.weight
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - pi0.vit.encoder.layers.*.mlp.fc1.bias
+          - pi0.vit.encoder.layers.*.mlp.fc2.bias
+          - pi0.vit.encoder.layers.*.self_attn.k_proj.bias
+          - pi0.vit.encoder.layers.*.self_attn.out_proj.bias
+          - pi0.vit.encoder.layers.*.self_attn.q_proj.bias
+          - pi0.vit.encoder.layers.*.self_attn.v_proj.bias
+      attention_q:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.vit.encoder.layers.*.self_attn.q_proj.weight
+      attention_k:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.vit.encoder.layers.*.self_attn.k_proj.weight
+      attention_v:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.vit.encoder.layers.*.self_attn.v_proj.weight
+      attention_output:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.vit.encoder.layers.*.self_attn.out_proj.weight
+      ffn_up:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.vit.encoder.layers.*.mlp.fc1.weight
+      ffn_down:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.vit.encoder.layers.*.mlp.fc2.weight
+
+  state:
+    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.state.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.state.gguf"
+    groups:
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - pi0.action_decoder.state_proj.bias
+      state_projection:
+        quantizable: false
+        type: f32
+        reason: state projection is small and accuracy sensitive
+        patterns:
+          - pi0.action_decoder.state_proj.weight
+
+  action_decoder:
+    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.action_decoder.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.action_decoder.gguf"
+    groups:
+      biases:
+        quantizable: false
+        type: f32
+        reason: bias tensors stay float
+        patterns:
+          - pi0.action_decoder.action_in_proj.bias
+          - pi0.action_decoder.action_out_proj.bias
+          - pi0.action_decoder.action_time_mlp_in.bias
+          - pi0.action_decoder.action_time_mlp_out.bias
+      norms:
+        quantizable: false
+        type: f32
+        reason: norm tensors stay float
+        patterns:
+          - pi0.action_decoder.layers.*.input_layernorm.scale
+          - pi0.action_decoder.layers.*.post_attention_layernorm.scale
+          - pi0.action_decoder.norm.scale
+      action_input_projection:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.action_in_proj.weight
+      action_output_projection:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.action_out_proj.weight
+      time_mlp:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.action_time_mlp_in.weight
+          - pi0.action_decoder.action_time_mlp_out.weight
+      attention_q:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.self_attn.q_proj.weight
+      attention_k:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.self_attn.k_proj.weight
+      attention_v:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.self_attn.v_proj.weight
+      attention_output:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.self_attn.o_proj.weight
+      ffn_gate:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.mlp.gate_proj.weight
+      ffn_up:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.mlp.up_proj.weight
+      ffn_down:
+        quantizable: true
+        type: f32
+        patterns:
+          - pi0.action_decoder.layers.*.mlp.down_proj.weight
+
+report:
+  path: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/pi0_quant_report.json"
