@@ -34,7 +34,7 @@ struct server_args {
     int n_ctx = 2048;
     int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
-    int verbosity = 1;
+    int verbosity = 0;
 };
 
 static bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
@@ -99,7 +99,7 @@ static void print_usage(const char * prog) {
         "  --n-ctx <n>              LLM context size (default: 2048)\n"
         "  --noise-mode <mode>      gaussian|debug-sin (default: gaussian)\n"
         "  --noise-seed <n>         RNG seed, <0 means auto (default: -1)\n"
-        "  --verbosity <n>          Log verbosity (default: 1)\n"
+        "  --verbosity <n>          Log verbosity (default: 0)\n"
         "  -h, --help               Show this help\n",
         prog, prog);
 }
