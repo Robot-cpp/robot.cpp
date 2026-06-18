@@ -9,10 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-if __package__ is None or __package__ == "":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from eval.libero.utils import (  # noqa: E402
+from eval.libero.utils import (
     DEFAULT_RESULTS_DIR,
     REPO_ROOT,
     parse_task_ids,
@@ -20,7 +17,7 @@ from eval.libero.utils import (  # noqa: E402
     timestamp,
     write_json,
 )
-from eval.libero.env import DEFAULT_LIBERO_CONFIG_PATH, apply_runtime_env, ensure_libero_config  # noqa: E402
+from eval.libero.env import DEFAULT_LIBERO_CONFIG_PATH, apply_runtime_env, ensure_libero_config
 
 
 def parse_args() -> argparse.Namespace:

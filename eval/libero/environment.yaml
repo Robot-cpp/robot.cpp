@@ -1,0 +1,22 @@
+name: vlacpp-libero
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - cmake<4
+  - ffmpeg
+  - pip:
+      # Pick the torch wheel that matches the machine if CUDA support is needed.
+      # The plain PyPI wheel is fine for CPU smoke tests.
+      - torch>=2.5
+      - torchvision
+      - "lerobot[libero]>=0.4,<0.5"
+      - "hf-libero>=0.1.3,<0.2.0"
+      - mujoco
+      - glfw
+      - imageio-ffmpeg
+      - opencv-python-headless
+      - numba
+      - numpy
+      - pyyaml

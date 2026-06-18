@@ -1,7 +1,7 @@
 # LIBERO eval
 
 This folder contains LIBERO environment helpers, the LeRobot baseline runner,
-policy latency benchmark, and model-server rollout runner.
+the model-server rollout runner, and latency benchmarks for both paths.
 
 ## Dependency check
 
@@ -13,6 +13,16 @@ pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
 export MUJOCO_GL=egl
 ```
+
+Or create a dedicated conda environment from the template:
+
+```sh
+conda env create -f eval/libero/environment.yaml
+conda activate vlacpp-libero
+```
+
+Install a CUDA-specific PyTorch wheel in that environment if the default wheel
+does not match the target machine.
 
 `cmake<4` is needed because `egl_probe` currently uses an older CMake policy.
 The eval runners create `~/.libero/config.yaml` automatically so `hf-libero`
@@ -80,6 +90,41 @@ The SmolVLA benchmark maps input image keys through `policy_preprocessor.json`
 before generating random observations, and uses normalizer stats to infer the
 state dimension when they differ from `config.json`.
 
+## model-server policy latency
+
+Measure model-server action chunk latency with synthetic LIBERO-style inputs,
+without launching LIBERO:
+
+```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
+MODEL=vlacpp-pi0-libero-finetuned-v044
+
+python -m eval.libero.benchmark_model_server_policy \
+  --launch-server \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --server-env ROBOTCPP_BACKEND=cuda \
+  --warmup 5 \
+  --loops 20 \
+  --server-command \
+  build-cuda/bin/model-server \
+  --model-type pi0 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --host 127.0.0.1 \
+  --port 5555 \
+  --threads 8 \
+  --noise-seed 1000 \
+  --verbosity 0
+```
+
+The result JSON reports `roundtrip_ms` plus server/model metrics returned by
+`model-server`, after discarding warmup iterations.
+
 ## model-server rollout
 
 Download the pi0 v044 split GGUF files:
@@ -95,6 +140,22 @@ Build the CUDA server:
 ```sh
 cmake --build build-cuda --target model-server -j
 ```
+
+The one-command wrapper configures/builds `model-server`, launches it, and runs
+the rollout:
+
+```sh
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split \
+MODEL=vlacpp-pi0-libero-finetuned-v044 \
+CONDA_ENV=vlacpp-libero \
+CMAKE_CUDA_ARCHITECTURES=80 \
+bash eval/libero/run_model_server_eval.sh
+```
+
+Common overrides are environment variables: `BUILD_DIR`, `ROBOTCPP_BACKEND`,
+`HOST`, `PORT`, `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH`,
+`MUJOCO_GL`, `PYOPENGL_PLATFORM`, and `OUTPUT`. Extra shell arguments are passed
+to `python -m eval.libero.run_model_server_eval` before `--server-command`.
 
 Run one episode for task 0 in `libero_object`:
 
@@ -138,8 +199,8 @@ stay last because it consumes the rest of the command line. The runner itself is
 model-agnostic; pi0-specific values appear only in this launch command. The
 optional `ROBOTCPP_BACKEND` environment override selects the server backend.
 
-The reusable model-server policy and server lifecycle helpers live in
-`eval/model_server_policy.py`. This LIBERO runner supplies only the
+The reusable simulation policy and server lifecycle helpers live in
+`robot_client/base_policy/sim_policy.py`. The LIBERO client supplies only the
 LIBERO-specific request adapter, matching LeRobot LIBERO rollout input
 semantics:
 

@@ -1,24 +1,23 @@
+"""Model-server policy helpers for simulated environment clients."""
+
 from __future__ import annotations
 
 import math
 import os
-import sys
 import statistics
 import subprocess
 import time
+from abc import ABC, abstractmethod
 from collections import deque
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "robot_client" / "python"))
-
-from model_client import ModelClient  # noqa: E402
-
-
-RequestBuilder = Callable[[Any, str], dict[str, Any]]
+try:
+    from .base_policy import BasePolicy
+except ImportError:  # Supports legacy imports with robot_client on sys.path.
+    from base_policy.base_policy import BasePolicy
 
 
 @dataclass
@@ -27,31 +26,38 @@ class ServerTiming:
     timings: dict[str, float]
 
 
-@dataclass
-class ModelServerPolicy:
-    request_builder: RequestBuilder
-    action_dim: int
-    host: str = "127.0.0.1"
-    port: int = 5555
-    timeout: float | None = 120.0
-    client: ModelClient = field(init=False)
-    action_queue: deque[list[float]] = field(default_factory=deque, init=False)
-    predict_calls: int = 0
-    timing_records: list[ServerTiming] = field(default_factory=list)
+class SimPolicy(BasePolicy, ABC):
+    """Base class for simulated environment model-server policies.
 
-    def __post_init__(self) -> None:
-        self.client = ModelClient(host=self.host, port=self.port, timeout=self.timeout)
+    Subclasses adapt simulator-specific observations into the model-server
+    request schema. This class owns common request dispatch, action chunk
+    buffering, reset, health, and timing collection.
+    """
+
+    def __init__(
+        self,
+        *,
+        action_dim: int,
+        host: str = "127.0.0.1",
+        port: int = 5555,
+        timeout: float | None = 120.0,
+    ):
+        self.action_dim = action_dim
+        self.action_queue: deque[list[float]] = deque()
+        self.predict_calls = 0
+        self.timing_records: list[ServerTiming] = []
+        super().__init__(host=host, port=port, timeout=timeout)
+
+    @abstractmethod
+    def build_request(self, observation: Any, task: str) -> dict[str, Any]:
+        """Convert an environment observation and task into a model-server request."""
 
     def reset(self, *, reset_server: bool = True) -> None:
         self.action_queue.clear()
-        if reset_server:
-            self.client.reset()
-
-    def health(self) -> str:
-        return self.client.health()
+        super().reset(reset_server=reset_server)
 
     def predict_action_chunk(self, observation: Any, task: str) -> np.ndarray:
-        request = self.request_builder(observation, task)
+        request = self.build_request(observation, task)
         start = time.perf_counter()
         response = self.client.predict(request)
         roundtrip_ms = (time.perf_counter() - start) * 1000.0
@@ -65,7 +71,7 @@ class ModelServerPolicy:
         return np.asarray(self.action_queue.popleft()[: self.action_dim], dtype=np.float32)
 
 
-def wait_for_server(policy: ModelServerPolicy, timeout_s: float) -> None:
+def wait_for_server(policy: BasePolicy, timeout_s: float) -> None:
     deadline = time.time() + timeout_s
     last_error: Exception | None = None
     while time.time() < deadline:
@@ -97,7 +103,7 @@ def server_command(args: Any) -> list[str]:
     return cmd
 
 
-def maybe_launch_server(args: Any, policy: ModelServerPolicy) -> subprocess.Popen[str] | None:
+def maybe_launch_server(args: Any, policy: BasePolicy) -> subprocess.Popen[str] | None:
     if not args.launch_server:
         wait_for_server(policy, args.server_wait_s)
         return None
@@ -118,7 +124,7 @@ def maybe_launch_server(args: Any, policy: ModelServerPolicy) -> subprocess.Pope
     return proc
 
 
-def stop_server(proc: subprocess.Popen[str] | None, policy: ModelServerPolicy) -> None:
+def stop_server(proc: subprocess.Popen[str] | None, policy: BasePolicy) -> None:
     if proc is None:
         return
     try:

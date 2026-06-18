@@ -4,19 +4,13 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 import time
-from functools import partial
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-if __package__ is None or __package__ == "":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from eval.model_server_policy import (  # noqa: E402
-    ModelServerPolicy,
+from robot_client.base_policy.sim_policy import (
     average_timing,
     maybe_launch_server,
     parse_server_env,
@@ -24,15 +18,15 @@ from eval.model_server_policy import (  # noqa: E402
     stop_server,
     timing_summary,
 )
-from eval.libero.utils import (  # noqa: E402
+from eval.libero.client import DEFAULT_IMAGE_KEYS, LiberoClient
+from eval.libero.utils import (
     DEFAULT_RESULTS_DIR,
     aggregate_episodes,
     parse_task_ids,
     timestamp,
     write_json,
 )
-from eval.libero.env import (  # noqa: E402
-    DEFAULT_LIBERO_CAMERA_KEYS,
+from eval.libero.env import (
     DEFAULT_LIBERO_CONFIG_PATH,
     apply_runtime_env,
     ensure_libero_config,
@@ -45,72 +39,7 @@ from eval.libero.env import (  # noqa: E402
 )
 
 
-DEFAULT_IMAGE_KEYS = ("observation.images.image", "observation.images.image2")
-
-
-def first_env_value(value: Any) -> np.ndarray:
-    array = np.asarray(value)
-    if array.ndim > 0 and array.shape[0] == 1:
-        return array[0]
-    return array
-
-
-def quat_xyzw_to_axis_angle(quat_xyzw: np.ndarray) -> np.ndarray:
-    quat = np.asarray(quat_xyzw, dtype=np.float32).reshape(4)
-    w = float(np.clip(quat[3], -1.0, 1.0))
-    den = float(np.sqrt(max(1.0 - w * w, 0.0)))
-    if den <= 1e-10:
-        return np.zeros(3, dtype=np.float32)
-    axis = quat[:3] / den
-    angle = 2.0 * np.arccos(w)
-    return (axis * angle).astype(np.float32)
-
-
-def libero_state_vector(observation: dict[str, Any], state_dim: int) -> np.ndarray:
-    robot_state = observation["robot_state"]
-    eef_pos = first_env_value(robot_state["eef"]["pos"]).astype(np.float32).reshape(3)
-    eef_quat = first_env_value(robot_state["eef"]["quat"]).astype(np.float32).reshape(4)
-    gripper_qpos = first_env_value(robot_state["gripper"]["qpos"]).astype(np.float32).reshape(2)
-    state = np.concatenate([eef_pos, quat_xyzw_to_axis_angle(eef_quat), gripper_qpos]).astype(np.float32)
-    if state.shape[0] > state_dim:
-        return state[:state_dim]
-    if state.shape[0] < state_dim:
-        state = np.pad(state, (0, state_dim - state.shape[0]), mode="constant")
-    return state.astype(np.float32)
-
-
-def libero_image(observation: dict[str, Any], camera_key: str) -> np.ndarray:
-    image = first_env_value(observation["pixels"][camera_key])
-    if image.dtype != np.uint8:
-        image = np.clip(image, 0.0, 1.0)
-        image = (image * 255.0).astype(np.uint8)
-    return np.flip(image, axis=(0, 1)).copy()
-
-
-def build_model_server_request(
-    observation: dict[str, Any],
-    task: str,
-    *,
-    state_dim: int,
-    image_keys: tuple[str, ...] = DEFAULT_IMAGE_KEYS,
-    camera_keys: tuple[str, ...] = DEFAULT_LIBERO_CAMERA_KEYS,
-) -> dict[str, Any]:
-    if len(image_keys) != len(camera_keys):
-        raise ValueError("image_keys and camera_keys must have the same length")
-    return {
-        "images": [
-            {
-                "name": image_name,
-                "image": libero_image(observation, camera_key),
-            }
-            for image_name, camera_key in zip(image_keys, camera_keys)
-        ],
-        "state": libero_state_vector(observation, state_dim),
-        "prompt": task,
-    }
-
-
-def run_episode(env: Any, policy: ModelServerPolicy, seed: int | None, episode_index: int) -> dict[str, Any]:
+def run_episode(env: Any, policy: LiberoClient, seed: int | None, episode_index: int) -> dict[str, Any]:
     observation, _info = vector_reset(env, seed)
     policy.reset(reset_server=True)
     task = task_description(env)
@@ -182,14 +111,10 @@ def main() -> int:
     args = parse_args()
     output = args.output or DEFAULT_RESULTS_DIR / f"server-libero-{timestamp()}.json"
     image_keys = tuple(args.image_key or DEFAULT_IMAGE_KEYS)
-    request_builder = partial(
-        build_model_server_request,
+    policy = LiberoClient(
         state_dim=args.state_dim,
-        image_keys=image_keys,
-    )
-    policy = ModelServerPolicy(
-        request_builder=request_builder,
         action_dim=args.env_action_dim,
+        image_keys=image_keys,
         host=args.host,
         port=args.port,
     )
