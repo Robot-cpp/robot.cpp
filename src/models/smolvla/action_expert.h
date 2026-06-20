@@ -195,6 +195,14 @@ SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_transformer_project_velocity(
     float * velocity_out
 );
 
+SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
+    struct smolvla_action_expert * ctx,
+    int n_threads,
+    const float * noisy_actions,
+    float timestep,
+    float * velocity_out
+);
+
 SMOLVLA_EXPERT_API bool smolvla_action_expert_prepare_attention_cache(
     struct smolvla_action_expert * ctx,
     const uint8_t * prefix_valid_mask,

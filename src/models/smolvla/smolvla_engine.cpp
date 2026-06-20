@@ -907,7 +907,6 @@ static struct smolvla_result smolvla_predict_impl(
     {
         const int chunk = ctx->chunk_size;
         const int padded_action_dim = ctx->expert->max_action_dim;
-        const int hidden = ctx->expert->hidden_size;
         const float dt = -1.0f / (float) ctx->num_steps;
 
         std::vector<uint8_t> prefix_valid_mask_u8(ctx->prefix_valid_mask.size(), 1);
@@ -925,21 +924,13 @@ static struct smolvla_result smolvla_predict_impl(
         std::vector<float> x_t((size_t) chunk * padded_action_dim);
         smolvla_fill_initial_noise(ctx, x_t.data(), chunk, padded_action_dim);
 
-        std::vector<float> suffix_emb((size_t) chunk * hidden);
         std::vector<float> v_t((size_t) chunk * padded_action_dim);
         for (int step = 0; step < ctx->num_steps; ++step) {
             const float timestep = 1.0f + step * dt;
 
-            if (!smolvla_action_expert_embed_suffix(
-                    ctx->expert, ctx->n_threads, x_t.data(), timestep, suffix_emb.data())) {
-                fprintf(stderr, "[SmolVLA] FATAL: M6 embed_suffix failed at step %d\n", step);
-                return result;
-            }
-            if (!smolvla_action_expert_eval_transformer_project_velocity(
-                           ctx->expert,
-                           suffix_emb.data(),
-                           v_t.data())) {
-                fprintf(stderr, "[SmolVLA] FATAL: M6 transformer+velocity failed at step %d\n", step);
+            if (!smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
+                    ctx->expert, ctx->n_threads, x_t.data(), timestep, v_t.data())) {
+                fprintf(stderr, "[SmolVLA] FATAL: M6 fused embed+transformer+velocity failed at step %d\n", step);
                 return result;
             }
 

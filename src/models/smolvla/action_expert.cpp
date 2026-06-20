@@ -1264,6 +1264,134 @@ bool smolvla_action_expert_eval_transformer_project_velocity(
     return true;
 }
 
+bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
+    struct smolvla_action_expert * ctx,
+    int n_threads,
+    const float * noisy_actions,
+    float timestep,
+    float * velocity_out
+) {
+    if (!ctx || !noisy_actions || !velocity_out) {
+        LOG_ERR("%s: invalid arguments\n", __func__);
+        return false;
+    }
+    ctx->graph_n_threads = n_threads;
+
+    const int prefix_seq_len = ctx->prefix_kv_runtime.prefix_seq_len;
+    if (!attention_runtime_is_ready(ctx, prefix_seq_len)) {
+        LOG_ERR("%s: attention cache is not prepared\n", __func__);
+        return false;
+    }
+
+    std::vector<float> time_emb_2d_fallback;
+    const float * time_emb_2d_ptr = resolve_time_emb_2d(ctx, timestep, time_emb_2d_fallback);
+
+    const int chunk = ctx->chunk_size;
+    const int hidden = ctx->hidden_size;
+    const size_t graph_nodes = 4096;
+    std::vector<uint8_t> meta_buf;
+    struct ggml_context * ctx_graph = nullptr;
+    struct ggml_cgraph * graph = nullptr;
+    struct ggml_tensor * inp_actions = nullptr;
+    struct ggml_tensor * inp_time = nullptr;
+    struct ggml_tensor * out = nullptr;
+
+    meta_buf.resize(smolvla_graph_meta_size(graph_nodes));
+    struct ggml_init_params params = {
+        /*.mem_size   =*/ meta_buf.size(),
+        /*.mem_buffer =*/ meta_buf.data(),
+        /*.no_alloc   =*/ true,
+    };
+
+    ctx_graph = ggml_init(params);
+    if (!ctx_graph) {
+        LOG_ERR("%s: failed to init fused graph ctx\n", __func__);
+        return false;
+    }
+
+    inp_actions = ggml_new_tensor_2d(ctx_graph, GGML_TYPE_F32, ctx->max_action_dim, chunk);
+    inp_time = ggml_new_tensor_2d(ctx_graph, GGML_TYPE_F32, hidden, chunk);
+    if (!inp_actions || !inp_time) {
+        LOG_ERR("%s: failed to create fused inputs\n", __func__);
+        ggml_free(ctx_graph);
+        return false;
+    }
+    ggml_set_name(inp_actions, "fused_noisy_actions");
+    ggml_set_name(inp_time, "fused_time_emb");
+    ggml_set_input(inp_actions);
+    ggml_set_input(inp_time);
+
+    struct ggml_tensor * suffix = build_embed_suffix_op(ctx, ctx_graph, inp_actions, inp_time);
+    if (!suffix) {
+        LOG_ERR("%s: failed to build embed suffix op\n", __func__);
+        ggml_free(ctx_graph);
+        return false;
+    }
+    ggml_set_name(suffix, "fused_suffix_emb");
+
+    struct ggml_tensor * hidden_out = build_transformer_stack_op(
+        ctx,
+        prefix_seq_len,
+        ctx_graph,
+        suffix,
+        ctx->attention_runtime.self_pos,
+        ctx->attention_runtime.cross_pos,
+        ctx->attention_runtime.self_mask,
+        ctx->attention_runtime.cross_mask);
+    if (!hidden_out) {
+        ggml_free(ctx_graph);
+        return false;
+    }
+
+    out = build_project_velocity_op(ctx, ctx_graph, hidden_out);
+    if (!out) {
+        LOG_ERR("%s: failed to build velocity projection\n", __func__);
+        ggml_free(ctx_graph);
+        return false;
+    }
+    ggml_set_name(out, "fused_transformer_velocity_out");
+    ggml_set_output(out);
+
+    graph = ggml_new_graph_custom(ctx_graph, graph_nodes, false);
+    ggml_build_forward_expand(graph, out);
+
+    if (!ctx->sched) {
+        LOG_ERR("%s: scheduler is required\n", __func__);
+        ggml_free(ctx_graph);
+        return false;
+    }
+
+    ggml_backend_sched_reset(ctx->sched);
+    if (!ggml_backend_sched_alloc_graph(ctx->sched, graph)) {
+        LOG_ERR("%s: failed to allocate fused graph\n", __func__);
+        ggml_free(ctx_graph);
+        return false;
+    }
+
+    ggml_backend_tensor_set(
+        inp_actions,
+        noisy_actions,
+        0,
+        (size_t) ctx->max_action_dim * chunk * sizeof(float));
+    ggml_backend_tensor_set(
+        inp_time,
+        time_emb_2d_ptr,
+        0,
+        (size_t) hidden * chunk * sizeof(float));
+
+    set_backend_threads(ctx->backends, n_threads);
+    ggml_backend_sched_graph_compute(ctx->sched, graph);
+
+    ggml_backend_tensor_get(
+        out,
+        velocity_out,
+        0,
+        (size_t) chunk * ctx->max_action_dim * sizeof(float));
+
+    ggml_free(ctx_graph);
+    return true;
+}
+
 bool smolvla_action_expert_prepare_prefix_kv_from_backend(
     struct smolvla_action_expert * ctx,
     int prefix_seq_len,
