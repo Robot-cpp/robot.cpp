@@ -42,7 +42,6 @@
 // ============================================================================
 // Forward declarations (for use in load)
 // ============================================================================
-static ggml_cgraph * embed_suffix_build_graph(smolvla_action_expert * ctx);
 static void precompute_time_embedding_cache(smolvla_action_expert * ctx);
 static struct ggml_tensor * build_project_velocity_op(
     smolvla_action_expert * ctx,
@@ -102,24 +101,6 @@ static void smolvla_free_model_contexts(std::vector<ggml_context *> & ctxs) {
 
 static size_t smolvla_graph_meta_size(size_t max_nodes) {
     return max_nodes * ggml_tensor_overhead() + ggml_graph_overhead_custom(max_nodes, false);
-}
-
-struct smolvla_transformer_graph_state {
-    std::vector<uint8_t> meta_buf;
-    struct ggml_context * ctx_graph = nullptr;
-    struct ggml_cgraph * graph = nullptr;
-
-    struct ggml_tensor * inp_hidden = nullptr;
-    std::vector<struct ggml_tensor *> inp_prefix_k;
-    std::vector<struct ggml_tensor *> inp_prefix_v;
-    struct ggml_tensor * out = nullptr;
-};
-
-static void clear_transformer_graph(smolvla_transformer_graph_state & graph_state) {
-    if (graph_state.ctx_graph) {
-        ggml_free(graph_state.ctx_graph);
-    }
-    graph_state = smolvla_transformer_graph_state();
 }
 
 static void smolvla_free_scheduler_backends(std::vector<ggml_backend_t> & backends) {
@@ -424,15 +405,6 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
 
-    {
-        ggml_cgraph * gf = embed_suffix_build_graph(ctx);
-        if (!gf || !ggml_backend_sched_reserve(ctx->sched, gf)) {
-            LOG_ERR("%s: failed to reserve embed_suffix graph\n", __func__);
-            smolvla_action_expert_free(ctx);
-            return nullptr;
-        }
-    }
-
     return ctx;
 }
 
@@ -555,110 +527,6 @@ static struct ggml_tensor * build_embed_suffix_op(
     return cur;
 }
 
-static ggml_cgraph * embed_suffix_build_graph(smolvla_action_expert * ctx) {
-    struct ggml_init_params params = {
-        /*.mem_size   =*/ ctx->buf_compute_meta.size(),
-        /*.mem_buffer =*/ ctx->buf_compute_meta.data(),
-        /*.no_alloc   =*/ true,
-    };
-
-    struct ggml_context * ctx0 = ggml_init(params);
-    struct ggml_cgraph * gf = ggml_new_graph(ctx0);
-
-    // Inputs
-    struct ggml_tensor * noisy_actions = ggml_new_tensor_2d(
-        ctx0, GGML_TYPE_F32, ctx->max_action_dim, ctx->chunk_size);
-    ggml_set_name(noisy_actions, "noisy_actions");
-    ggml_set_input(noisy_actions);
-
-    struct ggml_tensor * time_emb = ggml_new_tensor_2d(
-        ctx0, GGML_TYPE_F32, ctx->hidden_size, ctx->chunk_size);
-    ggml_set_name(time_emb, "time_emb");
-    ggml_set_input(time_emb);
-
-    struct ggml_tensor * cur = build_embed_suffix_op(ctx, ctx0, noisy_actions, time_emb);
-
-    ggml_set_name(cur, "suffix_emb");
-    ggml_set_output(cur);
-
-    ggml_build_forward_expand(gf, cur);
-    ggml_free(ctx0);
-
-    return gf;
-}
-
-// ============================================================================
-// embed_suffix execution
-// ============================================================================
-
-bool smolvla_action_expert_embed_suffix(
-    struct smolvla_action_expert * ctx,
-    int n_threads,
-    const float * noisy_actions,
-    float timestep,
-    float * output
-) {
-    if (!ctx || !noisy_actions || !output) {
-        LOG_ERR("%s: invalid arguments\n", __func__);
-        return false;
-    }
-    ctx->graph_n_threads = n_threads; //action部分线程数
-
-    std::vector<float> time_emb_2d_fallback;
-    const float * time_emb_2d_ptr = resolve_time_emb_2d(ctx, timestep, time_emb_2d_fallback);
-
-    const auto t_build_start = std::chrono::high_resolution_clock::now();
-    ggml_cgraph * gf = embed_suffix_build_graph(ctx);
-    if (!ctx->sched) {
-        LOG_ERR("%s: scheduler is required\n", __func__);
-        return false;
-    }
-    ggml_backend_sched_reset(ctx->sched);
-    if (!gf || !ggml_backend_sched_alloc_graph(ctx->sched, gf)) {
-        LOG_ERR("%s: failed to allocate embed_suffix graph\n", __func__);
-        return false;
-    }
-    const auto t_build_end = std::chrono::high_resolution_clock::now();
-
-    // Set inputs
-    struct ggml_tensor * inp_actions = ggml_graph_get_tensor(gf, "noisy_actions");
-    struct ggml_tensor * inp_time    = ggml_graph_get_tensor(gf, "time_emb");
-    if (!inp_actions || !inp_time) {
-        LOG_ERR("%s: failed to get input tensors\n", __func__);
-        return false;
-    }
-
-    // noisy_actions layout: [max_action_dim, chunk_size] in ggml
-    // Input from caller is [chunk_size * max_action_dim] row-major (each row = one action)
-    // ggml expects column-major: ne[0]=max_action_dim consecutive, then ne[1]=chunk_size
-    // Row-major [chunk_size][max_action_dim] == column-major [max_action_dim, chunk_size] ✓
-    ggml_backend_tensor_set(inp_actions, noisy_actions, 0,
-                            ctx->max_action_dim * ctx->chunk_size * sizeof(float));
-    ggml_backend_tensor_set(inp_time, time_emb_2d_ptr, 0,
-                            ctx->hidden_size * ctx->chunk_size * sizeof(float));
-
-    // Compute
-    set_backend_threads(ctx->backends, n_threads);
-    const auto t_compute_start = std::chrono::high_resolution_clock::now();
-    ggml_backend_sched_graph_compute(ctx->sched, gf);
-    const auto t_compute_end = std::chrono::high_resolution_clock::now();
-
-    if (ctx->verbosity >= 1) {
-        LOG_INF("%s: graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
-                std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count(),
-                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
-    }
-
-    // Read output
-    struct ggml_tensor * out = ggml_graph_get_tensor(gf, "suffix_emb");
-    if (!out) {
-        LOG_ERR("%s: failed to get output tensor\n", __func__);
-        return false;
-    }
-    ggml_backend_tensor_get(out, output, 0, ctx->hidden_size * ctx->chunk_size * sizeof(float));
-
-    return true;
-}
 static bool attention_runtime_is_ready(
     const smolvla_action_expert * ctx,
     int prefix_seq_len) {
@@ -1012,103 +880,6 @@ static struct ggml_tensor * build_transformer_stack_op(
     return cur;
 }
 
-static bool transformer_velocity_build_graph(
-    smolvla_action_expert * ctx,
-    int prefix_seq_len,
-    smolvla_transformer_graph_state & graph_state) {
-    const int chunk = ctx->chunk_size;
-    const int hidden = ctx->hidden_size;
-    const int q_pad = GGML_PAD(chunk, GGML_KQ_MASK_PAD);
-    const size_t graph_nodes = 4096;
-
-    graph_state.meta_buf.resize(smolvla_graph_meta_size(graph_nodes));
-    struct ggml_init_params params = {
-        /*.mem_size   =*/ graph_state.meta_buf.size(),
-        /*.mem_buffer =*/ graph_state.meta_buf.data(),
-        /*.no_alloc   =*/ true,
-    };
-
-    graph_state.ctx_graph = ggml_init(params);
-    if (!graph_state.ctx_graph) {
-        LOG_ERR("%s: failed to init transformer graph ctx\n", __func__);
-        return false;
-    }
-
-    graph_state.inp_hidden = ggml_new_tensor_2d(graph_state.ctx_graph, GGML_TYPE_F32, hidden, chunk);
-
-    ggml_set_input(graph_state.inp_hidden);
-
-    graph_state.inp_prefix_k = ctx->prefix_kv_runtime.k_layers;
-    graph_state.inp_prefix_v = ctx->prefix_kv_runtime.v_layers;
-
-    struct ggml_tensor * cur = build_transformer_stack_op(
-        ctx,
-        prefix_seq_len,
-        graph_state.ctx_graph,
-        graph_state.inp_hidden,
-        ctx->attention_runtime.self_pos,
-        ctx->attention_runtime.cross_pos,
-        ctx->attention_runtime.self_mask,
-        ctx->attention_runtime.cross_mask);
-    if (!cur) {
-        clear_transformer_graph(graph_state);
-        return false;
-    }
-
-    graph_state.out = cur;
-    struct ggml_tensor * velocity_out = build_project_velocity_op(ctx, graph_state.ctx_graph, graph_state.out);
-    if (!velocity_out) {
-        clear_transformer_graph(graph_state);
-        return false;
-    }
-
-    graph_state.out = velocity_out;
-    ggml_set_name(graph_state.out, "transformer_velocity_out");
-    ggml_set_output(graph_state.out);
-
-    graph_state.graph = ggml_new_graph_custom(graph_state.ctx_graph, 4096, false);
-    ggml_build_forward_expand(graph_state.graph, graph_state.out);
-    return true;
-}
-
-static bool reserve_transformer_velocity_graph(
-    smolvla_action_expert * ctx,
-    int prefix_seq_len) {
-    if (!ctx || prefix_seq_len <= 0) {
-        LOG_ERR("%s: invalid arguments\n", __func__);
-        return false;
-    }
-
-    if (ctx->transformer_runtime_prefix_seq_len == prefix_seq_len) {
-        return true;
-    }
-
-    smolvla_transformer_graph_state graph_state;
-    if (!transformer_velocity_build_graph(ctx, prefix_seq_len, graph_state)) {
-        LOG_ERR("%s: failed to build transformer+velocity reserve graph\n", __func__);
-        return false;
-    }
-
-    const bool reserve_ok = ctx->sched && ggml_backend_sched_reserve(ctx->sched, graph_state.graph);
-    if (!reserve_ok) {
-        LOG_ERR("%s: failed to reserve transformer+velocity graph\n", __func__);
-        clear_transformer_graph(graph_state);
-        return false;
-    }
-
-    if (ctx->verbosity >= 1) {
-        LOG_INF("%s: transformer+velocity graph nodes=%d splits=%d backends=%zu\n",
-                __func__,
-                ggml_graph_n_nodes(graph_state.graph),
-                ggml_backend_sched_get_n_splits(ctx->sched),
-                ctx->backends.size());
-    }
-
-    ctx->transformer_runtime_prefix_seq_len = prefix_seq_len;
-    clear_transformer_graph(graph_state);
-    return true;
-}
-
 bool smolvla_action_expert_init_fixed_prefix_runtime(
     struct smolvla_action_expert * ctx,
     int prefix_seq_len
@@ -1125,11 +896,6 @@ bool smolvla_action_expert_init_fixed_prefix_runtime(
 
     if (!create_attention_runtime_tensors(ctx, prefix_seq_len)) {
         LOG_ERR("%s: failed to create attention runtime tensors\n", __func__);
-        return false;
-    }
-
-    if (!reserve_transformer_velocity_graph(ctx, prefix_seq_len)) {
-        LOG_ERR("%s: failed to reserve transformer+velocity graph\n", __func__);
         return false;
     }
 
@@ -1202,66 +968,6 @@ static void build_cross_attn_mask_and_positions(
         float * row = attention_mask_f32.data() + (size_t) qi * prefix_seq_len;
         memcpy(row, prefix_mask_f32.data(), (size_t) prefix_seq_len * sizeof(float));
     }
-}
-
-bool smolvla_action_expert_eval_transformer_project_velocity(
-    struct smolvla_action_expert * ctx,
-    const float * hidden_in,
-    float * velocity_out
-) {
-    if (!ctx || !hidden_in || !velocity_out) {
-        LOG_ERR("%s: invalid arguments\n", __func__);
-        return false;
-    }
-
-    const int prefix_seq_len = ctx->prefix_kv_runtime.prefix_seq_len;
-    if (!attention_runtime_is_ready(ctx, prefix_seq_len)) {
-        LOG_ERR("%s: attention cache is not prepared\n", __func__);
-        return false;
-    }
-    const auto t_build_start = std::chrono::high_resolution_clock::now();
-    smolvla_transformer_graph_state graph_state;
-    if (!transformer_velocity_build_graph(ctx, prefix_seq_len, graph_state)) {
-        LOG_ERR("%s: failed to build transformer+velocity graph\n", __func__);
-        return false;
-    }
-
-    if (!ctx->sched) {
-        LOG_ERR("%s: scheduler is required\n", __func__);
-        clear_transformer_graph(graph_state);
-        return false;
-    }
-    ggml_backend_sched_reset(ctx->sched);
-    const bool alloc_ok = ggml_backend_sched_alloc_graph(ctx->sched, graph_state.graph);
-    if (!alloc_ok) {
-        LOG_ERR("%s: failed to allocate transformer+velocity graph\n", __func__);
-        clear_transformer_graph(graph_state);
-        return false;
-    }
-    const auto t_build_end = std::chrono::high_resolution_clock::now();
-
-    ggml_backend_tensor_set(graph_state.inp_hidden, hidden_in, 0, (size_t) ctx->chunk_size * ctx->hidden_size * sizeof(float));
-
-    set_backend_threads(ctx->backends, ctx->graph_n_threads);
-
-    const auto t_compute_start = std::chrono::high_resolution_clock::now();
-    ggml_backend_sched_graph_compute(ctx->sched, graph_state.graph);
-    const auto t_compute_end = std::chrono::high_resolution_clock::now();
-
-    ggml_backend_tensor_get(
-        graph_state.out,
-        velocity_out,
-        0,
-        (size_t) ctx->chunk_size * ctx->max_action_dim * sizeof(float));
-
-    if (ctx->verbosity >= 1) {
-        LOG_INF("%s: graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
-                std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count(),
-                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
-    }
-
-    clear_transformer_graph(graph_state);
-    return true;
 }
 
 bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
