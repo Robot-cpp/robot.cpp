@@ -71,6 +71,7 @@ struct smolvla_action_expert {
     // Backend
     ggml_backend_t backend_cpu = nullptr;
     ggml_backend_sched_t sched = nullptr;
+    ggml_backend_sched_t prefix_sched = nullptr;
     std::vector<ggml_backend_t> backends;
     backend_buft_policy buft_policy;
     std::vector<struct ggml_context *> ctxs;
@@ -143,6 +144,17 @@ struct smolvla_action_expert {
         struct ggml_tensor * self_mask = nullptr;
         struct ggml_tensor * cross_mask = nullptr;
     } attention_runtime;
+
+    struct fused_step_runtime_t {
+        int prefix_seq_len = -1;
+        bool ready = false;
+        std::vector<uint8_t> meta_buf;
+        struct ggml_context * ctx_graph = nullptr;
+        struct ggml_cgraph * graph = nullptr;
+        struct ggml_tensor * inp_actions = nullptr;
+        struct ggml_tensor * inp_time = nullptr;
+        struct ggml_tensor * out = nullptr;
+    } fused_step_runtime;
 
 };
 
