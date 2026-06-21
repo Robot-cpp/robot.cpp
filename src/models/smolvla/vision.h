@@ -25,11 +25,12 @@ struct smolvla_vision_ctx {
     std::vector<ggml_context *> ctxs;
     std::vector<ggml_backend_buffer_t> bufs;
     std::vector<uint8_t>  buf_compute_meta;
-    ggml_cgraph *         graph;
-    ggml_tensor *         graph_inp_raw;
-    ggml_tensor *         graph_positions;
-    ggml_tensor *         graph_vision_output;
-    ggml_tensor *         graph_connector_output;
+    ggml_cgraph *         graph_raw_vision;
+    ggml_tensor *         graph_raw_input;
+    ggml_tensor *         graph_raw_positions;
+    ggml_tensor *         graph_raw_connector_output;
+    int                   graph_raw_width;
+    int                   graph_raw_height;
     std::vector<int32_t>  patch_positions;
     int verbosity = 0;
 
