@@ -50,6 +50,7 @@ struct smolvla_state_proj {
     int state_dim = 6;         // Actual input dimension (from dataset)
     int max_state_dim = 32;    // Padded input dimension
     int hidden_size = 960;     // Output dimension
+    int verbosity = 0;
 
     // Normalization statistics (MEAN_STD mode)
     std::vector<float> norm_mean;  // [state_dim]

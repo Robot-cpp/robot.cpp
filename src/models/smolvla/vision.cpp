@@ -486,6 +486,7 @@ private:
 
 smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity) {
     auto * ctx = new smolvla_vision_ctx();
+    ctx->verbosity = verbosity;
     memset(ctx->image_mean, 0, sizeof(ctx->image_mean));
     memset(ctx->image_std, 0, sizeof(ctx->image_std));
     ctx->ctx_gguf = nullptr;
@@ -657,13 +658,15 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     ggml_backend_sched_graph_compute(ctx->sched, graph);
     auto t_compute_end = std::chrono::high_resolution_clock::now();
 
-    if (build_each_run) {
-        LOG_INF("%s: merged vision graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
-                build_alloc_ms,
-                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
-    } else {
-        LOG_INF("%s: merged vision graph compute: %.2f ms\n", __func__,
-                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
+    if (ctx->verbosity >= 1) {
+        if (build_each_run) {
+            LOG_INF("%s: merged vision graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
+                    build_alloc_ms,
+                    std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
+        } else {
+            LOG_INF("%s: merged vision graph compute: %.2f ms\n", __func__,
+                    std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
+        }
     }
 
     result.resize(ctx->output_tokens * ctx->proj_dim);

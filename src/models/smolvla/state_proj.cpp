@@ -140,6 +140,7 @@ private:
 struct smolvla_state_proj * smolvla_state_proj_load(const char * fname, int verbosity) {
     // Create context
     smolvla_state_proj * ctx = new smolvla_state_proj();
+    ctx->verbosity = verbosity;
 
     backend_scheduler_config scheduler_config;
     scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
@@ -266,9 +267,11 @@ bool smolvla_state_proj_encode(
     ggml_backend_sched_graph_compute(ctx->sched, gf);
     auto t_compute_end = std::chrono::high_resolution_clock::now();
 
-    LOG_INF("%s: graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
-            std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count(),
-            std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
+    if (ctx->verbosity >= 1) {
+        LOG_INF("%s: graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
+                std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count(),
+                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
+    }
 
     // Get output
     struct ggml_tensor * out = ggml_graph_get_tensor(gf, "state_output");

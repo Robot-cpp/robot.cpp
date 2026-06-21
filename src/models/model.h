@@ -42,7 +42,7 @@ struct model_result {
 struct model_args {
     model_type type = model_type::smolvla;
     int threads = 0;
-    int verbosity = 1;
+    int verbosity = 0;
 
     // smolvla
     std::string llm_path;
