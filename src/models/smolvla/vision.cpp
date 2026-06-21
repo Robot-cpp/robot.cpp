@@ -103,6 +103,11 @@ static ggml_backend_t smolvla_vision_first_non_cpu_backend(const smolvla_vision_
     return nullptr;
 }
 
+static bool smolvla_vision_backend_is_accel(ggml_backend_t backend) {
+    ggml_backend_dev_t dev = backend ? ggml_backend_get_device(backend) : nullptr;
+    return dev && ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_ACCEL;
+}
+
 static void smolvla_vision_bind_preprocess_tensors_to_backend(
     ggml_backend_sched_t sched,
     ggml_cgraph * graph,
@@ -783,6 +788,9 @@ static std::vector<float> smolvla_vision_encode_raw_graph(
     if (!ctx->graph_raw_vision || ctx->graph_raw_width != width || ctx->graph_raw_height != height) {
         auto t_build_start = std::chrono::high_resolution_clock::now();
         ggml_backend_t preprocess_backend = smolvla_vision_first_non_cpu_backend(ctx);
+        if (smolvla_vision_backend_is_accel(preprocess_backend)) {
+            preprocess_backend = nullptr;
+        }
         ggml_backend_sched_reset(ctx->sched);
 
         ggml_cgraph * graph = vision_build_graph(
