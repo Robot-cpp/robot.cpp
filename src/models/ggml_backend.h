@@ -36,6 +36,13 @@ public:
         const backend_scheduler_config & scheduler_config,
         int verbosity);
 
+    bool init_scheduler(
+        std::vector<ggml_backend_t> & backends,
+        ggml_backend_sched_t & scheduler,
+        const backend_buft_policy & buft_policy,
+        const backend_scheduler_config & scheduler_config,
+        int verbosity);
+
     backend_mode mode() const;
     const std::string & error() const;
 
@@ -52,13 +59,6 @@ private:
         ggml_backend_t cpu_backend,
         const std::vector<ggml_backend_t> & backends,
         backend_buft_policy & buft_policy,
-        int verbosity);
-
-    bool init_scheduler(
-        std::vector<ggml_backend_t> & backends,
-        ggml_backend_sched_t & scheduler,
-        const backend_buft_policy & buft_policy,
-        const backend_scheduler_config & scheduler_config,
         int verbosity);
 
     bool fail(const std::string & message);

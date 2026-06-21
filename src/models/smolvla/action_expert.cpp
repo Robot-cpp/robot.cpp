@@ -147,32 +147,6 @@ static void clear_attention_runtime(smolvla_action_expert * ctx) {
     ctx->attention_runtime = smolvla_action_expert::attention_runtime_t();
 }
 
-static ggml_backend_sched_t smolvla_new_scheduler(
-    const smolvla_action_expert * ctx,
-    const backend_scheduler_config & scheduler_config) {
-    if (!ctx || ctx->backends.empty()) {
-        return nullptr;
-    }
-
-    std::vector<ggml_backend_buffer_type_t> sched_bufts;
-    sched_bufts.reserve(ctx->backends.size());
-    for (ggml_backend_t backend : ctx->backends) {
-        if (ggml_backend_is_cpu(backend) && ctx->buft_policy.host_buft) {
-            sched_bufts.push_back(ctx->buft_policy.host_buft);
-        } else {
-            sched_bufts.push_back(ggml_backend_get_default_buffer_type(backend));
-        }
-    }
-
-    return ggml_backend_sched_new(
-        const_cast<ggml_backend_t *>(ctx->backends.data()),
-        sched_bufts.data(),
-        ctx->backends.size(),
-        scheduler_config.max_nodes,
-        scheduler_config.parallel,
-        scheduler_config.op_offload);
-}
-
 static void clear_fused_step_runtime(smolvla_action_expert * ctx) {
     if (!ctx) {
         return;
@@ -387,9 +361,13 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
         smolvla_action_expert_free(ctx);
         return nullptr;
     }
-    ctx->prefix_sched = smolvla_new_scheduler(ctx, scheduler_config);
-    if (!ctx->prefix_sched) {
-        LOG_ERR("%s: failed to initialize prefix copy scheduler\n", __func__);
+    if (!backend.init_scheduler(
+            ctx->backends,
+            ctx->prefix_sched,
+            ctx->buft_policy,
+            scheduler_config,
+            verbosity)) {
+        LOG_ERR("%s: failed to initialize prefix copy scheduler: %s\n", __func__, backend.error().c_str());
         smolvla_action_expert_free(ctx);
         return nullptr;
     }
