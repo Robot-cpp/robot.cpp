@@ -27,7 +27,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdlib>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -54,32 +53,6 @@ static std::string format(const char * fmt, ...) {
     va_end(ap2);
     va_end(ap);
     return std::string(buf.data());
-}
-
-static bool smolvla_env_flag_enabled(const char * name) {
-    const char * value = std::getenv(name);
-    if (!value || value[0] == '\0') {
-        return false;
-    }
-    return strcmp(value, "0") != 0 &&
-           strcmp(value, "false") != 0 &&
-           strcmp(value, "False") != 0 &&
-           strcmp(value, "FALSE") != 0;
-}
-
-static bool smolvla_vision_build_each_run_enabled() {
-    bool build_each_run = true;
-
-    const char * legacy = std::getenv("SMOLVLA_VISION_BUILD_EACH_RUN");
-    if (legacy) {
-        build_each_run = smolvla_env_flag_enabled("SMOLVLA_VISION_BUILD_EACH_RUN");
-    }
-
-    if (smolvla_env_flag_enabled("SMOLVLA_VISION_PERSISTENT_GRAPH")) {
-        build_each_run = false;
-    }
-
-    return build_each_run;
 }
 
 static bool gguf_string_array(gguf_context * gguf, const char * key, std::vector<std::string> & out) {
@@ -116,6 +89,41 @@ static const char * smolvla_backend_reg_name(ggml_backend_t backend) {
     ggml_backend_dev_t dev = backend ? ggml_backend_get_device(backend) : nullptr;
     ggml_backend_reg_t reg = dev ? ggml_backend_dev_backend_reg(dev) : nullptr;
     return reg ? ggml_backend_reg_name(reg) : "(null)";
+}
+
+static ggml_backend_t smolvla_vision_first_non_cpu_backend(const smolvla_vision_ctx * ctx) {
+    if (!ctx) {
+        return nullptr;
+    }
+    for (ggml_backend_t backend : ctx->backends) {
+        if (backend && !ggml_backend_is_cpu(backend)) {
+            return backend;
+        }
+    }
+    return nullptr;
+}
+
+static void smolvla_vision_bind_preprocess_tensors_to_backend(
+    ggml_backend_sched_t sched,
+    ggml_cgraph * graph,
+    ggml_backend_t backend
+) {
+    if (!sched || !graph || !backend) {
+        return;
+    }
+    const char * names[] = {
+        "inp_raw_hwc_f32",
+        "raw_scaled",
+        "raw_planar",
+        "raw_resized",
+        "raw_padded",
+        "inp_raw_preprocessed",
+    };
+    for (const char * name : names) {
+        if (ggml_tensor * tensor = ggml_graph_get_tensor(graph, name)) {
+            ggml_backend_sched_set_tensor_backend(sched, tensor, backend);
+        }
+    }
 }
 
 static void smolvla_vision_log_backend_plan(const smolvla_vision_ctx * ctx, int verbosity) {
@@ -301,27 +309,17 @@ static ggml_tensor * connector_build_op(
     return ggml_mul_mat(ctx0, ctx->connector_w, x);
 }
 
-// Build a single persistent vision graph: SigLIP ViT + connector.
-static ggml_cgraph * vision_build_graph(smolvla_vision_ctx * ctx) {
-    const int image_size = ctx->image_size;
+static ggml_tensor * vision_build_vit_connector_graph(
+    smolvla_vision_ctx * ctx,
+    ggml_context * ctx0,
+    ggml_tensor * inp
+) {
     const int patch = ctx->patch_size;
     const int n_patches = ctx->num_patches;
     const int hs = ctx->hidden_size;
     const int n_head = ctx->n_heads;
     const int d_head = hs / n_head;
     const float eps = ctx->eps;
-
-    ggml_init_params ip = {
-        ctx->buf_compute_meta.size(),
-        ctx->buf_compute_meta.data(),
-        true,
-    };
-    ggml_context * ctx0 = ggml_init(ip);
-    ggml_cgraph * gf = ggml_new_graph(ctx0);
-
-    ggml_tensor * inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
-    ggml_set_name(inp, "inp_raw");
-    ggml_set_input(inp);
 
     ggml_tensor * patch_w = ctx->patch_embd_w->type == GGML_TYPE_F32
         ? ctx->patch_embd_w
@@ -387,6 +385,72 @@ static ggml_cgraph * vision_build_graph(smolvla_vision_ctx * ctx) {
     ggml_tensor * y = connector_build_op(ctx, ctx0, x);
     ggml_set_name(y, "connector_output");
     ggml_set_output(y);
+    return y;
+}
+
+// Build graph for an already-preprocessed image tensor: ViT + connector.
+static ggml_cgraph * vision_build_preprocessed_graph(smolvla_vision_ctx * ctx) {
+    const int image_size = ctx->image_size;
+
+    ggml_init_params ip = {
+        ctx->buf_compute_meta.size(),
+        ctx->buf_compute_meta.data(),
+        true,
+    };
+    ggml_context * ctx0 = ggml_init(ip);
+    ggml_cgraph * gf = ggml_new_graph(ctx0);
+
+    ggml_tensor * inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
+    ggml_set_name(inp, "inp_raw");
+    ggml_set_input(inp);
+
+    ggml_tensor * y = vision_build_vit_connector_graph(ctx, ctx0, inp);
+    ggml_build_forward_expand(gf, y);
+    ggml_free(ctx0);
+    return gf;
+}
+
+// Build the complete raw-RGB vision graph: preprocess + ViT + connector.
+static ggml_cgraph * vision_build_graph(
+    smolvla_vision_ctx * ctx,
+    int width,
+    int height,
+    int resized_width,
+    int resized_height,
+    int pad_width,
+    int pad_height
+) {
+    ggml_init_params ip = {
+        ctx->buf_compute_meta.size(),
+        ctx->buf_compute_meta.data(),
+        true,
+    };
+    ggml_context * ctx0 = ggml_init(ip);
+    ggml_cgraph * gf = ggml_new_graph(ctx0);
+
+    ggml_tensor * raw = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, 3, width, height, 1);
+    ggml_set_name(raw, "inp_raw_hwc_f32");
+    ggml_set_input(raw);
+
+    ggml_tensor * x = ggml_scale(ctx0, raw, 1.0f / 255.0f);
+    ggml_set_name(x, "raw_scaled");
+    x = ggml_cont(ctx0, ggml_permute(ctx0, x, 2, 0, 1, 3));
+    ggml_set_name(x, "raw_planar");
+    x = ggml_interpolate(
+        ctx0,
+        x,
+        resized_width,
+        resized_height,
+        3,
+        1,
+        GGML_SCALE_MODE_BILINEAR);
+    ggml_set_name(x, "raw_resized");
+    x = ggml_pad_ext(ctx0, x, pad_width, 0, pad_height, 0, 0, 0, 0, 0);
+    ggml_set_name(x, "raw_padded");
+    x = ggml_scale_bias(ctx0, x, 2.0f, -1.0f);
+    ggml_set_name(x, "inp_raw_preprocessed");
+
+    ggml_tensor * y = vision_build_vit_connector_graph(ctx, ctx0, x);
     ggml_build_forward_expand(gf, y);
     ggml_free(ctx0);
     return gf;
@@ -493,11 +557,12 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     ctx->ctx_data = nullptr;
     ctx->backend_cpu = nullptr;
     ctx->sched = nullptr;
-    ctx->graph = nullptr;
-    ctx->graph_inp_raw = nullptr;
-    ctx->graph_positions = nullptr;
-    ctx->graph_vision_output = nullptr;
-    ctx->graph_connector_output = nullptr;
+    ctx->graph_raw_vision = nullptr;
+    ctx->graph_raw_input = nullptr;
+    ctx->graph_raw_positions = nullptr;
+    ctx->graph_raw_connector_output = nullptr;
+    ctx->graph_raw_width = 0;
+    ctx->graph_raw_height = 0;
     ctx->patch_embd_w = ctx->patch_embd_b = ctx->pos_embd = ctx->post_ln_w = ctx->post_ln_b = nullptr;
     ctx->connector_w = nullptr;
 
@@ -542,47 +607,14 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     }
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
-    const bool build_each_run = smolvla_vision_build_each_run_enabled();
-    ggml_cgraph * reserve_graph = vision_build_graph(ctx);
-    const bool reserve_ok = reserve_graph && ggml_backend_sched_reserve(ctx->sched, reserve_graph);
-    if (!reserve_ok) {
-        LOG_ERR("%s: failed to reserve merged vision graph\n", __func__);
-        smolvla_vision_free(ctx);
-        return nullptr;
-    }
-
-    if (!build_each_run) {
-        ctx->graph = reserve_graph;
-        ggml_backend_sched_reset(ctx->sched);
-        const bool alloc_ok = ggml_backend_sched_alloc_graph(ctx->sched, ctx->graph);
-        if (!alloc_ok) {
-            LOG_ERR("%s: failed to allocate merged vision graph\n", __func__);
-            smolvla_vision_free(ctx);
-            return nullptr;
-        }
-
-        ctx->graph_inp_raw = ggml_graph_get_tensor(ctx->graph, "inp_raw");
-        ctx->graph_positions = ggml_graph_get_tensor(ctx->graph, "positions");
-        ctx->graph_vision_output = ggml_graph_get_tensor(ctx->graph, "vision_output");
-        ctx->graph_connector_output = ggml_graph_get_tensor(ctx->graph, "connector_output");
-        if (!ctx->graph_inp_raw || !ctx->graph_positions || !ctx->graph_connector_output) {
-            LOG_ERR("%s: failed to bind merged vision graph tensors\n", __func__);
-            smolvla_vision_free(ctx);
-            return nullptr;
-        }
-    }
 
     ctx->patch_positions.resize(ctx->num_patches);
     for (int i = 0; i < ctx->num_patches; ++i) {
         ctx->patch_positions[i] = i;
     }
-    if (ctx->graph_positions) {
-        ggml_backend_tensor_set(ctx->graph_positions, ctx->patch_positions.data(), 0,
-                                ctx->patch_positions.size() * sizeof(int32_t));
-    }
 
     if (verbosity >= 1) {
-        LOG_INF("%s: vision graph mode: %s\n", __func__, build_each_run ? "build-each-run" : "persistent");
+        LOG_INF("%s: preprocessed vision graph mode: build-each-run\n", __func__);
         LOG_INF("%s: standalone SigLIP loaded: image=%d patch=%d hidden=%d layers=%d patches=%d\n",
             __func__, ctx->image_size, ctx->patch_size, ctx->hidden_size, ctx->n_layers, ctx->num_patches);
         LOG_INF("%s: connector loaded: in=%d out=%d tokens=%d\n",
@@ -616,37 +648,30 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
         LOG_ERR("%s: scheduler is required\n", __func__);
         return result;
     }
-    const bool build_each_run = smolvla_vision_build_each_run_enabled();
-    if (!build_each_run && (!ctx->graph || !ctx->graph_inp_raw || !ctx->graph_connector_output)) {
-        LOG_ERR("%s: merged vision graph is not initialized\n", __func__);
+    ggml_cgraph * graph = nullptr;
+    ggml_tensor * inp_raw = nullptr;
+    ggml_tensor * positions = nullptr;
+    ggml_tensor * connector_out = nullptr;
+    double build_alloc_ms = 0.0;
+
+    auto t_build_start = std::chrono::high_resolution_clock::now();
+    graph = vision_build_preprocessed_graph(ctx);
+    ggml_backend_sched_reset(ctx->sched);
+    const bool reserve_ok = graph && ggml_backend_sched_reserve(ctx->sched, graph);
+    const bool alloc_ok = reserve_ok && ggml_backend_sched_alloc_graph(ctx->sched, graph);
+    if (!alloc_ok) {
+        LOG_ERR("%s: failed to build+alloc preprocessed vision graph\n", __func__);
         return result;
     }
+    auto t_build_end = std::chrono::high_resolution_clock::now();
+    build_alloc_ms = std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count();
 
-    ggml_cgraph * graph = ctx->graph;
-    ggml_tensor * inp_raw = ctx->graph_inp_raw;
-    ggml_tensor * positions = ctx->graph_positions;
-    ggml_tensor * connector_out = ctx->graph_connector_output;
-
-    double build_alloc_ms = 0.0;
-    if (build_each_run) {
-        auto t_build_start = std::chrono::high_resolution_clock::now();
-        graph = vision_build_graph(ctx);
-        ggml_backend_sched_reset(ctx->sched);
-        const bool alloc_ok = graph && ggml_backend_sched_alloc_graph(ctx->sched, graph);
-        if (!alloc_ok) {
-            LOG_ERR("%s: failed to build+alloc merged vision graph for this run\n", __func__);
-            return result;
-        }
-        auto t_build_end = std::chrono::high_resolution_clock::now();
-        build_alloc_ms = std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count();
-
-        inp_raw = ggml_graph_get_tensor(graph, "inp_raw");
-        positions = ggml_graph_get_tensor(graph, "positions");
-        connector_out = ggml_graph_get_tensor(graph, "connector_output");
-        if (!inp_raw || !positions || !connector_out) {
-            LOG_ERR("%s: failed to bind per-run merged vision graph tensors\n", __func__);
-            return result;
-        }
+    inp_raw = ggml_graph_get_tensor(graph, "inp_raw");
+    positions = ggml_graph_get_tensor(graph, "positions");
+    connector_out = ggml_graph_get_tensor(graph, "connector_output");
+    if (!inp_raw || !positions || !connector_out) {
+        LOG_ERR("%s: failed to bind preprocessed vision graph tensors\n", __func__);
+        return result;
     }
 
     ggml_backend_tensor_set(inp_raw, inp_nchw.data(), 0, inp_nchw.size() * sizeof(float));
@@ -659,14 +684,9 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     auto t_compute_end = std::chrono::high_resolution_clock::now();
 
     if (ctx->verbosity >= 1) {
-        if (build_each_run) {
-            LOG_INF("%s: merged vision graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
-                    build_alloc_ms,
-                    std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
-        } else {
-            LOG_INF("%s: merged vision graph compute: %.2f ms\n", __func__,
-                    std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
-        }
+        LOG_INF("%s: preprocessed vision graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
+                build_alloc_ms,
+                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
     }
 
     result.resize(ctx->output_tokens * ctx->proj_dim);
@@ -714,6 +734,114 @@ std::vector<float> smolvla_vision_encode_bytes(
     return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
+static std::vector<float> smolvla_vision_encode_raw_graph(
+    smolvla_vision_ctx * ctx,
+    const uint8_t * data,
+    int width,
+    int height,
+    int channels,
+    int stride_bytes,
+    int n_threads
+) {
+    std::vector<float> result;
+    if (!ctx || !data || width <= 0 || height <= 0 || channels != 3) {
+        LOG_ERR("%s: invalid raw RGB args (data=%p width=%d height=%d channels=%d)\n",
+                __func__, (const void *) data, width, height, channels);
+        return result;
+    }
+    if (!ctx->sched) {
+        LOG_ERR("%s: scheduler is required\n", __func__);
+        return result;
+    }
+
+    const int tight_stride = width * channels;
+    if (stride_bytes <= 0) {
+        stride_bytes = tight_stride;
+    }
+    if (stride_bytes < tight_stride) {
+        LOG_ERR("%s: invalid stride_bytes=%d for width=%d channels=%d\n",
+                __func__, stride_bytes, width, channels);
+        return result;
+    }
+
+    const float ratio = std::max((float) width / ctx->image_size, (float) height / ctx->image_size);
+    const int resized_width = std::max(1, (int) std::floor((float) width / ratio));
+    const int resized_height = std::max(1, (int) std::floor((float) height / ratio));
+    const int pad_width = std::max(0, ctx->image_size - resized_width);
+    const int pad_height = std::max(0, ctx->image_size - resized_height);
+
+    std::vector<float> raw_hwc((size_t) width * (size_t) height * (size_t) channels);
+    for (int y = 0; y < height; ++y) {
+        const uint8_t * src = data + (size_t) y * (size_t) stride_bytes;
+        float * dst = raw_hwc.data() + (size_t) y * (size_t) tight_stride;
+        for (int x = 0; x < tight_stride; ++x) {
+            dst[x] = (float) src[x];
+        }
+    }
+
+    double build_alloc_ms = 0.0;
+    if (!ctx->graph_raw_vision || ctx->graph_raw_width != width || ctx->graph_raw_height != height) {
+        auto t_build_start = std::chrono::high_resolution_clock::now();
+        ggml_backend_t preprocess_backend = smolvla_vision_first_non_cpu_backend(ctx);
+        ggml_backend_sched_reset(ctx->sched);
+
+        ggml_cgraph * graph = vision_build_graph(
+            ctx,
+            width,
+            height,
+            resized_width,
+            resized_height,
+            pad_width,
+            pad_height);
+        smolvla_vision_bind_preprocess_tensors_to_backend(ctx->sched, graph, preprocess_backend);
+        const bool alloc_ok = graph && ggml_backend_sched_alloc_graph(ctx->sched, graph);
+        if (!alloc_ok) {
+            LOG_ERR("%s: failed to build+alloc raw vision graph\n", __func__);
+            return result;
+        }
+
+        ctx->graph_raw_vision = graph;
+        ctx->graph_raw_width = width;
+        ctx->graph_raw_height = height;
+        ctx->graph_raw_input = ggml_graph_get_tensor(graph, "inp_raw_hwc_f32");
+        ctx->graph_raw_positions = ggml_graph_get_tensor(graph, "positions");
+        ctx->graph_raw_connector_output = ggml_graph_get_tensor(graph, "connector_output");
+        if (!ctx->graph_raw_input || !ctx->graph_raw_positions || !ctx->graph_raw_connector_output) {
+            LOG_ERR("%s: failed to bind raw vision graph tensors\n", __func__);
+            ctx->graph_raw_vision = nullptr;
+            return result;
+        }
+        auto t_build_end = std::chrono::high_resolution_clock::now();
+        build_alloc_ms = std::chrono::duration<double, std::milli>(t_build_end - t_build_start).count();
+    }
+
+    ggml_backend_tensor_set(ctx->graph_raw_input, raw_hwc.data(), 0, raw_hwc.size() * sizeof(float));
+    ggml_backend_tensor_set(ctx->graph_raw_positions, ctx->patch_positions.data(), 0,
+                            ctx->patch_positions.size() * sizeof(int32_t));
+
+    set_backend_threads(ctx->backends, n_threads);
+    auto t_compute_start = std::chrono::high_resolution_clock::now();
+    ggml_backend_sched_graph_compute(ctx->sched, ctx->graph_raw_vision);
+    auto t_compute_end = std::chrono::high_resolution_clock::now();
+
+    if (ctx->verbosity >= 1) {
+        LOG_INF("%s: raw graph input=%dx%d resized=%dx%d pad=(%d,%d) build+alloc: %.2f ms, compute: %.2f ms\n",
+                __func__,
+                width,
+                height,
+                resized_width,
+                resized_height,
+                pad_width,
+                pad_height,
+                build_alloc_ms,
+                std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
+    }
+
+    result.resize(ctx->output_tokens * ctx->proj_dim);
+    ggml_backend_tensor_get(ctx->graph_raw_connector_output, result.data(), 0, result.size() * sizeof(float));
+    return result;
+}
+
 std::vector<float> smolvla_vision_encode_raw(
     smolvla_vision_ctx * ctx,
     const uint8_t * data,
@@ -729,31 +857,8 @@ std::vector<float> smolvla_vision_encode_raw(
         return {};
     }
 
-    const int tight_stride = width * channels;
-    if (stride_bytes <= 0) {
-        stride_bytes = tight_stride;
-    }
-    if (stride_bytes < tight_stride) {
-        LOG_ERR("%s: invalid stride_bytes=%d for width=%d channels=%d\n",
-                __func__, stride_bytes, width, channels);
-        return {};
-    }
-
-    std::vector<uint8_t> tight;
-    const uint8_t * packed = data;
-    if (stride_bytes != tight_stride) {
-        tight.resize((size_t) tight_stride * (size_t) height);
-        for (int y = 0; y < height; ++y) {
-            const uint8_t * src = data + (size_t) y * (size_t) stride_bytes;
-            uint8_t * dst = tight.data() + (size_t) y * (size_t) tight_stride;
-            std::memcpy(dst, src, (size_t) tight_stride);
-        }
-        packed = tight.data();
-    }
-
-    std::vector<float> inp_nchw;
-    preprocess_loaded_image(packed, width, height, ctx->image_size, ctx->image_mean, ctx->image_std, inp_nchw);
-    return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
+    return smolvla_vision_encode_raw_graph(
+        ctx, data, width, height, channels, stride_bytes, n_threads);
 }
 
 int smolvla_vision_embd_size(const smolvla_vision_ctx * ctx) {
