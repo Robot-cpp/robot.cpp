@@ -80,6 +80,10 @@ if not exist "!MSVC_CL!" (
 )
 echo msvc_cl: !MSVC_CL!
 
+rem nvcc -ccbin breaks on quoted MSVC paths with spaces during CMake CUDA detection.
+rem After vcvars64, "cl" on PATH is the correct x64 host compiler.
+set "CUDA_HOST_COMPILER=cl"
+
 if not defined CMAKE_MAKE_PROGRAM (
     if defined VSROOT if exist "!VSROOT!\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe" (
         set "CMAKE_MAKE_PROGRAM=!VSROOT!\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
@@ -133,7 +137,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER="!MSVC_CL!" ^
                 -DCMAKE_CXX_COMPILER="!MSVC_CL!" ^
-                -DCMAKE_CUDA_HOST_COMPILER="!MSVC_CL!" ^
+                -DCMAKE_CUDA_HOST_COMPILER=!CUDA_HOST_COMPILER! ^
                 -DCMAKE_MAKE_PROGRAM="!CMAKE_MAKE_PROGRAM!" ^
                 -DCMAKE_CUDA_COMPILER="!CMAKE_CUDA_COMPILER!" ^
                 -DGGML_NATIVE=!GGML_NATIVE! ^
@@ -148,7 +152,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER="!MSVC_CL!" ^
                 -DCMAKE_CXX_COMPILER="!MSVC_CL!" ^
-                -DCMAKE_CUDA_HOST_COMPILER="!MSVC_CL!" ^
+                -DCMAKE_CUDA_HOST_COMPILER=!CUDA_HOST_COMPILER! ^
                 -DCMAKE_CUDA_COMPILER="!CMAKE_CUDA_COMPILER!" ^
                 -DGGML_NATIVE=!GGML_NATIVE! ^
                 -DGGML_OPENMP=!GGML_OPENMP! ^

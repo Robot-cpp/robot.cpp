@@ -64,6 +64,7 @@ IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
 STATE_DIM="${STATE_DIM:-${DEFAULT_STATE_DIM}}"
 WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-100}"
+SERVER_WAIT_S="${SERVER_WAIT_S:-120}"
 DTYPE="${DTYPE:-f32}"
 
 PYTHON="${PYTHON:-python3}"
@@ -120,9 +121,6 @@ NOISE_SEED="-1" \
 bash "${LAUNCH_SHELL}" "${MODEL_TYPE}" >"${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 
-echo "== wait server =="
-sleep 5
-
 echo "== run latency benchmark =="
 "${PYTHON}" "${BENCHMARK_SCRIPT}" \
     --host "${HOST}" \
@@ -134,6 +132,7 @@ echo "== run latency benchmark =="
     --prompt "${PROMPT}" \
     --warmup "${WARMUP}" \
     --loops "${LOOPS}" \
+    --wait-server-s "${SERVER_WAIT_S}" \
     --result-tsv "${RESULT_TSV}"
 
 echo "== done =="

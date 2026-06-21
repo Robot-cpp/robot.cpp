@@ -80,6 +80,29 @@ def percentile(values: list[float], pct: float) -> float:
     return values[lo] * (1.0 - weight) + values[hi] * weight
 
 
+def wait_for_server(host: str, port: int, timeout_s: int) -> None:
+    if timeout_s <= 0:
+        return
+
+    start = time.time()
+    deadline = start + timeout_s
+    client = ModelClient(host=host, port=port)
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            client.health()
+            elapsed = max(1, int(time.time() - start + 0.999))
+            print(f"server ready after {elapsed}s")
+            return
+        except Exception as exc:
+            last_error = exc
+            time.sleep(1.0)
+
+    raise RuntimeError(
+        f"server not ready on {host}:{port} after {timeout_s}s: {last_error}"
+    )
+
+
 def print_latency_summary(rows: list[dict[str, float]], result_tsv: str | None) -> None:
     if not rows:
         print("latency summary: no measured rows")
@@ -122,6 +145,12 @@ def main() -> int:
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--loops", type=int, default=10)
     parser.add_argument("--result-tsv")
+    parser.add_argument(
+        "--wait-server-s",
+        type=int,
+        default=int(os.environ.get("SERVER_WAIT_S", "0")),
+        help="wait up to N seconds for server health before benchmark (0 = skip)",
+    )
     args = parser.parse_args()
     image_names = args.image_name or os.environ.get("IMAGE_NAMES", os.environ.get("IMAGE_NAME", "image")).split(",")
     image_names = [name.strip() for name in image_names if name.strip()]
@@ -135,6 +164,14 @@ def main() -> int:
         prompt=args.prompt,
         image_names=image_names,
     )
+    if args.wait_server_s > 0:
+        print(f"== wait server ({args.host}:{args.port}, timeout={args.wait_server_s}s) ==")
+        try:
+            wait_for_server(args.host, args.port, args.wait_server_s)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+
     client = ModelClient(host=args.host, port=args.port)
 
     rows: list[dict[str, float]] = []
