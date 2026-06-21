@@ -31,6 +31,7 @@ struct smolvla_vision_ctx {
     ggml_tensor *         graph_vision_output;
     ggml_tensor *         graph_connector_output;
     std::vector<int32_t>  patch_positions;
+    int verbosity = 0;
 
     // SigLIP config
     int image_size;
@@ -75,7 +76,7 @@ struct smolvla_vision_ctx {
 
 // Load standalone SmolVLA vision model from GGUF
 // verbosity: 0=quiet, 1=normal, 2=debug
-smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity = 1);
+smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity = 0);
 
 // Free vision context
 void smolvla_vision_free(smolvla_vision_ctx * ctx);

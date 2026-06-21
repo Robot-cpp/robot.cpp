@@ -71,6 +71,7 @@ struct smolvla_action_expert {
     // Backend
     ggml_backend_t backend_cpu = nullptr;
     ggml_backend_sched_t sched = nullptr;
+    ggml_backend_sched_t prefix_sched = nullptr;
     std::vector<ggml_backend_t> backends;
     backend_buft_policy buft_policy;
     std::vector<struct ggml_context *> ctxs;
@@ -122,7 +123,6 @@ struct smolvla_action_expert {
 
     // ----- Compute resources -----
     std::vector<uint8_t> buf_compute_meta;
-    int transformer_runtime_prefix_seq_len = -1;
     int graph_n_threads = 0;
     int verbosity = 0;
 
@@ -144,6 +144,17 @@ struct smolvla_action_expert {
         struct ggml_tensor * self_mask = nullptr;
         struct ggml_tensor * cross_mask = nullptr;
     } attention_runtime;
+
+    struct fused_step_runtime_t {
+        int prefix_seq_len = -1;
+        bool ready = false;
+        std::vector<uint8_t> meta_buf;
+        struct ggml_context * ctx_graph = nullptr;
+        struct ggml_cgraph * graph = nullptr;
+        struct ggml_tensor * inp_actions = nullptr;
+        struct ggml_tensor * inp_time = nullptr;
+        struct ggml_tensor * out = nullptr;
+    } fused_step_runtime;
 
 };
 
@@ -171,27 +182,11 @@ SMOLVLA_EXPERT_API void smolvla_action_expert_free(struct smolvla_action_expert 
  */
 SMOLVLA_EXPERT_API int smolvla_action_expert_hidden_size(const struct smolvla_action_expert * ctx);
 
-/**
- * Compute embed_suffix: noisy_actions + timestep → suffix_emb.
- *
- * @param ctx        Action expert context
- * @param n_threads  Number of CPU threads
- * @param noisy_actions  Input [chunk_size * max_action_dim] flat array
- * @param timestep       Scalar time value (1.0, 0.9, ..., 0.1)
- * @param output         Output [chunk_size * hidden_size] flat array
- * @return true on success
- */
-SMOLVLA_EXPERT_API bool smolvla_action_expert_embed_suffix(
+SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
     struct smolvla_action_expert * ctx,
     int n_threads,
     const float * noisy_actions,
     float timestep,
-    float * output
-);
-
-SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_transformer_project_velocity(
-    struct smolvla_action_expert * ctx,
-    const float * hidden_in,
     float * velocity_out
 );
 
