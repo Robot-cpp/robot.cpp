@@ -61,6 +61,8 @@ static void build_cross_attn_mask_and_positions(
     int32_t * position_ids,
     std::vector<float> & attention_mask_f32);
 static void clear_fused_step_runtime(smolvla_action_expert * ctx);
+static void clear_time_embedding_runtime(smolvla_action_expert * ctx);
+static bool init_time_embedding_runtime(smolvla_action_expert * ctx);
 static bool ensure_fused_step_runtime(smolvla_action_expert * ctx, int prefix_seq_len);
 
 // ============================================================================
@@ -155,6 +157,19 @@ static void clear_fused_step_runtime(smolvla_action_expert * ctx) {
         ggml_free(ctx->fused_step_runtime.ctx_graph);
     }
     ctx->fused_step_runtime = smolvla_action_expert::fused_step_runtime_t();
+}
+
+static void clear_time_embedding_runtime(smolvla_action_expert * ctx) {
+    if (!ctx) {
+        return;
+    }
+    if (ctx->time_embedding_runtime.buffer) {
+        ggml_backend_buffer_free(ctx->time_embedding_runtime.buffer);
+    }
+    if (ctx->time_embedding_runtime.ctx_data) {
+        ggml_free(ctx->time_embedding_runtime.ctx_data);
+    }
+    ctx->time_embedding_runtime = smolvla_action_expert::time_embedding_runtime_t();
 }
 
 static bool init_attention_runtime(smolvla_action_expert * ctx);
@@ -387,6 +402,11 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     ctx->bufs.push_back(loaded.model_buffer);
 
     precompute_time_embedding_cache(ctx);
+    if (!init_time_embedding_runtime(ctx)) {
+        LOG_ERR("%s: failed to init time embedding runtime\n", __func__);
+        smolvla_action_expert_free(ctx);
+        return nullptr;
+    }
     
     // init attention runtime ( position ids and masks)
     if (!init_attention_runtime(ctx)) {
@@ -427,7 +447,7 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
                     (long long) ctx->layers[1].attn_k->ne[0], (long long) ctx->layers[1].attn_k->ne[1]);
         }
         LOG_INF("%s: action expert loaded successfully\n", __func__);
-        LOG_INF("%s: precomputed %d fixed timestep embeddings\n", __func__, (int) ctx->precomputed_timesteps.size());
+        LOG_INF("%s: precomputed %d fixed timestep embeddings\n", __func__, ctx->num_steps);
     }
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
@@ -471,7 +491,6 @@ static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
         return;
     }
 
-    ctx->precomputed_timesteps.resize(ctx->num_steps);
     ctx->precomputed_time_emb_2d.resize((size_t) ctx->num_steps * ctx->hidden_size * ctx->chunk_size);
 
     const float dt = -1.0f / (float) ctx->num_steps;
@@ -479,7 +498,6 @@ static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
 
     for (int step = 0; step < ctx->num_steps; ++step) {
         const float timestep = 1.0f + step * dt;
-        ctx->precomputed_timesteps[step] = timestep;
 
         compute_sinusoidal_time_emb(
             timestep,
@@ -495,29 +513,73 @@ static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
     }
 }
 
-static const float * resolve_time_emb_2d(
-    smolvla_action_expert * ctx,
-    float timestep,
-    std::vector<float> & time_emb_2d_fallback) {
-    for (size_t step = 0; step < ctx->precomputed_timesteps.size(); ++step) {
-        // hit cache
-        if (fabsf(ctx->precomputed_timesteps[step] - timestep) <= 1e-6f) {
-            return ctx->precomputed_time_emb_2d.data() + step * ctx->hidden_size * ctx->chunk_size;
-        }
+static bool init_time_embedding_runtime(smolvla_action_expert * ctx) {
+    if (!ctx) {
+        LOG_ERR("%s: invalid arguments\n", __func__);
+        return false;
     }
-    // cache miss, compute on the fly 
-    std::vector<float> time_emb_1d(ctx->hidden_size);
-    compute_sinusoidal_time_emb(
-        timestep, ctx->hidden_size, ctx->min_period, ctx->max_period, time_emb_1d.data());
-
-    time_emb_2d_fallback.resize((size_t) ctx->hidden_size * ctx->chunk_size);
-    for (int j = 0; j < ctx->chunk_size; ++j) {
-        memcpy(time_emb_2d_fallback.data() + (size_t) j * ctx->hidden_size,
-               time_emb_1d.data(),
-               (size_t) ctx->hidden_size * sizeof(float));
+    if (ctx->time_embedding_runtime.ready) {
+        return true;
+    }
+    if (ctx->num_steps <= 0 || ctx->hidden_size <= 0 || ctx->chunk_size <= 0 || ctx->precomputed_time_emb_2d.empty()) {
+        LOG_ERR("%s: missing precomputed time embeddings\n", __func__);
+        return false;
     }
 
-    return time_emb_2d_fallback.data();
+    clear_time_embedding_runtime(ctx);
+
+    const size_t tensor_count = 2;
+    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    struct ggml_init_params params = {
+        /*.mem_size   =*/ ctx_size,
+        /*.mem_buffer =*/ nullptr,
+        /*.no_alloc   =*/ true,
+    };
+
+    ctx->time_embedding_runtime.ctx_data = ggml_init(params);
+    if (!ctx->time_embedding_runtime.ctx_data) {
+        LOG_ERR("%s: failed to init time embedding runtime ctx\n", __func__);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+
+    const int row_size = ctx->hidden_size * ctx->chunk_size;
+    ctx->time_embedding_runtime.table = ggml_new_tensor_2d(
+        ctx->time_embedding_runtime.ctx_data,
+        GGML_TYPE_F32,
+        row_size,
+        ctx->num_steps);
+    if (!ctx->time_embedding_runtime.table) {
+        LOG_ERR("%s: failed to create time embedding table\n", __func__);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+    ggml_set_name(ctx->time_embedding_runtime.table, "time_embedding_table");
+
+    ctx->time_embedding_runtime.buffer = ggml_backend_alloc_ctx_tensors_from_buft(
+        ctx->time_embedding_runtime.ctx_data,
+        ctx->buft_policy.runtime_buft);
+    if (!ctx->time_embedding_runtime.buffer) {
+        LOG_ERR("%s: failed to allocate time embedding runtime buffer\n", __func__);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+
+    const size_t expected_size = (size_t) ctx->num_steps * row_size;
+    if (ctx->precomputed_time_emb_2d.size() < expected_size) {
+        LOG_ERR("%s: invalid precomputed time embedding size %zu < %zu\n",
+                __func__, ctx->precomputed_time_emb_2d.size(), expected_size);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+    ggml_backend_tensor_set(
+        ctx->time_embedding_runtime.table,
+        ctx->precomputed_time_emb_2d.data(),
+        0,
+        expected_size * sizeof(float));
+
+    ctx->time_embedding_runtime.ready = true;
+    return true;
 }
 
 // ============================================================================
@@ -1004,12 +1066,17 @@ static bool ensure_fused_step_runtime(
         LOG_ERR("%s: invalid arguments\n", __func__);
         return false;
     }
+    if (!ctx->time_embedding_runtime.ready || !ctx->time_embedding_runtime.table) {
+        LOG_ERR("%s: time embedding runtime is not initialized\n", __func__);
+        return false;
+    }
+
     if (ctx->fused_step_runtime.ready &&
         ctx->fused_step_runtime.prefix_seq_len == prefix_seq_len &&
         ctx->fused_step_runtime.ctx_graph &&
         ctx->fused_step_runtime.graph &&
         ctx->fused_step_runtime.inp_actions &&
-        ctx->fused_step_runtime.inp_time &&
+        ctx->fused_step_runtime.inp_time_step &&
         ctx->fused_step_runtime.out) {
         return true;
     }
@@ -1036,18 +1103,25 @@ static bool ensure_fused_step_runtime(
     }
 
     rt.inp_actions = ggml_new_tensor_2d(rt.ctx_graph, GGML_TYPE_F32, ctx->max_action_dim, chunk);
-    rt.inp_time = ggml_new_tensor_2d(rt.ctx_graph, GGML_TYPE_F32, hidden, chunk);
-    if (!rt.inp_actions || !rt.inp_time) {
+    rt.inp_time_step = ggml_new_tensor_1d(rt.ctx_graph, GGML_TYPE_I32, 1);
+    if (!rt.inp_actions || !rt.inp_time_step) {
         LOG_ERR("%s: failed to create fused inputs\n", __func__);
         clear_fused_step_runtime(ctx);
         return false;
     }
     ggml_set_name(rt.inp_actions, "fused_noisy_actions");
-    ggml_set_name(rt.inp_time, "fused_time_emb");
+    ggml_set_name(rt.inp_time_step, "fused_time_step");
     ggml_set_input(rt.inp_actions);
-    ggml_set_input(rt.inp_time);
+    ggml_set_input(rt.inp_time_step);
 
-    struct ggml_tensor * suffix = build_embed_suffix_op(ctx, rt.ctx_graph, rt.inp_actions, rt.inp_time);
+    struct ggml_tensor * time_flat = ggml_get_rows(
+        rt.ctx_graph,
+        ctx->time_embedding_runtime.table,
+        rt.inp_time_step);
+    struct ggml_tensor * time_emb = ggml_reshape_2d(rt.ctx_graph, time_flat, hidden, chunk);
+    ggml_set_name(time_emb, "fused_time_emb");
+
+    struct ggml_tensor * suffix = build_embed_suffix_op(ctx, rt.ctx_graph, rt.inp_actions, time_emb);
     if (!suffix) {
         LOG_ERR("%s: failed to build embed suffix op\n", __func__);
         clear_fused_step_runtime(ctx);
@@ -1125,25 +1199,17 @@ bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
         return false;
     }
 
-    std::vector<float> time_emb_2d_fallback;
-    const float * time_emb_2d_ptr = resolve_time_emb_2d(ctx, timestep, time_emb_2d_fallback);
-
     const int chunk = ctx->chunk_size;
-    const int hidden = ctx->hidden_size;
     smolvla_action_expert::fused_step_runtime_t & rt = ctx->fused_step_runtime;
 
-    {
-        ggml_backend_tensor_set(
-            rt.inp_actions,
-            noisy_actions,
-            0,
-            (size_t) ctx->max_action_dim * chunk * sizeof(float));
-        ggml_backend_tensor_set(
-            rt.inp_time,
-            time_emb_2d_ptr,
-            0,
-            (size_t) hidden * chunk * sizeof(float));
-    }
+    ggml_backend_tensor_set(
+        rt.inp_actions,
+        noisy_actions,
+        0,
+        (size_t) ctx->max_action_dim * chunk * sizeof(float));
+
+    const int32_t step = (int32_t) lroundf((1.0f - timestep) * (float) ctx->num_steps);
+    ggml_backend_tensor_set(rt.inp_time_step, &step, 0, sizeof(step));
 
     set_backend_threads(ctx->backends, n_threads);
     {
@@ -1279,6 +1345,7 @@ void smolvla_action_expert_free(struct smolvla_action_expert * ctx) {
     if (!ctx) return;
 
     clear_fused_step_runtime(ctx);
+    clear_time_embedding_runtime(ctx);
     clear_attention_runtime(ctx);
     clear_prefix_kv_runtime(ctx);
     if (ctx->prefix_sched) {

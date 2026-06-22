@@ -118,8 +118,14 @@ struct smolvla_action_expert {
     int action_dim = 0;              // actual action dim (from stats length, e.g. 6)
 
     // Precomputed sinusoidal embeddings for the fixed denoising schedule.
-    std::vector<float> precomputed_timesteps;   // [num_steps]
     std::vector<float> precomputed_time_emb_2d; // [num_steps, hidden_size, chunk_size]
+
+    struct time_embedding_runtime_t {
+        bool ready = false;
+        struct ggml_context * ctx_data = nullptr;
+        ggml_backend_buffer_t buffer = nullptr;
+        struct ggml_tensor * table = nullptr; // [hidden_size * chunk_size, num_steps]
+    } time_embedding_runtime;
 
     // ----- Compute resources -----
     std::vector<uint8_t> buf_compute_meta;
@@ -152,7 +158,7 @@ struct smolvla_action_expert {
         struct ggml_context * ctx_graph = nullptr;
         struct ggml_cgraph * graph = nullptr;
         struct ggml_tensor * inp_actions = nullptr;
-        struct ggml_tensor * inp_time = nullptr;
+        struct ggml_tensor * inp_time_step = nullptr;
         struct ggml_tensor * out = nullptr;
     } fused_step_runtime;
 
