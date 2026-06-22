@@ -151,6 +151,12 @@ def main() -> int:
         default=int(os.environ.get("SERVER_WAIT_S", "0")),
         help="wait up to N seconds for server health before benchmark (0 = skip)",
     )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=int(os.environ["THREADS"]) if os.environ.get("THREADS", "").isdigit() else None,
+        help="server thread count (recorded in TSV for sweeps)",
+    )
     args = parser.parse_args()
     image_names = args.image_name or os.environ.get("IMAGE_NAMES", os.environ.get("IMAGE_NAME", "image")).split(",")
     image_names = [name.strip() for name in image_names if name.strip()]
@@ -192,6 +198,8 @@ def main() -> int:
             "roundtrip_ms": roundtrip_ms,
             "first_action": response.actions_flat[0] if response.actions_flat else 0.0,
         }
+        if args.threads is not None:
+            row["threads"] = float(args.threads)
         row.update(response.timings)
         if "model_total_ms" in row:
             row["communication_overhead_ms"] = roundtrip_ms - row["model_total_ms"]
@@ -203,6 +211,8 @@ def main() -> int:
     append_tsv(args.result_tsv, rows)
     print("chunk_size:", response.chunk_size)
     print("action_dim:", response.action_dim)
+    if args.threads is not None:
+        print("threads:", args.threads)
     print_latency_summary(rows, args.result_tsv)
 
     return 0

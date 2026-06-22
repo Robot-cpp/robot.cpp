@@ -43,6 +43,10 @@ esac
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5569}"
 THREADS="${THREADS:-8}"
+THREADS_SWEEP="${THREADS_SWEEP:-0}"
+THREADS_MIN="${THREADS_MIN:-4}"
+THREADS_MAX="${THREADS_MAX:-16}"
+THREADS_STEP="${THREADS_STEP:-4}"
 PROMPT="${PROMPT:-grab the block.}"
 case "${MODEL_TYPE}" in
     smolvla)
@@ -72,7 +76,6 @@ PYTHON="${PYTHON:-python3}"
 
 BENCHMARK_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/benchmark_latency.py"
 
-SERVER_LOG="${ARTIFACT_DIR}/server.log"
 RESULT_TSV="${ARTIFACT_DIR}/benchmark_server.tsv"
 BENCHMARK_IMAGE_ARGS=()
 IFS=',' read -r -a IMAGE_NAME_LIST <<< "${IMAGE_NAMES}"
@@ -82,60 +85,81 @@ for IMAGE_NAME_ITEM in "${IMAGE_NAME_LIST[@]}"; do
     fi
 done
 
-# once exit the shell script, make sure to kill the server process if it's still running
+SERVER_PID=""
 cleanup() {
     if [ -n "${SERVER_PID}" ]; then
         kill "${SERVER_PID}" >/dev/null 2>&1 || true
         wait "${SERVER_PID}" >/dev/null 2>&1 || true
+        SERVER_PID=""
     fi
 }
-SERVER_PID=""
 trap cleanup EXIT
+
+run_latency_case() {
+    local threads="$1"
+    local server_log="${ARTIFACT_DIR}/server_t${threads}.log"
+
+    cleanup
+
+    echo "== launch server (threads=${threads}) =="
+    VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
+    BUILD_DIR="${BUILD_DIR}" \
+    MODEL_TYPE="${MODEL_TYPE}" \
+    GGUF_DIR="${GGUF_DIR}" \
+    DTYPE="${DTYPE}" \
+    LLM_GGUF="${LLM_GGUF:-}" \
+    MMPROJ_GGUF="${MMPROJ_GGUF:-}" \
+    VISION_GGUF="${VISION_GGUF:-}" \
+    STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-}" \
+    ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-}" \
+    MODEL_BASENAME="${MODEL_BASENAME:-}" \
+    VIT_GGUF="${VIT_GGUF:-}" \
+    TOKENIZER_GGUF="${TOKENIZER_GGUF:-}" \
+    STATE_GGUF="${STATE_GGUF:-}" \
+    ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-}" \
+    HOST="${HOST}" \
+    PORT="${PORT}" \
+    THREADS="${threads}" \
+    TASK="${PROMPT}" \
+    NOISE_MODE="gaussian" \
+    NOISE_SEED="-1" \
+    bash "${LAUNCH_SHELL}" "${MODEL_TYPE}" >"${server_log}" 2>&1 &
+    SERVER_PID=$!
+
+    echo "== run latency benchmark (threads=${threads}) =="
+    "${PYTHON}" "${BENCHMARK_SCRIPT}" \
+        --host "${HOST}" \
+        --port "${PORT}" \
+        "${BENCHMARK_IMAGE_ARGS[@]}" \
+        --width "${IMAGE_WIDTH}" \
+        --height "${IMAGE_HEIGHT}" \
+        --state-dim "${STATE_DIM}" \
+        --prompt "${PROMPT}" \
+        --warmup "${WARMUP}" \
+        --loops "${LOOPS}" \
+        --threads "${threads}" \
+        --wait-server-s "${SERVER_WAIT_S}" \
+        --result-tsv "${RESULT_TSV}"
+}
 
 echo "== prepare outputs =="
 mkdir -p "${ARTIFACT_DIR}"
 rm -f "${RESULT_TSV}"
 
-echo "== launch server =="
-VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
-BUILD_DIR="${BUILD_DIR}" \
-MODEL_TYPE="${MODEL_TYPE}" \
-GGUF_DIR="${GGUF_DIR}" \
-DTYPE="${DTYPE}" \
-LLM_GGUF="${LLM_GGUF:-}" \
-MMPROJ_GGUF="${MMPROJ_GGUF:-}" \
-VISION_GGUF="${VISION_GGUF:-}" \
-STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-}" \
-ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-}" \
-MODEL_BASENAME="${MODEL_BASENAME:-}" \
-VIT_GGUF="${VIT_GGUF:-}" \
-TOKENIZER_GGUF="${TOKENIZER_GGUF:-}" \
-STATE_GGUF="${STATE_GGUF:-}" \
-ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-}" \
-HOST="${HOST}" \
-PORT="${PORT}" \
-THREADS="${THREADS}" \
-TASK="${PROMPT}" \
-NOISE_MODE="gaussian" \
-NOISE_SEED="-1" \
-bash "${LAUNCH_SHELL}" "${MODEL_TYPE}" >"${SERVER_LOG}" 2>&1 &
-SERVER_PID=$!
-
-echo "== run latency benchmark =="
-"${PYTHON}" "${BENCHMARK_SCRIPT}" \
-    --host "${HOST}" \
-    --port "${PORT}" \
-    "${BENCHMARK_IMAGE_ARGS[@]}" \
-    --width "${IMAGE_WIDTH}" \
-    --height "${IMAGE_HEIGHT}" \
-    --state-dim "${STATE_DIM}" \
-    --prompt "${PROMPT}" \
-    --warmup "${WARMUP}" \
-    --loops "${LOOPS}" \
-    --wait-server-s "${SERVER_WAIT_S}" \
-    --result-tsv "${RESULT_TSV}"
+if [[ "${THREADS_SWEEP}" == "1" ]]; then
+    echo "== thread sweep: ${THREADS_MIN}..${THREADS_MAX} step ${THREADS_STEP} =="
+    for ((threads=THREADS_MIN; threads<=THREADS_MAX; threads+=THREADS_STEP)); do
+        run_latency_case "${threads}"
+    done
+else
+    run_latency_case "${THREADS}"
+fi
 
 echo "== done =="
 echo "backend: ${BACKEND}"
 echo "result tsv: ${RESULT_TSV}"
-echo "server log: ${SERVER_LOG}"
+if [[ "${THREADS_SWEEP}" == "1" ]]; then
+    echo "server logs: ${ARTIFACT_DIR}/server_t*.log"
+else
+    echo "server log: ${ARTIFACT_DIR}/server_t${THREADS}.log"
+fi

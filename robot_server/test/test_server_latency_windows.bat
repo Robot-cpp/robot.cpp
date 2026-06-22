@@ -8,6 +8,10 @@ rem Usage:
 rem   set VLA_CPP_ROOT=C:\path\to\robot.cpp
 rem   set GGUF_DIR=C:\path\to\robot.cpp\ckpts\...
 rem   robot_server\test\test_server_latency_windows.bat windows-cuda pi0
+rem
+rem Thread sweep (4, 8, 12, 16 by default):
+rem   set THREADS_SWEEP=1
+rem   robot_server\test\test_server_latency_windows.bat windows-cuda pi0
 
 set "SCRIPT_DIR=%~dp0"
 if not defined VLA_CPP_ROOT (
@@ -54,6 +58,10 @@ if /I "!BACKEND!"=="windows-cuda" (
 if not defined HOST set "HOST=127.0.0.1"
 if not defined PORT set "PORT=5569"
 if not defined THREADS set "THREADS=8"
+if not defined THREADS_SWEEP set "THREADS_SWEEP=0"
+if not defined THREADS_MIN set "THREADS_MIN=4"
+if not defined THREADS_MAX set "THREADS_MAX=16"
+if not defined THREADS_STEP set "THREADS_STEP=4"
 if not defined PROMPT set "PROMPT=grab the block."
 if /I "!MODEL_TYPE!"=="smolvla" (
     set "DEFAULT_IMAGE_NAMES=observation.images.front"
@@ -84,7 +92,6 @@ if not defined PYTHON set "PYTHON=python"
 rem ====================================
 
 set "BENCHMARK_SCRIPT=!VLA_CPP_ROOT!\robot_server\test\benchmark_latency.py"
-set "SERVER_LOG=!ARTIFACT_DIR!\server.log"
 set "RESULT_TSV=!ARTIFACT_DIR!\benchmark_server.tsv"
 
 if not exist "!LAUNCH_BAT!" (
@@ -106,13 +113,47 @@ echo == prepare outputs ==
 if not exist "!ARTIFACT_DIR!" mkdir "!ARTIFACT_DIR!"
 if exist "!RESULT_TSV!" del /f /q "!RESULT_TSV!"
 
-echo == launch server ==
+if "!THREADS_SWEEP!"=="1" (
+    echo == thread sweep: !THREADS_MIN!..!THREADS_MAX! step !THREADS_STEP! ==
+    set "T=!THREADS_MIN!"
+    goto :sweep_loop
+)
+
+call :run_benchmark !THREADS!
+if errorlevel 1 exit /b !ERRORLEVEL!
+goto :finish
+
+:sweep_loop
+if !T! GTR !THREADS_MAX! goto :finish
+call :run_benchmark !T!
+if errorlevel 1 exit /b !ERRORLEVEL!
+set /A T+=THREADS_STEP
+goto :sweep_loop
+
+:finish
+echo == done ==
+echo backend: !BACKEND!
+echo result tsv: !RESULT_TSV!
+if "!THREADS_SWEEP!"=="1" (
+    echo server logs: !ARTIFACT_DIR!\server_t*.log
+) else (
+    echo server log: !ARTIFACT_DIR!\server_t!THREADS!.log
+)
+exit /b 0
+
+:run_benchmark
+set "THREADS=%~1"
+set "SERVER_LOG=!ARTIFACT_DIR!\server_t!THREADS!.log"
+
+call :cleanup_server
+
+echo == launch server (threads=!THREADS!) ==
 set "TASK=!PROMPT!"
 set "NOISE_MODE=gaussian"
 set "NOISE_SEED=-1"
-start "model-server-latency" /B cmd /c "call ""!LAUNCH_BAT!"" > ""!SERVER_LOG!"" 2>&1"
+start "model-server-latency-t!THREADS!" /B cmd /c "call ""!LAUNCH_BAT!"" > ""!SERVER_LOG!"" 2>&1"
 
-echo == run latency benchmark ==
+echo == run latency benchmark (threads=!THREADS!) ==
 "%PYTHON%" "!BENCHMARK_SCRIPT!" ^
     --host "!HOST!" ^
     --port !PORT! ^
@@ -123,21 +164,12 @@ echo == run latency benchmark ==
     --prompt "!PROMPT!" ^
     --warmup !WARMUP! ^
     --loops !LOOPS! ^
+    --threads !THREADS! ^
     --wait-server-s !SERVER_WAIT_S! ^
     --result-tsv "!RESULT_TSV!"
-set "BENCH_RC=!ERRORLEVEL!"
+if errorlevel 1 exit /b 1
 
 call :cleanup_server
-
-if not "!BENCH_RC!"=="0" (
-    echo error: benchmark failed with exit code !BENCH_RC! >&2
-    exit /b !BENCH_RC!
-)
-
-echo == done ==
-echo backend: !BACKEND!
-echo result tsv: !RESULT_TSV!
-echo server log: !SERVER_LOG!
 exit /b 0
 
 :cleanup_server
