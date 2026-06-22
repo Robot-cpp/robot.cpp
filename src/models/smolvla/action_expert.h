@@ -151,16 +151,18 @@ struct smolvla_action_expert {
         struct ggml_tensor * cross_mask = nullptr;
     } attention_runtime;
 
-    struct fused_step_runtime_t {
+    struct denoise_runtime_t {
         int prefix_seq_len = -1;
         bool ready = false;
         std::vector<uint8_t> meta_buf;
+        struct ggml_context * ctx_data = nullptr;
+        ggml_backend_buffer_t buffer = nullptr;
+        std::vector<struct ggml_tensor *> step_ids;
         struct ggml_context * ctx_graph = nullptr;
         struct ggml_cgraph * graph = nullptr;
         struct ggml_tensor * inp_actions = nullptr;
-        struct ggml_tensor * inp_time_step = nullptr;
         struct ggml_tensor * out = nullptr;
-    } fused_step_runtime;
+    } denoise_runtime;
 
 };
 
@@ -188,12 +190,11 @@ SMOLVLA_EXPERT_API void smolvla_action_expert_free(struct smolvla_action_expert 
  */
 SMOLVLA_EXPERT_API int smolvla_action_expert_hidden_size(const struct smolvla_action_expert * ctx);
 
-SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
+SMOLVLA_EXPERT_API bool smolvla_action_expert_eval_denoise_graph(
     struct smolvla_action_expert * ctx,
     int n_threads,
     const float * noisy_actions,
-    float timestep,
-    float * velocity_out
+    float * actions_out
 );
 
 SMOLVLA_EXPERT_API bool smolvla_action_expert_prepare_attention_cache(
