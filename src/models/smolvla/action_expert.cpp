@@ -60,8 +60,10 @@ static void build_cross_attn_mask_and_positions(
     int suffix_len,
     int32_t * position_ids,
     std::vector<float> & attention_mask_f32);
-static void clear_fused_step_runtime(smolvla_action_expert * ctx);
-static bool ensure_fused_step_runtime(smolvla_action_expert * ctx, int prefix_seq_len);
+static void clear_denoise_runtime(smolvla_action_expert * ctx);
+static void clear_time_embedding_runtime(smolvla_action_expert * ctx);
+static bool init_time_embedding_runtime(smolvla_action_expert * ctx);
+static bool ensure_denoise_runtime(smolvla_action_expert * ctx, int prefix_seq_len);
 
 // ============================================================================
 // Helpers (shared pattern with state_proj.cpp)
@@ -120,7 +122,7 @@ static void clear_prefix_kv_runtime(smolvla_action_expert * ctx) {
         return;
     }
 
-    clear_fused_step_runtime(ctx);
+    clear_denoise_runtime(ctx);
 
     if (ctx->prefix_kv_runtime.buffer) {
         ggml_backend_buffer_free(ctx->prefix_kv_runtime.buffer);
@@ -136,7 +138,7 @@ static void clear_attention_runtime(smolvla_action_expert * ctx) {
         return;
     }
 
-    clear_fused_step_runtime(ctx);
+    clear_denoise_runtime(ctx);
 
     if (ctx->attention_runtime.buffer) {
         ggml_backend_buffer_free(ctx->attention_runtime.buffer);
@@ -147,14 +149,33 @@ static void clear_attention_runtime(smolvla_action_expert * ctx) {
     ctx->attention_runtime = smolvla_action_expert::attention_runtime_t();
 }
 
-static void clear_fused_step_runtime(smolvla_action_expert * ctx) {
+static void clear_denoise_runtime(smolvla_action_expert * ctx) {
     if (!ctx) {
         return;
     }
-    if (ctx->fused_step_runtime.ctx_graph) {
-        ggml_free(ctx->fused_step_runtime.ctx_graph);
+    if (ctx->denoise_runtime.buffer) {
+        ggml_backend_buffer_free(ctx->denoise_runtime.buffer);
     }
-    ctx->fused_step_runtime = smolvla_action_expert::fused_step_runtime_t();
+    if (ctx->denoise_runtime.ctx_data) {
+        ggml_free(ctx->denoise_runtime.ctx_data);
+    }
+    if (ctx->denoise_runtime.ctx_graph) {
+        ggml_free(ctx->denoise_runtime.ctx_graph);
+    }
+    ctx->denoise_runtime = smolvla_action_expert::denoise_runtime_t();
+}
+
+static void clear_time_embedding_runtime(smolvla_action_expert * ctx) {
+    if (!ctx) {
+        return;
+    }
+    if (ctx->time_embedding_runtime.buffer) {
+        ggml_backend_buffer_free(ctx->time_embedding_runtime.buffer);
+    }
+    if (ctx->time_embedding_runtime.ctx_data) {
+        ggml_free(ctx->time_embedding_runtime.ctx_data);
+    }
+    ctx->time_embedding_runtime = smolvla_action_expert::time_embedding_runtime_t();
 }
 
 static bool init_attention_runtime(smolvla_action_expert * ctx);
@@ -345,7 +366,7 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
 
     ctx->sched = nullptr;
     backend_scheduler_config scheduler_config;
-    scheduler_config.max_nodes = 4096;
+    scheduler_config.max_nodes = 4096 * 16;
     scheduler_config.parallel = false;
     scheduler_config.op_offload = true;
     backend_loader backend;
@@ -387,6 +408,11 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     ctx->bufs.push_back(loaded.model_buffer);
 
     precompute_time_embedding_cache(ctx);
+    if (!init_time_embedding_runtime(ctx)) {
+        LOG_ERR("%s: failed to init time embedding runtime\n", __func__);
+        smolvla_action_expert_free(ctx);
+        return nullptr;
+    }
     
     // init attention runtime ( position ids and masks)
     if (!init_attention_runtime(ctx)) {
@@ -427,7 +453,7 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
                     (long long) ctx->layers[1].attn_k->ne[0], (long long) ctx->layers[1].attn_k->ne[1]);
         }
         LOG_INF("%s: action expert loaded successfully\n", __func__);
-        LOG_INF("%s: precomputed %d fixed timestep embeddings\n", __func__, (int) ctx->precomputed_timesteps.size());
+        LOG_INF("%s: precomputed %d fixed timestep embeddings\n", __func__, ctx->num_steps);
     }
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
@@ -471,7 +497,6 @@ static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
         return;
     }
 
-    ctx->precomputed_timesteps.resize(ctx->num_steps);
     ctx->precomputed_time_emb_2d.resize((size_t) ctx->num_steps * ctx->hidden_size * ctx->chunk_size);
 
     const float dt = -1.0f / (float) ctx->num_steps;
@@ -479,7 +504,6 @@ static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
 
     for (int step = 0; step < ctx->num_steps; ++step) {
         const float timestep = 1.0f + step * dt;
-        ctx->precomputed_timesteps[step] = timestep;
 
         compute_sinusoidal_time_emb(
             timestep,
@@ -495,29 +519,73 @@ static void precompute_time_embedding_cache(smolvla_action_expert * ctx) {
     }
 }
 
-static const float * resolve_time_emb_2d(
-    smolvla_action_expert * ctx,
-    float timestep,
-    std::vector<float> & time_emb_2d_fallback) {
-    for (size_t step = 0; step < ctx->precomputed_timesteps.size(); ++step) {
-        // hit cache
-        if (fabsf(ctx->precomputed_timesteps[step] - timestep) <= 1e-6f) {
-            return ctx->precomputed_time_emb_2d.data() + step * ctx->hidden_size * ctx->chunk_size;
-        }
+static bool init_time_embedding_runtime(smolvla_action_expert * ctx) {
+    if (!ctx) {
+        LOG_ERR("%s: invalid arguments\n", __func__);
+        return false;
     }
-    // cache miss, compute on the fly 
-    std::vector<float> time_emb_1d(ctx->hidden_size);
-    compute_sinusoidal_time_emb(
-        timestep, ctx->hidden_size, ctx->min_period, ctx->max_period, time_emb_1d.data());
-
-    time_emb_2d_fallback.resize((size_t) ctx->hidden_size * ctx->chunk_size);
-    for (int j = 0; j < ctx->chunk_size; ++j) {
-        memcpy(time_emb_2d_fallback.data() + (size_t) j * ctx->hidden_size,
-               time_emb_1d.data(),
-               (size_t) ctx->hidden_size * sizeof(float));
+    if (ctx->time_embedding_runtime.ready) {
+        return true;
+    }
+    if (ctx->num_steps <= 0 || ctx->hidden_size <= 0 || ctx->chunk_size <= 0 || ctx->precomputed_time_emb_2d.empty()) {
+        LOG_ERR("%s: missing precomputed time embeddings\n", __func__);
+        return false;
     }
 
-    return time_emb_2d_fallback.data();
+    clear_time_embedding_runtime(ctx);
+
+    const size_t tensor_count = 2;
+    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    struct ggml_init_params params = {
+        /*.mem_size   =*/ ctx_size,
+        /*.mem_buffer =*/ nullptr,
+        /*.no_alloc   =*/ true,
+    };
+
+    ctx->time_embedding_runtime.ctx_data = ggml_init(params);
+    if (!ctx->time_embedding_runtime.ctx_data) {
+        LOG_ERR("%s: failed to init time embedding runtime ctx\n", __func__);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+
+    const int row_size = ctx->hidden_size * ctx->chunk_size;
+    ctx->time_embedding_runtime.table = ggml_new_tensor_2d(
+        ctx->time_embedding_runtime.ctx_data,
+        GGML_TYPE_F32,
+        row_size,
+        ctx->num_steps);
+    if (!ctx->time_embedding_runtime.table) {
+        LOG_ERR("%s: failed to create time embedding table\n", __func__);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+    ggml_set_name(ctx->time_embedding_runtime.table, "time_embedding_table");
+
+    ctx->time_embedding_runtime.buffer = ggml_backend_alloc_ctx_tensors_from_buft(
+        ctx->time_embedding_runtime.ctx_data,
+        ctx->buft_policy.runtime_buft);
+    if (!ctx->time_embedding_runtime.buffer) {
+        LOG_ERR("%s: failed to allocate time embedding runtime buffer\n", __func__);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+
+    const size_t expected_size = (size_t) ctx->num_steps * row_size;
+    if (ctx->precomputed_time_emb_2d.size() < expected_size) {
+        LOG_ERR("%s: invalid precomputed time embedding size %zu < %zu\n",
+                __func__, ctx->precomputed_time_emb_2d.size(), expected_size);
+        clear_time_embedding_runtime(ctx);
+        return false;
+    }
+    ggml_backend_tensor_set(
+        ctx->time_embedding_runtime.table,
+        ctx->precomputed_time_emb_2d.data(),
+        0,
+        expected_size * sizeof(float));
+
+    ctx->time_embedding_runtime.ready = true;
+    return true;
 }
 
 // ============================================================================
@@ -997,29 +1065,37 @@ static void build_cross_attn_mask_and_positions(
     }
 }
 
-static bool ensure_fused_step_runtime(
+
+static bool ensure_denoise_runtime(
     smolvla_action_expert * ctx,
     int prefix_seq_len) {
-    if (!ctx || prefix_seq_len <= 0) {
+    if (ctx == nullptr || prefix_seq_len <= 0 || ctx->num_steps <= 0) {
         LOG_ERR("%s: invalid arguments\n", __func__);
         return false;
     }
-    if (ctx->fused_step_runtime.ready &&
-        ctx->fused_step_runtime.prefix_seq_len == prefix_seq_len &&
-        ctx->fused_step_runtime.ctx_graph &&
-        ctx->fused_step_runtime.graph &&
-        ctx->fused_step_runtime.inp_actions &&
-        ctx->fused_step_runtime.inp_time &&
-        ctx->fused_step_runtime.out) {
+    if (ctx->time_embedding_runtime.ready == false || ctx->time_embedding_runtime.table == nullptr) {
+        LOG_ERR("%s: time embedding runtime is not initialized\n", __func__);
+        return false;
+    }
+
+    if (ctx->denoise_runtime.ready &&
+        ctx->denoise_runtime.prefix_seq_len == prefix_seq_len &&
+        ctx->denoise_runtime.ctx_graph &&
+        ctx->denoise_runtime.graph &&
+        ctx->denoise_runtime.inp_actions &&
+        ctx->denoise_runtime.step_ids.size() == (size_t) ctx->num_steps &&
+        ctx->denoise_runtime.out) {
         return true;
     }
 
-    clear_fused_step_runtime(ctx);
+    clear_denoise_runtime(ctx);
 
     const int chunk = ctx->chunk_size;
     const int hidden = ctx->hidden_size;
-    const size_t graph_nodes = 4096;
-    smolvla_action_expert::fused_step_runtime_t & rt = ctx->fused_step_runtime;
+    const int steps = ctx->num_steps;
+    const float dt = -1.0f / (float) steps;
+    const size_t graph_nodes = (size_t) 4096 * (size_t) steps + 128;
+    smolvla_action_expert::denoise_runtime_t & rt = ctx->denoise_runtime;
 
     rt.meta_buf.resize(smolvla_graph_meta_size(graph_nodes));
     struct ggml_init_params params = {
@@ -1029,71 +1105,118 @@ static bool ensure_fused_step_runtime(
     };
 
     rt.ctx_graph = ggml_init(params);
-    if (!rt.ctx_graph) {
-        LOG_ERR("%s: failed to init fused graph ctx\n", __func__);
-        clear_fused_step_runtime(ctx);
+    if (rt.ctx_graph == nullptr) {
+        LOG_ERR("%s: failed to init denoise graph ctx\n", __func__);
+        clear_denoise_runtime(ctx);
         return false;
+    }
+
+    const size_t data_tensor_count = (size_t) steps;
+    struct ggml_init_params data_params = {
+        /*.mem_size   =*/ ggml_tensor_overhead() * data_tensor_count,
+        /*.mem_buffer =*/ nullptr,
+        /*.no_alloc   =*/ true,
+    };
+    rt.ctx_data = ggml_init(data_params);
+    if (rt.ctx_data == nullptr) {
+        LOG_ERR("%s: failed to init denoise data ctx\n", __func__);
+        clear_denoise_runtime(ctx);
+        return false;
+    }
+
+    rt.step_ids.resize((size_t) steps, nullptr);
+    for (int i = 0; i < steps; ++i) {
+        rt.step_ids[(size_t) i] = ggml_new_tensor_1d(rt.ctx_data, GGML_TYPE_I32, 1);
+        if (rt.step_ids[(size_t) i] == nullptr) {
+            LOG_ERR("%s: failed to create denoise step id %d\n", __func__, i);
+            clear_denoise_runtime(ctx);
+            return false;
+        }
+        ggml_format_name(rt.step_ids[(size_t) i], "denoise_step_id_%d", i);
+    }
+
+    rt.buffer = ggml_backend_alloc_ctx_tensors_from_buft(rt.ctx_data, ctx->buft_policy.runtime_buft);
+    if (rt.buffer == nullptr) {
+        LOG_ERR("%s: failed to allocate denoise data buffer\n", __func__);
+        clear_denoise_runtime(ctx);
+        return false;
+    }
+    for (int i = 0; i < steps; ++i) {
+        const int32_t step_id_value = i;
+        ggml_backend_tensor_set(rt.step_ids[(size_t) i], &step_id_value, 0, sizeof(step_id_value));
     }
 
     rt.inp_actions = ggml_new_tensor_2d(rt.ctx_graph, GGML_TYPE_F32, ctx->max_action_dim, chunk);
-    rt.inp_time = ggml_new_tensor_2d(rt.ctx_graph, GGML_TYPE_F32, hidden, chunk);
-    if (!rt.inp_actions || !rt.inp_time) {
-        LOG_ERR("%s: failed to create fused inputs\n", __func__);
-        clear_fused_step_runtime(ctx);
+    if (rt.inp_actions == nullptr) {
+        LOG_ERR("%s: failed to create denoise action input\n", __func__);
+        clear_denoise_runtime(ctx);
         return false;
     }
-    ggml_set_name(rt.inp_actions, "fused_noisy_actions");
-    ggml_set_name(rt.inp_time, "fused_time_emb");
+    ggml_set_name(rt.inp_actions, "denoise_initial_actions");
     ggml_set_input(rt.inp_actions);
-    ggml_set_input(rt.inp_time);
 
-    struct ggml_tensor * suffix = build_embed_suffix_op(ctx, rt.ctx_graph, rt.inp_actions, rt.inp_time);
-    if (!suffix) {
-        LOG_ERR("%s: failed to build embed suffix op\n", __func__);
-        clear_fused_step_runtime(ctx);
-        return false;
-    }
-    ggml_set_name(suffix, "fused_suffix_emb");
+    struct ggml_tensor * cur_actions = rt.inp_actions;
+    for (int i = 0; i < steps; ++i) {
+        struct ggml_tensor * time_flat = ggml_get_rows(
+            rt.ctx_graph,
+            ctx->time_embedding_runtime.table,
+            rt.step_ids[(size_t) i]);
+        struct ggml_tensor * time_emb = ggml_reshape_2d(rt.ctx_graph, time_flat, hidden, chunk);
+        ggml_format_name(time_emb, "denoise_time_emb_%d", i);
 
-    struct ggml_tensor * hidden_out = build_transformer_stack_op(
-        ctx,
-        prefix_seq_len,
-        rt.ctx_graph,
-        suffix,
-        ctx->attention_runtime.self_pos,
-        ctx->attention_runtime.cross_pos,
-        ctx->attention_runtime.self_mask,
-        ctx->attention_runtime.cross_mask);
-    if (!hidden_out) {
-        clear_fused_step_runtime(ctx);
-        return false;
+        struct ggml_tensor * suffix = build_embed_suffix_op(ctx, rt.ctx_graph, cur_actions, time_emb);
+        if (suffix == nullptr) {
+            LOG_ERR("%s: failed to build suffix for denoise step %d\n", __func__, i);
+            clear_denoise_runtime(ctx);
+            return false;
+        }
+        ggml_format_name(suffix, "denoise_suffix_emb_%d", i);
+
+        struct ggml_tensor * hidden_out = build_transformer_stack_op(
+            ctx,
+            prefix_seq_len,
+            rt.ctx_graph,
+            suffix,
+            ctx->attention_runtime.self_pos,
+            ctx->attention_runtime.cross_pos,
+            ctx->attention_runtime.self_mask,
+            ctx->attention_runtime.cross_mask);
+        if (hidden_out == nullptr) {
+            clear_denoise_runtime(ctx);
+            return false;
+        }
+
+        struct ggml_tensor * velocity = build_project_velocity_op(ctx, rt.ctx_graph, hidden_out);
+        if (velocity == nullptr) {
+            LOG_ERR("%s: failed to build velocity projection for denoise step %d\n", __func__, i);
+            clear_denoise_runtime(ctx);
+            return false;
+        }
+        ggml_format_name(velocity, "denoise_velocity_%d", i);
+
+        struct ggml_tensor * delta = ggml_scale(rt.ctx_graph, velocity, dt);
+        cur_actions = ggml_add(rt.ctx_graph, cur_actions, delta);
+        ggml_format_name(cur_actions, "denoise_actions_%d", i + 1);
     }
 
-    rt.out = build_project_velocity_op(ctx, rt.ctx_graph, hidden_out);
-    if (!rt.out) {
-        LOG_ERR("%s: failed to build velocity projection\n", __func__);
-        clear_fused_step_runtime(ctx);
-        return false;
-    }
-    ggml_set_name(rt.out, "fused_transformer_velocity_out");
+    rt.out = cur_actions;
+    ggml_set_name(rt.out, "denoise_final_actions");
     ggml_set_output(rt.out);
 
     rt.graph = ggml_new_graph_custom(rt.ctx_graph, graph_nodes, false);
     ggml_build_forward_expand(rt.graph, rt.out);
 
-    if (!ctx->sched) {
+    if (ctx->sched == nullptr) {
         LOG_ERR("%s: scheduler is required\n", __func__);
-        clear_fused_step_runtime(ctx);
+        clear_denoise_runtime(ctx);
         return false;
     }
 
-    {
-        ggml_backend_sched_reset(ctx->sched);
-        if (!ggml_backend_sched_alloc_graph(ctx->sched, rt.graph)) {
-            LOG_ERR("%s: failed to allocate fused graph\n", __func__);
-            clear_fused_step_runtime(ctx);
-            return false;
-        }
+    ggml_backend_sched_reset(ctx->sched);
+    if (ggml_backend_sched_alloc_graph(ctx->sched, rt.graph) == false) {
+        LOG_ERR("%s: failed to allocate denoise graph\n", __func__);
+        clear_denoise_runtime(ctx);
+        return false;
     }
 
     rt.prefix_seq_len = prefix_seq_len;
@@ -1101,62 +1224,45 @@ static bool ensure_fused_step_runtime(
     return true;
 }
 
-bool smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
+bool smolvla_action_expert_eval_denoise_graph(
     struct smolvla_action_expert * ctx,
     int n_threads,
     const float * noisy_actions,
-    float timestep,
-    float * velocity_out
+    float * actions_out
 ) {
-    if (!ctx || !noisy_actions || !velocity_out) {
+    if (ctx == nullptr || noisy_actions == nullptr || actions_out == nullptr) {
         LOG_ERR("%s: invalid arguments\n", __func__);
         return false;
     }
     ctx->graph_n_threads = n_threads;
 
-
     const int prefix_seq_len = ctx->prefix_kv_runtime.prefix_seq_len;
-    if (!attention_runtime_is_ready(ctx, prefix_seq_len)) {
+    if (attention_runtime_is_ready(ctx, prefix_seq_len) == false) {
         LOG_ERR("%s: attention cache is not prepared\n", __func__);
         return false;
     }
-    if (!ensure_fused_step_runtime(ctx, prefix_seq_len)) {
-        LOG_ERR("%s: failed to prepare persistent fused graph\n", __func__);
+    if (ensure_denoise_runtime(ctx, prefix_seq_len) == false) {
+        LOG_ERR("%s: failed to prepare denoise graph\n", __func__);
         return false;
     }
 
-    std::vector<float> time_emb_2d_fallback;
-    const float * time_emb_2d_ptr = resolve_time_emb_2d(ctx, timestep, time_emb_2d_fallback);
-
     const int chunk = ctx->chunk_size;
-    const int hidden = ctx->hidden_size;
-    smolvla_action_expert::fused_step_runtime_t & rt = ctx->fused_step_runtime;
+    smolvla_action_expert::denoise_runtime_t & rt = ctx->denoise_runtime;
 
-    {
-        ggml_backend_tensor_set(
-            rt.inp_actions,
-            noisy_actions,
-            0,
-            (size_t) ctx->max_action_dim * chunk * sizeof(float));
-        ggml_backend_tensor_set(
-            rt.inp_time,
-            time_emb_2d_ptr,
-            0,
-            (size_t) hidden * chunk * sizeof(float));
-    }
+    ggml_backend_tensor_set(
+        rt.inp_actions,
+        noisy_actions,
+        0,
+        (size_t) ctx->max_action_dim * chunk * sizeof(float));
 
     set_backend_threads(ctx->backends, n_threads);
-    {
-        ggml_backend_sched_graph_compute(ctx->sched, rt.graph);
-    }
+    ggml_backend_sched_graph_compute(ctx->sched, rt.graph);
 
-    {
-        ggml_backend_tensor_get(
-            rt.out,
-            velocity_out,
-            0,
-            (size_t) chunk * ctx->max_action_dim * sizeof(float));
-    }
+    ggml_backend_tensor_get(
+        rt.out,
+        actions_out,
+        0,
+        (size_t) chunk * ctx->max_action_dim * sizeof(float));
 
     return true;
 }
@@ -1278,7 +1384,8 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(
 void smolvla_action_expert_free(struct smolvla_action_expert * ctx) {
     if (!ctx) return;
 
-    clear_fused_step_runtime(ctx);
+    clear_denoise_runtime(ctx);
+    clear_time_embedding_runtime(ctx);
     clear_attention_runtime(ctx);
     clear_prefix_kv_runtime(ctx);
     if (ctx->prefix_sched) {

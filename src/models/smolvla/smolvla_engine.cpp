@@ -907,7 +907,6 @@ static struct smolvla_result smolvla_predict_impl(
     {
         const int chunk = ctx->chunk_size;
         const int padded_action_dim = ctx->expert->max_action_dim;
-        const float dt = -1.0f / (float) ctx->num_steps;
 
         std::vector<uint8_t> prefix_valid_mask_u8(ctx->prefix_valid_mask.size(), 1);
         for (size_t i = 0; i < ctx->prefix_valid_mask.size(); ++i) {
@@ -924,19 +923,13 @@ static struct smolvla_result smolvla_predict_impl(
         std::vector<float> x_t((size_t) chunk * padded_action_dim);
         smolvla_fill_initial_noise(ctx, x_t.data(), chunk, padded_action_dim);
 
-        std::vector<float> v_t((size_t) chunk * padded_action_dim);
-        for (int step = 0; step < ctx->num_steps; ++step) {
-            const float timestep = 1.0f + step * dt;
-
-            if (!smolvla_action_expert_eval_fused_embed_transformer_project_velocity(
-                    ctx->expert, ctx->n_threads, x_t.data(), timestep, v_t.data())) {
-                fprintf(stderr, "[SmolVLA] FATAL: M6 fused embed+transformer+velocity failed at step %d\n", step);
-                return result;
-            }
-
-            for (size_t i = 0; i < x_t.size(); ++i) {
-                x_t[i] += dt * v_t[i];
-            }
+        if (!smolvla_action_expert_eval_denoise_graph(
+                ctx->expert,
+                ctx->n_threads,
+                x_t.data(),
+                x_t.data())) {
+            fprintf(stderr, "[SmolVLA] FATAL: M6 denoise graph failed (%d steps)\n", ctx->num_steps);
+            return result;
         }
         // 找到真正的action dim，这里做了一些防御，防止越界
         const int stats_dim = std::min((int) ctx->expert->action_mean.size(), (int) ctx->expert->action_std.size());
