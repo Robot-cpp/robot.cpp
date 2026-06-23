@@ -64,20 +64,6 @@ class SO101RobotClient(BasePolicy):
         self._home_action: dict[str, float] = {}
         self._dt = 1.0 / max(1, self.cfg.fps)
 
-    @property
-    def camera_key(self) -> str:
-        return self.cfg.camera_key
-
-    @property
-    def model_image_name(self) -> str:
-        return self.cfg.model_image_name
-
-    @property
-    def action_keys(self) -> list[str]:
-        if self._robot is None:
-            return []
-        return list(self._robot.action_features.keys())
-
     def connect(self) -> None:
         health = self._policy.health()
         logging.info(
@@ -128,6 +114,19 @@ class SO101RobotClient(BasePolicy):
             self._robot.send_action(dict(self._home_action))
             time.sleep(max(0.01, self._dt))
 
+    @property
+    def camera_key(self) -> str:
+        return self.cfg.camera_key
+
+    @property
+    def model_image_name(self) -> str:
+        return self.cfg.model_image_name
+
+    @property
+    def action_keys(self) -> list[str]:
+        if self._robot is None:
+            return []
+        return list(self._robot.action_features.keys())
 
 def create_robot_client(policy: ModelClient, cfg: SO101ClientConfig | None = None) -> SO101RobotClient:
     return SO101RobotClient(policy, cfg)
