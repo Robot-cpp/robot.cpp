@@ -51,7 +51,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_OPENMP="${GGML_OPENMP}"
         -DGGML_CUDA=OFF
         -DGGML_METAL=OFF
-        -DVLACPP_BUILD_ROBOT_SERVER=ON
+        -DBUILD_ROBOT_SERVER=ON
     )
     if [ -n "${GGML_BLAS_VENDOR:-}" ]; then
         CMAKE_FLAGS+=(-DGGML_BLAS_VENDOR="${GGML_BLAS_VENDOR}")

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(vlacpp VERSION 0.1.0 LANGUAGES C CXX)
 
-option(VLACPP_BUILD_ROBOT_SERVER "Build model-cli, model-server, and robot client targets" ON)
+option(BUILD_ROBOT_SERVER "Build model-cli, model-server, and robot client targets" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -107,7 +107,7 @@ target_include_directories(robotcpp
 target_link_libraries(robotcpp PUBLIC smolvla_runtime pi0_engine)
 target_compile_features(robotcpp PUBLIC cxx_std_17)
 
-if(VLACPP_BUILD_ROBOT_SERVER)
+if(BUILD_ROBOT_SERVER)
     add_library(robot_server_common STATIC
         ${ROBOT_SERVER_DIR}/protocol.cpp
         ${ROBOT_SERVER_DIR}/protocol.h

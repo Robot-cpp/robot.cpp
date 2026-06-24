@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VLA_ROOT="${VLA_ROOT:?must be set}"
+REPO_ROOT="${REPO_ROOT:?must be set}" # The root directory of the repository
+export SRC_GGUF_DIR="${SRC_GGUF_DIR:?SRC_GGUF_DIR must be set}" # source GGUF directories
+export QUANT_OUTPUT_DIR="${QUANT_OUTPUT_DIR:?QUANT_OUTPUT_DIR must be set}" # output directory for quantized models
+MODEL_QUANT_PYTHON="${MODEL_QUANT_PYTHON:?MODEL_QUANT_PYTHON must be set}" # Python interpreter path
+PLAN_PATH="${PLAN_PATH:-${REPO_ROOT}/tools/quant/config/smolvla_origin.yaml}" # plan yaml path
 
-export GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
-export QUANT_OUTPUT_DIR="${QUANT_OUTPUT_DIR:?QUANT_OUTPUT_DIR must be set}"
 
-MODEL_QUANT_PYTHON="${MODEL_QUANT_PYTHON:?MODEL_QUANT_PYTHON must be set}"
 PYTHON_BIN="${PYTHON_BIN:-${MODEL_QUANT_PYTHON}}"
-PLAN_PATH="${PLAN_PATH:-${VLA_ROOT}/tools/quant/config/smolvla_origin.yaml}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
-QUANT_BUILD_DIR="${QUANT_BUILD_DIR:-${VLA_ROOT}/build_model_quant}"
-CMAKE_BUILD_CONFIG="${CMAKE_BUILD_CONFIG:-Release}"
-GGML_BASE_LIB="${GGML_BASE_LIB:-}"
+QUANT_BUILD_DIR="${QUANT_BUILD_DIR:-${REPO_ROOT}/build_model_quant}"
+GGML_BASE_LIB="${GGML_BASE_LIB:-}" # path to the ggml-base runtime library (libggml-base)
 
 find_ggml_base_lib() {
   if [[ ! -d "${QUANT_BUILD_DIR}" ]]; then
@@ -39,12 +38,10 @@ if [[ -z "${GGML_BASE_LIB}" ]]; then
 fi
 
 if [[ -z "${GGML_BASE_LIB}" || ! -f "${GGML_BASE_LIB}" || "${FORCE_GGML_BASE_BUILD:-0}" == "1" ]]; then
-  "${CMAKE_BIN}" -S "${VLA_ROOT}" -B "${QUANT_BUILD_DIR}" \
-    -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_CONFIG}" \
-    -DVLACPP_BUILD_EXAMPLES=OFF \
-    -DVLACPP_BUILD_TESTS=OFF \
-    -DVLACPP_BUILD_SMOLVLA=OFF
-  "${CMAKE_BIN}" --build "${QUANT_BUILD_DIR}" --target ggml-base --config "${CMAKE_BUILD_CONFIG}" --parallel "$(sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
+  "${CMAKE_BIN}" -S "${REPO_ROOT}" -B "${QUANT_BUILD_DIR}" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_ROBOT_SERVER=OFF
+  "${CMAKE_BIN}" --build "${QUANT_BUILD_DIR}" --target ggml-base --config Release --parallel "$(sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
   GGML_BASE_LIB="$(find_ggml_base_lib)"
 fi
 
@@ -55,10 +52,10 @@ fi
 export GGML_BASE_LIB
 
 "${PYTHON_BIN}" \
-  "${VLA_ROOT}/tools/quant/quantize-vla-gguf.py" \
+  "${REPO_ROOT}/tools/quant/quantize-vla-gguf.py" \
   "${PLAN_PATH}" \
   --dry-run
 
 "${PYTHON_BIN}" \
-  "${VLA_ROOT}/tools/quant/quantize-vla-gguf.py" \
+  "${REPO_ROOT}/tools/quant/quantize-vla-gguf.py" \
   "${PLAN_PATH}"

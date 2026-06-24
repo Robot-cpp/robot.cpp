@@ -4,8 +4,7 @@ model_type: pi0
 # Baseline pi0 quant plan.
 #
 # Usage:
-#   GGUF_DIR=/Users/lxsy/research/ckpts/pi0/converted \
-#   MODEL_BASENAME=pi0 \
+#   SRC_GGUF_DIR=/path/to/pi0/src/gguf \
 #   QUANT_OUTPUT_DIR=debug/artifacts/quant/pi0_outputs \
 #   python tools/quant/quantize-vla-gguf.py tools/quant/config/pi0_origin.yaml --dry-run
 #
@@ -15,8 +14,8 @@ model_type: pi0
 
 components:
   llm:
-    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.llm.gguf"
-    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.llm.gguf"
+    input: "${SRC_GGUF_DIR}/pi0.llm.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/pi0.llm.gguf"
     groups:
       norms:
         quantizable: false
@@ -68,8 +67,8 @@ components:
           - pi0.llm.layers.*.mlp.down_proj.weight
 
   mmproj:
-    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.mmproj.gguf"
-    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.mmproj.gguf"
+    input: "${SRC_GGUF_DIR}/pi0.mmproj.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/pi0.mmproj.gguf"
     groups:
       biases:
         quantizable: false
@@ -84,8 +83,8 @@ components:
           - pi0.merger.weight
 
   vit:
-    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.vit.gguf"
-    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.vit.gguf"
+    input: "${SRC_GGUF_DIR}/pi0.vit.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/pi0.vit.gguf"
     groups:
       patch_embeddings:
         quantizable: false
@@ -154,8 +153,8 @@ components:
           - pi0.vit.encoder.layers.*.mlp.fc2.weight
 
   state:
-    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.state.gguf"
-    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.state.gguf"
+    input: "${SRC_GGUF_DIR}/pi0.state.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/pi0.state.gguf"
     groups:
       biases:
         quantizable: false
@@ -171,8 +170,8 @@ components:
           - pi0.action_decoder.state_proj.weight
 
   action_decoder:
-    input: "${GGUF_DIR}/${MODEL_BASENAME:-pi0}.action_decoder.gguf"
-    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/${MODEL_BASENAME:-pi0}.action_decoder.gguf"
+    input: "${SRC_GGUF_DIR}/pi0.action_decoder.gguf"
+    output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/pi0_outputs}/pi0.action_decoder.gguf"
     groups:
       biases:
         quantizable: false

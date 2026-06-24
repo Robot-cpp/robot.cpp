@@ -101,7 +101,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON
+                -DBUILD_ROBOT_SERVER=ON
         ) else (
             "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
@@ -113,7 +113,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON
+                -DBUILD_ROBOT_SERVER=ON
         )
     ) else (
         if defined GGML_BLAS_VENDOR (
@@ -127,7 +127,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON
+                -DBUILD_ROBOT_SERVER=ON
         ) else (
             "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
@@ -138,7 +138,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON
+                -DBUILD_ROBOT_SERVER=ON
         )
     )
     if errorlevel 1 exit /b 1

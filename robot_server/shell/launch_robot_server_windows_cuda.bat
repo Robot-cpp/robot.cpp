@@ -145,7 +145,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON ^
+                -DBUILD_ROBOT_SERVER=ON ^
                 !COMMON_CUDA_ARCH!
         ) else (
             "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G Ninja ^
@@ -159,7 +159,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON ^
+                -DBUILD_ROBOT_SERVER=ON ^
                 !COMMON_CUDA_ARCH!
         )
     ) else (
@@ -172,7 +172,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON ^
+                -DBUILD_ROBOT_SERVER=ON ^
                 -DCMAKE_CUDA_ARCHITECTURES=!CMAKE_CUDA_ARCHITECTURES!
         ) else (
             "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" -A "!CMAKE_PLATFORM!" ^
@@ -182,7 +182,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DVLACPP_BUILD_ROBOT_SERVER=ON
+                -DBUILD_ROBOT_SERVER=ON
         )
     )
     if errorlevel 1 exit /b 1

@@ -98,7 +98,7 @@ if [[ "${SKIP_BUILD}" != "1" ]]; then
     cmake_args=(
         -S "${REPO_ROOT}"
         -B "${BUILD_DIR}"
-        -DVLACPP_BUILD_ROBOT_SERVER=ON
+        -DBUILD_ROBOT_SERVER=ON
         "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     )
     if [[ "${BACKEND}" == "cuda" ]]; then

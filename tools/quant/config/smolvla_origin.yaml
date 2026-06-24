@@ -2,7 +2,7 @@ version: 1
 model_type: smolvla
 
 # Usage:
-#   GGUF_DIR=/path/to/smolvla/gguf \
+#   SRC_GGUF_DIR=/path/to/smolvla/gguf \
 #   QUANT_OUTPUT_DIR=debug/artifacts/quant/smolvla_outputs \
 #   python tools/quant/quantize-vla-gguf.py tools/quant/config/smolvla_plan.yaml --dry-run
 #
@@ -12,7 +12,7 @@ model_type: smolvla
 
 components:
   llm:
-    input: "${GGUF_DIR}/smolvla-llm-f32.gguf"
+    input: "${SRC_GGUF_DIR}/smolvla-llm-f32.gguf"
     output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/smolvla-llm-quant.gguf"
     groups:
       token_embeddings:
@@ -71,7 +71,7 @@ components:
           - output.weight
 
   vision:
-    input: "${GGUF_DIR}/mmproj-smolvla-f32.gguf"
+    input: "${SRC_GGUF_DIR}/mmproj-smolvla-f32.gguf"
     output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/mmproj-smolvla-quant.gguf"
     groups:
       biases:
@@ -137,7 +137,7 @@ components:
           - mm.*.weight
 
   state_proj:
-    input: "${GGUF_DIR}/state-proj-smolvla-f32.gguf"
+    input: "${SRC_GGUF_DIR}/state-proj-smolvla-f32.gguf"
     output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/state-proj-smolvla-quant.gguf"
     groups:
       norm_stats:
@@ -160,7 +160,7 @@ components:
           - smolvla.state_proj.weight
 
   action_expert:
-    input: "${GGUF_DIR}/action-expert-smolvla-f32.gguf"
+    input: "${SRC_GGUF_DIR}/action-expert-smolvla-f32.gguf"
     output: "${QUANT_OUTPUT_DIR:-debug/artifacts/quant/smolvla_outputs}/action-expert-smolvla-quant.gguf"
     groups:
       unnorm_stats:

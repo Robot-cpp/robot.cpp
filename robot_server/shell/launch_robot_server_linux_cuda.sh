@@ -48,7 +48,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_OPENMP="${GGML_OPENMP}" \
         -DGGML_CUDA=ON \
         -DGGML_METAL=OFF \
-        -DVLACPP_BUILD_ROBOT_SERVER=ON
+        -DBUILD_ROBOT_SERVER=ON
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" --target model-server -j8

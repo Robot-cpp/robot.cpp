@@ -20,7 +20,7 @@ if [ "${BUILD_CLIENT}" = "1" ] || [ ! -x "${CLIENT_BIN}" ]; then
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=OFF \
-        -DVLACPP_BUILD_ROBOT_SERVER=ON
+        -DBUILD_ROBOT_SERVER=ON
 
     echo "== build cpp client example =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
