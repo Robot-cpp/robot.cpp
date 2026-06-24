@@ -6,8 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from robot_client.policy.base_policy import BasePolicy
-from eval.libero.env import DEFAULT_LIBERO_CAMERA_KEYS
+from eval.libero.environment import DEFAULT_LIBERO_CAMERA_KEYS
+from robot_client.policy.sim_policy import SimPolicy
 
 
 DEFAULT_IMAGE_KEYS = ("observation.images.image", "observation.images.image2")
@@ -52,7 +52,7 @@ def libero_image(observation: dict[str, Any], camera_key: str) -> np.ndarray:
     return np.flip(image, axis=(0, 1)).copy()
 
 
-def build_libero_request(
+def build_libero_observation(
     observation: dict[str, Any],
     task: str,
     *,
@@ -75,7 +75,7 @@ def build_libero_request(
     }
 
 
-class LiberoClient(BasePolicy):
+class LiberoModelServerPolicy(SimPolicy):
     """LIBERO-specific model-server policy client."""
 
     def __init__(
@@ -96,8 +96,9 @@ class LiberoClient(BasePolicy):
         self.image_keys = image_keys
         self.camera_keys = camera_keys
 
-    def build_request(self, observation: dict[str, Any], task: str) -> dict[str, Any]:
-        return build_libero_request(
+    def build_observation(self, observation: dict[str, Any], *, platform: Any, task: str) -> dict[str, Any]:
+        del platform
+        return build_libero_observation(
             observation,
             task,
             state_dim=self.state_dim,

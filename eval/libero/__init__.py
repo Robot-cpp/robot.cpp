@@ -1,1 +1,1 @@
-"""LIBERO evaluation helpers."""
+"""LIBERO evaluation runners and model-server policy adapters."""

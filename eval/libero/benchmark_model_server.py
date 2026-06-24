@@ -9,9 +9,10 @@ from typing import Any
 
 import numpy as np
 
-from eval.libero.client import DEFAULT_IMAGE_KEYS, LiberoClient
-from eval.libero.utils import DEFAULT_RESULTS_DIR, timestamp, write_json
-from robot_client.policy.base_policy import (
+from eval.base_platform import BasePlatform
+from eval.libero.model_server_policy import DEFAULT_IMAGE_KEYS, LiberoModelServerPolicy
+from eval.libero.common import DEFAULT_RESULTS_DIR, timestamp, write_json
+from robot_client.policy.sim_policy import (
     maybe_launch_server,
     parse_server_env,
     server_command,
@@ -21,6 +22,7 @@ from robot_client.policy.base_policy import (
 
 
 DEFAULT_PROMPT = "pick up the alphabet soup and place it in the basket"
+_LIBERO_PLATFORM = BasePlatform()
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,7 +73,7 @@ def main() -> int:
 
     output = args.output or DEFAULT_RESULTS_DIR / f"model-server-latency-{timestamp()}.json"
     image_keys = tuple(args.image_key or DEFAULT_IMAGE_KEYS)
-    policy = LiberoClient(
+    policy = LiberoModelServerPolicy(
         state_dim=args.state_dim,
         action_dim=args.env_action_dim,
         image_keys=image_keys,
@@ -92,13 +94,13 @@ def main() -> int:
             f"host={args.host} port={args.port}"
         )
         for i in range(args.warmup + args.loops):
-            actions = policy.predict_action_chunk(observation, args.prompt)
+            response = policy.predict_action_chunk(observation, platform=_LIBERO_PLATFORM, task=args.prompt)
             record = policy.timing_records[-1]
             if i >= args.warmup:
                 row = {"roundtrip_ms": record.roundtrip_ms}
                 row.update(record.timings)
                 rows.append(row)
-            actions_shape = list(actions.shape)
+            actions_shape = [response.chunk_size, response.action_dim]
             print(
                 f"iter={i} "
                 f"roundtrip_ms={record.roundtrip_ms:.3f} "

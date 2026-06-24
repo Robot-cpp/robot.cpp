@@ -16,7 +16,7 @@ Common overrides:
   N_EPISODES=1              episodes per task
   CMAKE_CUDA_ARCHITECTURES=80
 
-Extra arguments are passed to eval.libero.run_model_server_eval before the
+Extra arguments are passed to eval.libero.run_model_server before the
 model-server command. Configure host/port through HOST and PORT so the eval
 client and launched server stay in sync.
 EOF
@@ -33,7 +33,7 @@ cd "${REPO_ROOT}"
 
 MODEL_TYPE="${MODEL_TYPE:-pi0}"
 if [[ "${MODEL_TYPE}" != "pi0" ]]; then
-    echo "run_model_server_eval.sh currently supports MODEL_TYPE=pi0 only" >&2
+    echo "run_model_server.sh currently supports MODEL_TYPE=pi0 only" >&2
     exit 2
 fi
 
@@ -146,7 +146,7 @@ fi
 
 eval_cmd=(
     "${python_cmd[@]}"
-    -m eval.libero.run_model_server_eval
+    -m eval.libero.run_model_server
     --launch-server
     --host "${HOST}"
     --port "${PORT}"

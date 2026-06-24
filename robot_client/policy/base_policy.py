@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from collections import deque
 from typing import Any
 
-from model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes
 from eval.base_platform import BasePlatform
+from robot_client.python.model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes
 
 
 class BasePolicy(ABC):
