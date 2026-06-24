@@ -14,17 +14,17 @@ static constexpr uint16_t k_header_size = 32;
 static constexpr uint64_t k_default_max_payload = 256ull * 1024ull * 1024ull;
 
 enum op : uint16_t {
-    op_health   = 1,
-    op_reset    = 2,
-    op_predict  = 3,
+    op_health = 1,
+    op_reset = 2,
+    op_predict = 3,
     op_shutdown = 4,
 };
 
 enum status : uint32_t {
-    status_ok             = 0,
-    status_bad_request    = 1,
-    status_bad_magic      = 2,
-    status_bad_version    = 3,
+    status_ok = 0,
+    status_bad_request = 1,
+    status_bad_magic = 2,
+    status_bad_version = 3,
     status_payload_too_big = 4,
     status_internal_error = 5,
 };

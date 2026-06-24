@@ -10,7 +10,7 @@ struct pi0_context;
 namespace robotcpp {
 
 class Pi0Model final : public Model {
-public:
+  public:
     explicit Pi0Model(const model_args & args);
     ~Pi0Model() override;
 
@@ -23,14 +23,11 @@ public:
 
     bool is_ready() const;
 
-private:
+  private:
     model_args args_;
     pi0_context * ctx_ = nullptr;
 };
 
-bool make_pi0_model(
-    const model_args & args,
-    std::unique_ptr<Model> & out,
-    std::string & error);
+bool make_pi0_model(const model_args & args, std::unique_ptr<Model> & out, std::string & error);
 
 } // namespace robotcpp

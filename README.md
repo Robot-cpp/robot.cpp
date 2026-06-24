@@ -25,6 +25,21 @@ cmake --build build --target model-cli model-server
 `VLACPP_BUILD_ROBOT_SERVER` is the only project-level build option. The build no
 longer registers CTest targets or the old `vlacpp` shared C ABI.
 
+## Checks
+
+Install and run the local checks with:
+
+```sh
+python -m pip install pre-commit ruff clang-format
+pre-commit install
+pre-commit run --all-files
+```
+
+The hook set follows the same shape as `llama.cpp`'s pre-commit setup, but is
+kept local and lightweight: Python fatal checks through `ruff`, and C/C++
+format checks through `clang-format`. GitHub Actions runs the same hooks on all
+tracked files in pushes and pull requests.
+
 ## SmolVLA Server
 
 ```sh

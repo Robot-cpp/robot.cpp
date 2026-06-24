@@ -62,19 +62,13 @@ struct model_args {
 };
 
 class Model {
-public:
+  public:
     virtual ~Model() = default;
     virtual const char * type() const = 0;
-    virtual bool predict(
-        const observation & obs,
-        model_result & out,
-        std::string & error) = 0;
+    virtual bool predict(const observation & obs, model_result & out, std::string & error) = 0;
     virtual void reset() {}
 };
 
-bool make_model(
-    const model_args & args,
-    std::unique_ptr<Model> & out,
-    std::string & error);
+bool make_model(const model_args & args, std::unique_ptr<Model> & out, std::string & error);
 
 } // namespace robotcpp

@@ -25,16 +25,12 @@ struct Pi0LoadedComponent {
     Pi0ComponentRuntime runtime;
 
     Pi0LoadedComponent() = default;
-    ~Pi0LoadedComponent() {
-        free_pi0_loaded_component(loaded);
-    }
+    ~Pi0LoadedComponent() { free_pi0_loaded_component(loaded); }
 
     Pi0LoadedComponent(const Pi0LoadedComponent &) = delete;
     Pi0LoadedComponent & operator=(const Pi0LoadedComponent &) = delete;
 
-    Pi0LoadedComponent(Pi0LoadedComponent && other) noexcept
-        : loaded(other.loaded),
-          runtime(std::move(other.runtime)) {
+    Pi0LoadedComponent(Pi0LoadedComponent && other) noexcept : loaded(other.loaded), runtime(std::move(other.runtime)) {
         other.loaded = {};
     }
 
@@ -67,11 +63,7 @@ std::string pi0_merger_tensor(const Pi0ModelConfig & config, const std::string &
 std::string pi0_vit_tensor(const Pi0ModelConfig & config, const std::string & suffix);
 std::string pi0_vit_layer_prefix(const Pi0ModelConfig & config, int layer);
 
-bool load_pi0_components(
-    const Pi0ComponentPaths & paths,
-    const Pi0BackendConfig & backend,
-    Pi0ModelConfig & out_config,
-    Pi0Components & out_components,
-    int verbosity);
+bool load_pi0_components(const Pi0ComponentPaths & paths, const Pi0BackendConfig & backend, Pi0ModelConfig & out_config,
+                         Pi0Components & out_components, int verbosity);
 
 } // namespace robotcpp::pi0

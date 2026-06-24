@@ -1,6 +1,6 @@
 /**
  * SmolVLA State Projector (proprio.cpp style with ggml graph building)
- * 
+ *
  * Architecture: normalize (mean_std) → Linear(32, 960)
  * Uses ggml compute graph for efficient inference.
  */
@@ -18,17 +18,17 @@
 #include "models/ggml_backend.h"
 
 #ifdef LLAMA_SHARED
-#    if defined(_WIN32) && !defined(__MINGW32__)
-#        ifdef LLAMA_BUILD
-#            define SMOLVLA_STATE_PROJ_API __declspec(dllexport)
-#        else
-#            define SMOLVLA_STATE_PROJ_API __declspec(dllimport)
-#        endif
-#    else
-#        define SMOLVLA_STATE_PROJ_API __attribute__ ((visibility ("default")))
-#    endif
+#if defined(_WIN32) && !defined(__MINGW32__)
+#ifdef LLAMA_BUILD
+#define SMOLVLA_STATE_PROJ_API __declspec(dllexport)
 #else
-#    define SMOLVLA_STATE_PROJ_API
+#define SMOLVLA_STATE_PROJ_API __declspec(dllimport)
+#endif
+#else
+#define SMOLVLA_STATE_PROJ_API __attribute__((visibility("default")))
+#endif
+#else
+#define SMOLVLA_STATE_PROJ_API
 #endif
 
 // ============================================================================
@@ -47,14 +47,14 @@ struct smolvla_state_proj {
     ggml_backend_buffer_t params_buffer = nullptr;
 
     // Model parameters
-    int state_dim = 6;         // Actual input dimension (from dataset)
-    int max_state_dim = 32;    // Padded input dimension
-    int hidden_size = 960;     // Output dimension
+    int state_dim = 6;      // Actual input dimension (from dataset)
+    int max_state_dim = 32; // Padded input dimension
+    int hidden_size = 960;  // Output dimension
     int verbosity = 0;
 
     // Normalization statistics (MEAN_STD mode)
-    std::vector<float> norm_mean;  // [state_dim]
-    std::vector<float> norm_std;   // [state_dim]
+    std::vector<float> norm_mean; // [state_dim]
+    std::vector<float> norm_std;  // [state_dim]
     bool has_norm_stats = false;
 
     // Weight tensors (single Linear layer)
@@ -66,7 +66,6 @@ struct smolvla_state_proj {
     // Compute buffer
     std::vector<uint8_t> buf_compute_meta;
 };
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,13 +88,8 @@ SMOLVLA_STATE_PROJ_API struct smolvla_state_proj * smolvla_state_proj_load(const
  * @param output Output embedding array [hidden_size]
  * @return true on success
  */
-SMOLVLA_STATE_PROJ_API bool smolvla_state_proj_encode(
-    struct smolvla_state_proj * ctx,
-    int n_threads,
-    const float * state,
-    int state_dim,
-    float * output
-);
+SMOLVLA_STATE_PROJ_API bool smolvla_state_proj_encode(struct smolvla_state_proj * ctx, int n_threads,
+                                                      const float * state, int state_dim, float * output);
 
 /**
  * Free state projector context

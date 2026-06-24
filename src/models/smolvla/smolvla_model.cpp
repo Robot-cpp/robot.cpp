@@ -40,8 +40,7 @@ bool validate_options(const model_args & options, std::string & error) {
 
 } // namespace
 
-SmolVLAModel::SmolVLAModel(const model_args & args)
-    : args_(args) {
+SmolVLAModel::SmolVLAModel(const model_args & args) : args_(args) {
     smolvla_params params = smolvla_default_params();
     params.llm_path = args_.llm_path.c_str();
     params.mmproj_path = args_.mmproj_path.c_str();
@@ -95,12 +94,8 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
     }
 
     const smolvla_result result = smolvla_predict_raw_rgb_batch(
-        ctx_,
-        views.data(),
-        views.size(),
-        obs.state.empty() ? nullptr : obs.state.data(),
-        static_cast<int>(obs.state.size()),
-        obs.task.empty() ? "grab the block." : obs.task.c_str());
+        ctx_, views.data(), views.size(), obs.state.empty() ? nullptr : obs.state.data(),
+        static_cast<int>(obs.state.size()), obs.task.empty() ? "grab the block." : obs.task.c_str());
     if (result.actions == nullptr) {
         error = "smolvla_predict_raw_rgb_batch failed";
         return false;
@@ -108,9 +103,8 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
 
     out.chunk_size = result.chunk_size;
     out.action_dim = result.action_dim;
-    out.actions.assign(
-        result.actions,
-        result.actions + static_cast<size_t>(result.chunk_size) * static_cast<size_t>(result.action_dim));
+    out.actions.assign(result.actions, result.actions + static_cast<size_t>(result.chunk_size) *
+                                                            static_cast<size_t>(result.action_dim));
 
     const smolvla_stage_timings timings = smolvla_get_last_stage_timings(ctx_);
     add_metric(out, "vision_ms", timings.vision_ms);
@@ -128,10 +122,7 @@ bool SmolVLAModel::is_ready() const {
     return ctx_ != nullptr;
 }
 
-bool make_smolvla_model(
-    const model_args & args,
-    std::unique_ptr<Model> & out,
-    std::string & error) {
+bool make_smolvla_model(const model_args & args, std::unique_ptr<Model> & out, std::string & error) {
     out.reset();
     if (!validate_options(args, error)) {
         return false;

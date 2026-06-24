@@ -37,19 +37,10 @@ std::string clean_prompt(const std::string & prompt) {
     return cleaned;
 }
 
-bool tokenize_with_vocab(
-    const llama_vocab * vocab,
-    const std::string & text,
-    bool add_special,
-    std::vector<int32_t> & out) {
-    int32_t count = llama_tokenize(
-        vocab,
-        text.data(),
-        static_cast<int32_t>(text.size()),
-        nullptr,
-        0,
-        add_special,
-        false);
+bool tokenize_with_vocab(const llama_vocab * vocab, const std::string & text, bool add_special,
+                         std::vector<int32_t> & out) {
+    int32_t count =
+        llama_tokenize(vocab, text.data(), static_cast<int32_t>(text.size()), nullptr, 0, add_special, false);
     if (count < 0) {
         count = -count;
     }
@@ -58,14 +49,9 @@ bool tokenize_with_vocab(
     }
     const size_t offset = out.size();
     out.resize(offset + static_cast<size_t>(count));
-    const int32_t written = llama_tokenize(
-        vocab,
-        text.data(),
-        static_cast<int32_t>(text.size()),
-        reinterpret_cast<llama_token *>(out.data() + offset),
-        count,
-        add_special,
-        false);
+    const int32_t written =
+        llama_tokenize(vocab, text.data(), static_cast<int32_t>(text.size()),
+                       reinterpret_cast<llama_token *>(out.data() + offset), count, add_special, false);
     if (written < 0) {
         out.resize(offset);
         return false;
@@ -139,20 +125,13 @@ bool Pi0Tokenizer::tokenize_prompt(const std::string & prompt, int max_tokens, s
 
 namespace {
 
-void pi0_prefill_language_prefix_layers_batch(
-    const Pi0Context & ctx,
-    const std::vector<float> & tokens,
-    const std::vector<int> & positions,
-    int batch,
-    int heads,
-    int kv_heads,
-    int head_dim,
-    std::vector<float> & out,
-    bool need_output,
-    ggml_tensor * runtime_prefix_embeddings = nullptr,
-    int runtime_prefix_count = 0,
-    ggml_tensor * runtime_suffix_embeddings = nullptr,
-    int runtime_suffix_count = 0) {
+void pi0_prefill_language_prefix_layers_batch(const Pi0Context & ctx, const std::vector<float> & tokens,
+                                              const std::vector<int> & positions, int batch, int heads, int kv_heads,
+                                              int head_dim, std::vector<float> & out, bool need_output,
+                                              ggml_tensor * runtime_prefix_embeddings = nullptr,
+                                              int runtime_prefix_count = 0,
+                                              ggml_tensor * runtime_suffix_embeddings = nullptr,
+                                              int runtime_suffix_count = 0) {
     const Pi0Config & pi0 = pi0_config(ctx.config);
     const int64_t width = pi0.llm.width;
     const int64_t q_out = pi0.llm.q_out;
@@ -161,21 +140,16 @@ void pi0_prefill_language_prefix_layers_batch(
     const int layers = pi0.llm.layers;
     const int host_token_count = batch - runtime_prefix_count - runtime_suffix_count;
     if (batch <= 0 || width <= 0 || q_out <= 0 || kv_out <= 0 || mlp_width <= 0 || layers <= 0 ||
-        runtime_prefix_count < 0 || runtime_suffix_count < 0 || host_token_count < 0 ||
-        heads <= 0 || kv_heads <= 0 || head_dim <= 0 ||
-        q_out != static_cast<int64_t>(heads) * head_dim ||
+        runtime_prefix_count < 0 || runtime_suffix_count < 0 || host_token_count < 0 || heads <= 0 || kv_heads <= 0 ||
+        head_dim <= 0 || q_out != static_cast<int64_t>(heads) * head_dim ||
         kv_out != static_cast<int64_t>(kv_heads) * head_dim ||
         tokens.size() != static_cast<size_t>(host_token_count) * static_cast<size_t>(width) ||
         positions.size() != static_cast<size_t>(batch)) {
         throw std::invalid_argument("language prefix fused prefill input has incompatible shape");
     }
     auto validate_runtime_embeddings = [width](ggml_tensor * tensor, int count) {
-        return count == 0 ||
-            (tensor != nullptr &&
-                ggml_n_dims(tensor) == 2 &&
-                tensor->type == GGML_TYPE_F32 &&
-                tensor->ne[0] == width &&
-                tensor->ne[1] == count);
+        return count == 0 || (tensor != nullptr && ggml_n_dims(tensor) == 2 && tensor->type == GGML_TYPE_F32 &&
+                              tensor->ne[0] == width && tensor->ne[1] == count);
     };
     if (!validate_runtime_embeddings(runtime_prefix_embeddings, runtime_prefix_count) ||
         !validate_runtime_embeddings(runtime_suffix_embeddings, runtime_suffix_count)) {
@@ -200,13 +174,7 @@ void pi0_prefill_language_prefix_layers_batch(
         hidden = hidden == nullptr ? value : ggml_concat(gctx, hidden, value, 1);
     };
     auto view_runtime_embeddings = [&](ggml_tensor * value, int count) {
-        return ggml_view_2d(
-            gctx,
-            value,
-            width,
-            count,
-            ggml_row_size(value->type, width),
-            0);
+        return ggml_view_2d(gctx, value, width, count, ggml_row_size(value->type, width), 0);
     };
     if (runtime_prefix_count > 0) {
         append_hidden(view_runtime_embeddings(runtime_prefix_embeddings, runtime_prefix_count));
@@ -234,8 +202,8 @@ void pi0_prefill_language_prefix_layers_batch(
         ggml_tensor * gate_w = layer_w.gate;
         ggml_tensor * up_w = layer_w.up;
         ggml_tensor * down_w = layer_w.down;
-        if (q_w == nullptr || k_w == nullptr || v_w == nullptr || out_w == nullptr ||
-            gate_w == nullptr || up_w == nullptr || down_w == nullptr) {
+        if (q_w == nullptr || k_w == nullptr || v_w == nullptr || out_w == nullptr || gate_w == nullptr ||
+            up_w == nullptr || down_w == nullptr) {
             throw std::invalid_argument("missing pi0 language prefix fused prefill tensor");
         }
 
@@ -252,10 +220,10 @@ void pi0_prefill_language_prefix_layers_batch(
         q = ggml_reshape_3d(gctx, q, head_dim, heads, batch);
         k = ggml_reshape_3d(gctx, k, head_dim, kv_heads, batch);
         v = ggml_reshape_3d(gctx, v, head_dim, kv_heads, batch);
-        ggml_tensor * q_rot = ggml_rope_ext(
-            gctx, q, pos, nullptr, head_dim, GGML_ROPE_TYPE_NEOX, 8192, 10000.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f);
-        ggml_tensor * k_rot = ggml_rope_ext(
-            gctx, k, pos, nullptr, head_dim, GGML_ROPE_TYPE_NEOX, 8192, 10000.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+        ggml_tensor * q_rot = ggml_rope_ext(gctx, q, pos, nullptr, head_dim, GGML_ROPE_TYPE_NEOX, 8192, 10000.0f, 1.0f,
+                                            0.0f, 1.0f, 0.0f, 0.0f);
+        ggml_tensor * k_rot = ggml_rope_ext(gctx, k, pos, nullptr, head_dim, GGML_ROPE_TYPE_NEOX, 8192, 10000.0f, 1.0f,
+                                            0.0f, 1.0f, 0.0f, 0.0f);
         ggml_tensor * q_perm = ggml_permute(gctx, q_rot, 0, 2, 1, 3);
         ggml_tensor * k_perm = ggml_permute(gctx, k_rot, 0, 2, 1, 3);
         const float scale = 1.0f / std::sqrt(static_cast<float>(head_dim));
@@ -315,32 +283,21 @@ void pi0_prefill_language_prefix_layers_batch(
     ctx.prefix_kv.k_layers.resize(static_cast<size_t>(layers), nullptr);
     ctx.prefix_kv.v_layers.resize(static_cast<size_t>(layers), nullptr);
     for (int layer = 0; layer < layers; ++layer) {
-        ctx.prefix_kv.k_layers[static_cast<size_t>(layer)] = pi0_persist_backend_f32(
-            runtime,
-            &ctx.prefix_kv.k_layers[static_cast<size_t>(layer)],
-            k_outputs[static_cast<size_t>(layer)],
-            3,
-            head_dim,
-            kv_heads,
-            batch);
-        ctx.prefix_kv.v_layers[static_cast<size_t>(layer)] = pi0_persist_backend_f32(
-            runtime,
-            &ctx.prefix_kv.v_layers[static_cast<size_t>(layer)],
-            v_outputs[static_cast<size_t>(layer)],
-            3,
-            head_dim,
-            kv_heads,
-            batch);
+        ctx.prefix_kv.k_layers[static_cast<size_t>(layer)] =
+            pi0_persist_backend_f32(runtime, &ctx.prefix_kv.k_layers[static_cast<size_t>(layer)],
+                                    k_outputs[static_cast<size_t>(layer)], 3, head_dim, kv_heads, batch);
+        ctx.prefix_kv.v_layers[static_cast<size_t>(layer)] =
+            pi0_persist_backend_f32(runtime, &ctx.prefix_kv.v_layers[static_cast<size_t>(layer)],
+                                    v_outputs[static_cast<size_t>(layer)], 3, head_dim, kv_heads, batch);
     }
 }
 
 } // namespace
 
 static bool pi0_has_language_layer(const Pi0Context & ctx, int layer) {
-    return layer >= 0 &&
-        static_cast<size_t>(layer) < ctx.weights.llm_layers.size() &&
-        ctx.weights.llm_layers[static_cast<size_t>(layer)].gate != nullptr &&
-        ctx.weights.llm_layers[static_cast<size_t>(layer)].q != nullptr;
+    return layer >= 0 && static_cast<size_t>(layer) < ctx.weights.llm_layers.size() &&
+           ctx.weights.llm_layers[static_cast<size_t>(layer)].gate != nullptr &&
+           ctx.weights.llm_layers[static_cast<size_t>(layer)].q != nullptr;
 }
 
 namespace {
@@ -369,25 +326,16 @@ std::vector<float> images_hwc_to_planar_batch(const std::vector<Pi0ImageTensor> 
 
 static bool pi0_has_vision_encoder(const Pi0Context & ctx) {
     const Pi0Config & pi0 = pi0_config(ctx.config);
-    return pi0.vision.width > 0 &&
-        pi0.vision.layers > 0 &&
-        pi0.vision.heads > 0 &&
-        pi0.vision.norm_epsilon > 0.0f &&
-        ctx.weights.vit_patch_w != nullptr &&
-        ctx.weights.vit_patch_b != nullptr &&
-        ctx.weights.vit_pos != nullptr &&
-        ctx.weights.vit_post_norm_w != nullptr &&
-        ctx.weights.vit_post_norm_b != nullptr;
+    return pi0.vision.width > 0 && pi0.vision.layers > 0 && pi0.vision.heads > 0 && pi0.vision.norm_epsilon > 0.0f &&
+           ctx.weights.vit_patch_w != nullptr && ctx.weights.vit_patch_b != nullptr && ctx.weights.vit_pos != nullptr &&
+           ctx.weights.vit_post_norm_w != nullptr && ctx.weights.vit_post_norm_b != nullptr;
 }
 
 namespace {
 
-ggml_tensor * pi0_encode_vision_prefix(
-    const Pi0Context & ctx,
-    const std::vector<Pi0ImageTensor> & images,
-    const Pi0ComponentRuntime & target_runtime,
-    ggml_tensor ** target_slot,
-    int & out_token_count) {
+ggml_tensor * pi0_encode_vision_prefix(const Pi0Context & ctx, const std::vector<Pi0ImageTensor> & images,
+                                       const Pi0ComponentRuntime & target_runtime, ggml_tensor ** target_slot,
+                                       int & out_token_count) {
     out_token_count = 0;
     if (!pi0_has_vision_encoder(ctx) || images.empty()) {
         return nullptr;
@@ -422,8 +370,8 @@ ggml_tensor * pi0_encode_vision_prefix(
     const int64_t patches = patches_x * patches_y;
     const size_t expected = static_cast<size_t>(first_image.width) * static_cast<size_t>(first_image.height) * 3;
     for (const Pi0ImageTensor & image : images) {
-        if (image.width <= 0 || image.height <= 0 || image.channels != 3 ||
-            image.width != first_image.width || image.height != first_image.height) {
+        if (image.width <= 0 || image.height <= 0 || image.channels != 3 || image.width != first_image.width ||
+            image.height != first_image.height) {
             throw std::invalid_argument("pi0 ViT image has incompatible shape");
         }
         if (image.data.size() != expected) {
@@ -441,7 +389,8 @@ ggml_tensor * pi0_encode_vision_prefix(
         return ggml_add(gctx, out, pi0_f32_weight(gctx, ctx, bias, 1));
     };
     auto linear = [&](ggml_tensor * input, ggml_tensor * weight, ggml_tensor * bias) {
-        return ggml_add(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, weight, 2), input), pi0_f32_weight(gctx, ctx, bias, 1));
+        return ggml_add(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, weight, 2), input),
+                        pi0_f32_weight(gctx, ctx, bias, 1));
     };
     auto attention = [&](ggml_tensor * q, ggml_tensor * k, ggml_tensor * v) {
         ggml_tensor * q_perm = ggml_permute(gctx, q, 0, 2, 1, 3);
@@ -457,16 +406,7 @@ ggml_tensor * pi0_encode_vision_prefix(
     const std::vector<float> planar_images = images_hwc_to_planar_batch(images);
     ggml_set_input(input);
 
-    ggml_tensor * hidden = ggml_conv_2d(
-        gctx,
-        pi0_weight(ctx, patch_weight, 4),
-        input,
-        patch_w,
-        patch_h,
-        0,
-        0,
-        1,
-        1);
+    ggml_tensor * hidden = ggml_conv_2d(gctx, pi0_weight(ctx, patch_weight, 4), input, patch_w, patch_h, 0, 0, 1, 1);
     hidden = ggml_reshape_4d(gctx, hidden, patches, width, batch, 1);
     hidden = ggml_cont_3d(gctx, ggml_permute(gctx, hidden, 1, 0, 2, 3), width, patches, batch);
     hidden = ggml_add(gctx, hidden, pi0_f32_weight(gctx, ctx, patch_bias, 1));
@@ -475,54 +415,34 @@ ggml_tensor * pi0_encode_vision_prefix(
     for (int layer = 0; layer < layers; ++layer) {
         const Pi0VisionLayerWeights & layer_w = ctx.weights.vit_layers[static_cast<size_t>(layer)];
         ggml_tensor * residual = hidden;
-        ggml_tensor * cur = norm(
-            hidden,
-            pi0_tensor(layer_w.norm1_w, "ViT layer_norm1.weight"),
-            pi0_tensor(layer_w.norm1_b, "ViT layer_norm1.bias"));
+        ggml_tensor * cur = norm(hidden, pi0_tensor(layer_w.norm1_w, "ViT layer_norm1.weight"),
+                                 pi0_tensor(layer_w.norm1_b, "ViT layer_norm1.bias"));
 
-        ggml_tensor * q = linear(
-            cur,
-            pi0_tensor(layer_w.q_w, "ViT q_proj.weight"),
-            pi0_tensor(layer_w.q_b, "ViT q_proj.bias"));
-        ggml_tensor * k = linear(
-            cur,
-            pi0_tensor(layer_w.k_w, "ViT k_proj.weight"),
-            pi0_tensor(layer_w.k_b, "ViT k_proj.bias"));
-        ggml_tensor * v = linear(
-            cur,
-            pi0_tensor(layer_w.v_w, "ViT v_proj.weight"),
-            pi0_tensor(layer_w.v_b, "ViT v_proj.bias"));
+        ggml_tensor * q =
+            linear(cur, pi0_tensor(layer_w.q_w, "ViT q_proj.weight"), pi0_tensor(layer_w.q_b, "ViT q_proj.bias"));
+        ggml_tensor * k =
+            linear(cur, pi0_tensor(layer_w.k_w, "ViT k_proj.weight"), pi0_tensor(layer_w.k_b, "ViT k_proj.bias"));
+        ggml_tensor * v =
+            linear(cur, pi0_tensor(layer_w.v_w, "ViT v_proj.weight"), pi0_tensor(layer_w.v_b, "ViT v_proj.bias"));
         q = ggml_reshape_4d(gctx, q, head_dim, heads, patches, batch);
         k = ggml_reshape_4d(gctx, k, head_dim, heads, patches, batch);
         v = ggml_reshape_4d(gctx, v, head_dim, heads, patches, batch);
         cur = attention(q, k, v);
-        cur = linear(
-            cur,
-            pi0_tensor(layer_w.out_w, "ViT out_proj.weight"),
-            pi0_tensor(layer_w.out_b, "ViT out_proj.bias"));
+        cur = linear(cur, pi0_tensor(layer_w.out_w, "ViT out_proj.weight"),
+                     pi0_tensor(layer_w.out_b, "ViT out_proj.bias"));
         hidden = ggml_add(gctx, residual, cur);
 
         residual = hidden;
-        cur = norm(
-            hidden,
-            pi0_tensor(layer_w.norm2_w, "ViT layer_norm2.weight"),
-            pi0_tensor(layer_w.norm2_b, "ViT layer_norm2.bias"));
-        cur = linear(
-            cur,
-            pi0_tensor(layer_w.fc1_w, "ViT fc1.weight"),
-            pi0_tensor(layer_w.fc1_b, "ViT fc1.bias"));
+        cur = norm(hidden, pi0_tensor(layer_w.norm2_w, "ViT layer_norm2.weight"),
+                   pi0_tensor(layer_w.norm2_b, "ViT layer_norm2.bias"));
+        cur = linear(cur, pi0_tensor(layer_w.fc1_w, "ViT fc1.weight"), pi0_tensor(layer_w.fc1_b, "ViT fc1.bias"));
         cur = ggml_gelu(gctx, cur);
-        cur = linear(
-            cur,
-            pi0_tensor(layer_w.fc2_w, "ViT fc2.weight"),
-            pi0_tensor(layer_w.fc2_b, "ViT fc2.bias"));
+        cur = linear(cur, pi0_tensor(layer_w.fc2_w, "ViT fc2.weight"), pi0_tensor(layer_w.fc2_b, "ViT fc2.bias"));
         hidden = ggml_add(gctx, residual, cur);
     }
 
-    hidden = norm(
-        hidden,
-        pi0_tensor(ctx.weights.vit_post_norm_w, "post_layernorm.weight"),
-        pi0_tensor(ctx.weights.vit_post_norm_b, "post_layernorm.bias"));
+    hidden = norm(hidden, pi0_tensor(ctx.weights.vit_post_norm_w, "post_layernorm.weight"),
+                  pi0_tensor(ctx.weights.vit_post_norm_b, "post_layernorm.bias"));
 
     ggml_tensor * output = ggml_reshape_2d(gctx, hidden, width, vision_token_count);
     ggml_tensor * weight = ctx.weights.merger_w;
@@ -530,16 +450,10 @@ ggml_tensor * pi0_encode_vision_prefix(
     if (weight == nullptr || bias == nullptr) {
         throw std::invalid_argument("missing pi0 vision projector tensors");
     }
-    if (ggml_n_dims(weight) != 2 ||
-        weight->ne[0] != width ||
-        ggml_n_dims(bias) != 1 ||
-        bias->ne[0] != weight->ne[1]) {
+    if (ggml_n_dims(weight) != 2 || weight->ne[0] != width || ggml_n_dims(bias) != 1 || bias->ne[0] != weight->ne[1]) {
         throw std::invalid_argument("pi0 vision projector has incompatible shape");
     }
-    output = ggml_add(
-        gctx,
-        ggml_mul_mat(gctx, pi0_weight(ctx, weight, 2), output),
-        pi0_f32_weight(gctx, ctx, bias, 1));
+    output = ggml_add(gctx, ggml_mul_mat(gctx, pi0_weight(ctx, weight, 2), output), pi0_f32_weight(gctx, ctx, bias, 1));
     const int64_t output_width = weight->ne[1];
 
     ggml_cgraph * graph = ggml_new_graph(gctx);
@@ -555,14 +469,7 @@ ggml_tensor * pi0_encode_vision_prefix(
     }
 
     out_token_count = static_cast<int>(vision_token_count);
-    return pi0_persist_backend_f32(
-        target_runtime,
-        target_slot,
-        output,
-        2,
-        output_width,
-        vision_token_count,
-        1);
+    return pi0_persist_backend_f32(target_runtime, target_slot, output, 2, output_width, vision_token_count, 1);
 }
 
 } // namespace
@@ -572,10 +479,8 @@ namespace {
 bool has_text_embeddings(const Pi0Context & ctx) {
     const Pi0Config & pi0 = pi0_config(ctx.config);
     ggml_tensor * embeddings = ctx.weights.lm_head;
-    return embeddings != nullptr &&
-        ggml_n_dims(embeddings) == 2 &&
-        embeddings->ne[0] == pi0.llm.width &&
-        embeddings->ne[1] > 0;
+    return embeddings != nullptr && ggml_n_dims(embeddings) == 2 && embeddings->ne[0] == pi0.llm.width &&
+           embeddings->ne[1] > 0;
 }
 
 } // namespace
@@ -590,24 +495,15 @@ static bool pi0_has_vision_prefix(const Pi0Context & ctx) {
 
 static bool pi0_has_language_prefix(const Pi0Context & ctx) {
     const Pi0Config & pi0 = pi0_config(ctx.config);
-    return pi0.llm.layers > 0 &&
-        pi0.llm.width > 0 &&
-        pi0.llm.q_out > 0 &&
-        pi0.llm.kv_out > 0 &&
-        pi0_has_language_layer(ctx, 0);
+    return pi0.llm.layers > 0 && pi0.llm.width > 0 && pi0.llm.q_out > 0 && pi0.llm.kv_out > 0 &&
+           pi0_has_language_layer(ctx, 0);
 }
 
-static void pi0_embed_prompt_tokens(
-    const Pi0Context & ctx,
-    const std::vector<int32_t> & tokens,
-    std::vector<float> & out,
-    int & token_count);
+static void pi0_embed_prompt_tokens(const Pi0Context & ctx, const std::vector<int32_t> & tokens,
+                                    std::vector<float> & out, int & token_count);
 
-static void pi0_embed_prompt(
-    const Pi0Context & ctx,
-    const std::string & prompt,
-    std::vector<float> & out,
-    int & token_count) {
+static void pi0_embed_prompt(const Pi0Context & ctx, const std::string & prompt, std::vector<float> & out,
+                             int & token_count) {
     out.clear();
     token_count = 0;
     if (prompt.empty()) {
@@ -624,11 +520,8 @@ static void pi0_embed_prompt(
     throw std::runtime_error("pi0 prompt text requires a llama.cpp tokenizer sidecar or explicit prompt token ids");
 }
 
-static void pi0_embed_prompt_tokens(
-    const Pi0Context & ctx,
-    const std::vector<int32_t> & tokens,
-    std::vector<float> & out,
-    int & token_count) {
+static void pi0_embed_prompt_tokens(const Pi0Context & ctx, const std::vector<int32_t> & tokens,
+                                    std::vector<float> & out, int & token_count) {
     out.clear();
     token_count = 0;
     if (tokens.empty()) {
@@ -653,8 +546,7 @@ static void pi0_embed_prompt_tokens(
     }
 
     const size_t tensor_bytes =
-        token_ids.size() * sizeof(int32_t) +
-        token_ids.size() * static_cast<size_t>(width) * sizeof(float);
+        token_ids.size() * sizeof(int32_t) + token_ids.size() * static_cast<size_t>(width) * sizeof(float);
     const Pi0ComponentRuntime & runtime = ctx.components.llm.runtime;
     Pi0GraphContext gctx(pi0_graph_init_params(pi0_graph_context_size(tensor_bytes)));
 
@@ -681,31 +573,22 @@ static void pi0_embed_prompt_tokens(
     token_count = static_cast<int>(count);
 }
 
-static void pi0_prefill_prefix_from_runtime_embeddings(
-    const Pi0Context & ctx,
-    ggml_tensor * runtime_embeddings,
-    int runtime_token_count,
-    const std::vector<float> & host_embeddings,
-    int host_token_count) {
+static void pi0_prefill_prefix_from_runtime_embeddings(const Pi0Context & ctx, ggml_tensor * runtime_embeddings,
+                                                       int runtime_token_count,
+                                                       const std::vector<float> & host_embeddings,
+                                                       int host_token_count) {
     const int token_count = runtime_token_count + host_token_count;
     if (token_count <= 0) {
         return;
     }
     const Pi0Config & pi0 = pi0_config(ctx.config);
     const int width = pi0.llm.width;
-    if (!pi0_has_language_prefix(ctx) ||
-        width <= 0 ||
-        pi0.llm.kv_out <= 0 ||
-        pi0.llm.q_out % pi0.llm.kv_out != 0 ||
-        runtime_token_count < 0 ||
-        host_token_count < 0 ||
+    if (!pi0_has_language_prefix(ctx) || width <= 0 || pi0.llm.kv_out <= 0 || pi0.llm.q_out % pi0.llm.kv_out != 0 ||
+        runtime_token_count < 0 || host_token_count < 0 ||
         host_embeddings.size() != static_cast<size_t>(host_token_count) * static_cast<size_t>(width) ||
-        (runtime_token_count > 0 &&
-            (runtime_embeddings == nullptr ||
-                ggml_n_dims(runtime_embeddings) != 2 ||
-                runtime_embeddings->type != GGML_TYPE_F32 ||
-                runtime_embeddings->ne[0] != width ||
-                runtime_embeddings->ne[1] != runtime_token_count))) {
+        (runtime_token_count > 0 && (runtime_embeddings == nullptr || ggml_n_dims(runtime_embeddings) != 2 ||
+                                     runtime_embeddings->type != GGML_TYPE_F32 || runtime_embeddings->ne[0] != width ||
+                                     runtime_embeddings->ne[1] != runtime_token_count))) {
         throw std::invalid_argument("pi0 prefix runtime embeddings have incompatible shape");
     }
 
@@ -720,28 +603,14 @@ static void pi0_prefill_prefix_from_runtime_embeddings(
     std::vector<float> hidden;
     ggml_tensor * runtime_prompt_embeddings = nullptr;
     if (host_token_count > 0) {
-        runtime_prompt_embeddings = pi0_persist_host_f32_2d(
-            ctx.components.llm.runtime,
-            &ctx.prefix_kv.prompt_embeddings,
-            host_embeddings.data(),
-            width,
-            host_token_count);
+        runtime_prompt_embeddings =
+            pi0_persist_host_f32_2d(ctx.components.llm.runtime, &ctx.prefix_kv.prompt_embeddings,
+                                    host_embeddings.data(), width, host_token_count);
     }
     const std::vector<float> empty_host_embeddings;
-    pi0_prefill_language_prefix_layers_batch(
-        ctx,
-        empty_host_embeddings,
-        positions,
-        token_count,
-        heads,
-        kv_heads,
-        head_dim,
-        hidden,
-        false,
-        runtime_embeddings,
-        runtime_token_count,
-        runtime_prompt_embeddings,
-        host_token_count);
+    pi0_prefill_language_prefix_layers_batch(ctx, empty_host_embeddings, positions, token_count, heads, kv_heads,
+                                             head_dim, hidden, false, runtime_embeddings, runtime_token_count,
+                                             runtime_prompt_embeddings, host_token_count);
     ctx.prefix_kv.token_count = static_cast<size_t>(token_count);
 }
 
@@ -749,12 +618,9 @@ void pi0_prefill_prefix(const Pi0Context & ctx, const Pi0Observation & observati
     ctx.prefix_kv.reset();
     if (pi0_has_vision_prefix(ctx) && pi0_has_language_prefix(ctx) && !observation.images.empty()) {
         int vision_tokens = 0;
-        ggml_tensor * vision_prefix_embeddings = pi0_encode_vision_prefix(
-            ctx,
-            observation.images,
-            ctx.components.llm.runtime,
-            &ctx.prefix_kv.vision_prefix_embeddings,
-            vision_tokens);
+        ggml_tensor * vision_prefix_embeddings =
+            pi0_encode_vision_prefix(ctx, observation.images, ctx.components.llm.runtime,
+                                     &ctx.prefix_kv.vision_prefix_embeddings, vision_tokens);
         std::vector<float> prompt_embeddings;
         int prompt_tokens = 0;
         if (!observation.prompt_tokens.empty()) {
@@ -762,12 +628,8 @@ void pi0_prefill_prefix(const Pi0Context & ctx, const Pi0Observation & observati
         } else {
             pi0_embed_prompt(ctx, observation.prompt, prompt_embeddings, prompt_tokens);
         }
-        pi0_prefill_prefix_from_runtime_embeddings(
-            ctx,
-            vision_prefix_embeddings,
-            vision_tokens,
-            prompt_embeddings,
-            prompt_tokens);
+        pi0_prefill_prefix_from_runtime_embeddings(ctx, vision_prefix_embeddings, vision_tokens, prompt_embeddings,
+                                                   prompt_tokens);
         return;
     }
 }

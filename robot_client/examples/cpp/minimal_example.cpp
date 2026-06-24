@@ -15,9 +15,9 @@ std::vector<uint8_t> make_random_rgb_image(uint32_t width, uint32_t height) {
     std::mt19937 rng(0);
     std::uniform_int_distribution<int> dist(0, 255);
 
-    std::vector<uint8_t> image((size_t) width * (size_t) height * 3);
+    std::vector<uint8_t> image((size_t)width * (size_t)height * 3);
     for (uint8_t & pixel : image) {
-        pixel = (uint8_t) dist(rng);
+        pixel = (uint8_t)dist(rng);
     }
     return image;
 }
@@ -42,7 +42,7 @@ int main(int argc, char ** argv) {
         host = argv[1];
     }
     if (argc > 2) {
-        port = (uint16_t) std::stoi(argv[2]);
+        port = (uint16_t)std::stoi(argv[2]);
     }
 
     const uint32_t width = 224;
@@ -77,7 +77,7 @@ int main(int argc, char ** argv) {
         std::cout << " " << std::fixed << std::setprecision(6) << first_action[i];
     }
     std::cout << "\n";
-    std::cout << "model_total_ms: " << std::fixed << std::setprecision(2)
-              << response.metric_value("model_total_ms") << "\n";
+    std::cout << "model_total_ms: " << std::fixed << std::setprecision(2) << response.metric_value("model_total_ms")
+              << "\n";
     return 0;
 }

@@ -68,12 +68,7 @@ struct Pi0Weights {
     std::vector<Pi0VisionLayerWeights> vit_layers;
 };
 
-Pi0Weights build_pi0_weights(
-    const Pi0ModelConfig & config,
-    ggml_context * vit,
-    ggml_context * mmproj,
-    ggml_context * llm,
-    ggml_context * state,
-    ggml_context * action_decoder);
+Pi0Weights build_pi0_weights(const Pi0ModelConfig & config, ggml_context * vit, ggml_context * mmproj,
+                             ggml_context * llm, ggml_context * state, ggml_context * action_decoder);
 
 } // namespace robotcpp::pi0

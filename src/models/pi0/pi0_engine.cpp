@@ -59,11 +59,8 @@ struct pi0_context {
     std::vector<float> action_buffer;
     pi0_stage_timings last_timings = {};
 
-    pi0_context(
-        robotcpp::pi0::Pi0ModelConfig config,
-        std::string tokenizer_path,
-        robotcpp::pi0::Pi0Components components,
-        uint32_t seed)
+    pi0_context(robotcpp::pi0::Pi0ModelConfig config, std::string tokenizer_path,
+                robotcpp::pi0::Pi0Components components, uint32_t seed)
         : model(std::move(config), tokenizer_path, std::move(components)) {
         runtime.seed = seed;
         runtime.flow_steps = 10;
@@ -101,10 +98,7 @@ pi0_context * pi0_init(pi0_params params) {
 
     try {
         std::unique_ptr<pi0_context> ctx(new (std::nothrow) pi0_context(
-            std::move(config),
-            paths.tokenizer,
-            std::move(components),
-            seed_from_params(params)));
+            std::move(config), paths.tokenizer, std::move(components), seed_from_params(params)));
         if (!ctx) {
             pi0_log_error("failed to allocate pi0 context");
             return nullptr;
@@ -116,13 +110,8 @@ pi0_context * pi0_init(pi0_params params) {
     }
 }
 
-pi0_result pi0_predict_raw_rgb(
-    pi0_context * ctx,
-    const pi0_image_view * images,
-    size_t image_count,
-    const float * state,
-    size_t state_dim,
-    const char * task) {
+pi0_result pi0_predict_raw_rgb(pi0_context * ctx, const pi0_image_view * images, size_t image_count,
+                               const float * state, size_t state_dim, const char * task) {
     if (ctx == nullptr || (image_count > 0 && images == nullptr)) {
         pi0_log_error("pi0 context and image views are required");
         return empty_result();
@@ -175,12 +164,8 @@ pi0_result pi0_predict_raw_rgb(
         ctx->runtime.last_timings.state_ms = elapsed_ms(state_start, state_done);
 
         const auto denoise_start = Clock::now();
-        robotcpp::pi0::pi0_sample_actions(
-            ctx->model,
-            ctx->runtime,
-            state_context,
-            observation.noise,
-            ctx->action_buffer);
+        robotcpp::pi0::pi0_sample_actions(ctx->model, ctx->runtime, state_context, observation.noise,
+                                          ctx->action_buffer);
         const auto denoise_done = Clock::now();
         ctx->runtime.last_timings.denoise_ms = elapsed_ms(denoise_start, denoise_done);
     } catch (const std::exception & error) {
@@ -189,10 +174,8 @@ pi0_result pi0_predict_raw_rgb(
     }
 
     const auto output_done = Clock::now();
-    const double output_ms = elapsed_ms(preprocess_done, output_done) -
-        ctx->runtime.last_timings.prefix_ms -
-        ctx->runtime.last_timings.state_ms -
-        ctx->runtime.last_timings.denoise_ms;
+    const double output_ms = elapsed_ms(preprocess_done, output_done) - ctx->runtime.last_timings.prefix_ms -
+                             ctx->runtime.last_timings.state_ms - ctx->runtime.last_timings.denoise_ms;
     ctx->runtime.last_timings.output_ms = std::max(0.0, output_ms);
     ctx->runtime.last_timings.total_ms = elapsed_ms(total_start, output_done);
     ctx->last_timings.preprocess_ms = ctx->runtime.last_timings.preprocess_ms;

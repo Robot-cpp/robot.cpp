@@ -37,13 +37,8 @@ static void add_metric(proto::predict_response & resp, const char * name, double
     resp.metrics.push_back(std::move(metric));
 }
 
-static bool send_message(
-    sockets::socket_handle fd,
-    uint16_t op,
-    uint32_t request_id,
-    uint32_t status,
-    const std::vector<uint8_t> & payload,
-    std::string & error) {
+static bool send_message(sockets::socket_handle fd, uint16_t op, uint32_t request_id, uint32_t status,
+                         const std::vector<uint8_t> & payload, std::string & error) {
     proto::header h;
     h.op = op;
     h.request_id = request_id;
@@ -56,12 +51,8 @@ static bool send_message(
            (payload.empty() || sockets::send_all(fd, payload.data(), payload.size(), error));
 }
 
-static bool send_text(
-    sockets::socket_handle fd,
-    uint16_t op,
-    uint32_t request_id,
-    uint32_t status,
-    const std::string & text) {
+static bool send_text(sockets::socket_handle fd, uint16_t op, uint32_t request_id, uint32_t status,
+                      const std::string & text) {
     std::vector<uint8_t> payload;
     proto::encode_text_payload(text, payload);
     std::string error;
@@ -72,12 +63,8 @@ static bool send_text(
     return true;
 }
 
-static bool read_message(
-    sockets::socket_handle fd,
-    proto::header & h,
-    std::vector<uint8_t> & payload,
-    double & recv_ms,
-    std::string & error) {
+static bool read_message(sockets::socket_handle fd, proto::header & h, std::vector<uint8_t> & payload, double & recv_ms,
+                         std::string & error) {
     const auto t0 = clock_type::now();
     std::vector<uint8_t> hdr(proto::k_header_size);
     if (!sockets::recv_exact(fd, hdr.data(), hdr.size(), error)) {
@@ -89,7 +76,7 @@ static bool read_message(
     if (!proto::validate_header(h, proto::k_default_max_payload, error)) {
         return false;
     }
-    payload.assign((size_t) h.payload_len, 0);
+    payload.assign((size_t)h.payload_len, 0);
     if (!payload.empty() && !sockets::recv_exact(fd, payload.data(), payload.size(), error)) {
         return false;
     }
@@ -99,11 +86,8 @@ static bool read_message(
 
 } // namespace
 
-bool handle_client(
-    sockets::socket_handle fd,
-    model_adapter & policy,
-    std::mutex & predict_mutex,
-    bool & shutdown_requested) {
+bool handle_client(sockets::socket_handle fd, model_adapter & policy, std::mutex & predict_mutex,
+                   bool & shutdown_requested) {
     while (!shutdown_requested) {
         proto::header h;
         std::vector<uint8_t> payload;

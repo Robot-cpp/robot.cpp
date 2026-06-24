@@ -35,7 +35,7 @@ struct ModelResponse {
 };
 
 class ModelClient {
-public:
+  public:
     ModelClient(std::string host = "127.0.0.1", uint16_t port = 5555);
 
     bool health(std::string & text, std::string & error);
@@ -43,8 +43,9 @@ public:
     bool shutdown(std::string & text, std::string & error);
     bool predict(const ModelObservation & obs, ModelResponse & response, std::string & error);
 
-private:
-    bool call(uint16_t op, const std::vector<uint8_t> & request_payload, std::vector<uint8_t> & response_payload, std::string & error);
+  private:
+    bool call(uint16_t op, const std::vector<uint8_t> & request_payload, std::vector<uint8_t> & response_payload,
+              std::string & error);
 
     std::string host_;
     uint16_t port_ = 5555;

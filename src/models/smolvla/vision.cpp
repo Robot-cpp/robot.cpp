@@ -108,21 +108,13 @@ static bool smolvla_vision_backend_is_accel(ggml_backend_t backend) {
     return dev && ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_ACCEL;
 }
 
-static void smolvla_vision_bind_preprocess_tensors_to_backend(
-    ggml_backend_sched_t sched,
-    ggml_cgraph * graph,
-    ggml_backend_t backend
-) {
+static void smolvla_vision_bind_preprocess_tensors_to_backend(ggml_backend_sched_t sched, ggml_cgraph * graph,
+                                                              ggml_backend_t backend) {
     if (!sched || !graph || !backend) {
         return;
     }
     const char * names[] = {
-        "inp_raw_hwc_f32",
-        "raw_scaled",
-        "raw_planar",
-        "raw_resized",
-        "raw_padded",
-        "inp_raw_preprocessed",
+        "inp_raw_hwc_f32", "raw_scaled", "raw_planar", "raw_resized", "raw_padded", "inp_raw_preprocessed",
     };
     for (const char * name : names) {
         if (ggml_tensor * tensor = ggml_graph_get_tensor(graph, name)) {
@@ -138,14 +130,9 @@ static void smolvla_vision_log_backend_plan(const smolvla_vision_ctx * ctx, int 
 
     for (size_t i = 0; i < ctx->backends.size(); ++i) {
         ggml_backend_t backend = ctx->backends[i];
-        LOG_INF("%s: backend[%zu]: name=%s device=%s reg=%s default_buft=%s cpu=%d\n",
-            __func__,
-            i,
-            smolvla_backend_name(backend),
-            smolvla_backend_device_name(backend),
-            smolvla_backend_reg_name(backend),
-            smolvla_buft_name(ggml_backend_get_default_buffer_type(backend)),
-            ggml_backend_is_cpu(backend) ? 1 : 0);
+        LOG_INF("%s: backend[%zu]: name=%s device=%s reg=%s default_buft=%s cpu=%d\n", __func__, i,
+                smolvla_backend_name(backend), smolvla_backend_device_name(backend), smolvla_backend_reg_name(backend),
+                smolvla_buft_name(ggml_backend_get_default_buffer_type(backend)), ggml_backend_is_cpu(backend) ? 1 : 0);
     }
 }
 
@@ -176,44 +163,37 @@ static void smolvla_free_scheduler_backends(std::vector<ggml_backend_t> & backen
     backends.clear();
 }
 
-static void preprocess_loaded_image(
-    const unsigned char * data,
-    int w,
-    int h,
-    int target_size,
-    const float mean[3],
-    const float stdv[3],
-    std::vector<float> & out_nchw
-) {
-    (void) mean;
-    (void) stdv;
+static void preprocess_loaded_image(const unsigned char * data, int w, int h, int target_size, const float mean[3],
+                                    const float stdv[3], std::vector<float> & out_nchw) {
+    (void)mean;
+    (void)stdv;
 
     // Match SmolVLA python resize_with_pad + img*2-1:
     // 1) ratio = max(w/target, h/target)
     // 2) bilinear resize to (floor(h/ratio), floor(w/ratio)), align_corners=False
     // 3) pad on LEFT and TOP with 0 (in [0,1] space)
     // 4) convert [0,1] -> [-1,1]
-    const float ratio = std::max((float) w / target_size, (float) h / target_size);
-    const int rw = std::max(1, (int) std::floor((float) w / ratio));
-    const int rh = std::max(1, (int) std::floor((float) h / ratio));
+    const float ratio = std::max((float)w / target_size, (float)h / target_size);
+    const int rw = std::max(1, (int)std::floor((float)w / ratio));
+    const int rh = std::max(1, (int)std::floor((float)h / ratio));
 
     std::vector<float> resized(rw * rh * 3, 0.0f);
-    const float scale_x = (float) w / rw;
-    const float scale_y = (float) h / rh;
+    const float scale_x = (float)w / rw;
+    const float scale_y = (float)h / rh;
     for (int oy = 0; oy < rh; ++oy) {
         const float sy = (oy + 0.5f) * scale_y - 0.5f;
-        const int y0f = (int) floorf(sy);
+        const int y0f = (int)floorf(sy);
         const int y1f = y0f + 1;
         const int y0 = std::max(0, std::min(h - 1, y0f));
         const int y1 = std::max(0, std::min(h - 1, y1f));
-        const float wy = sy - (float) y0f;
+        const float wy = sy - (float)y0f;
         for (int ox = 0; ox < rw; ++ox) {
             const float sx = (ox + 0.5f) * scale_x - 0.5f;
-            const int x0f = (int) floorf(sx);
+            const int x0f = (int)floorf(sx);
             const int x1f = x0f + 1;
             const int x0 = std::max(0, std::min(w - 1, x0f));
             const int x1 = std::max(0, std::min(w - 1, x1f));
-            const float wx = sx - (float) x0f;
+            const float wx = sx - (float)x0f;
             for (int ch = 0; ch < 3; ++ch) {
                 const float p00 = data[(y0 * w + x0) * 3 + ch] / 255.0f;
                 const float p01 = data[(y0 * w + x1) * 3 + ch] / 255.0f;
@@ -244,13 +224,8 @@ static void preprocess_loaded_image(
     }
 }
 
-static bool load_image_and_preprocess(
-    const char * image_path,
-    int target_size,
-    const float mean[3],
-    const float stdv[3],
-    std::vector<float> & out_nchw
-) {
+static bool load_image_and_preprocess(const char * image_path, int target_size, const float mean[3],
+                                      const float stdv[3], std::vector<float> & out_nchw) {
     int w = 0, h = 0, c = 0;
     unsigned char * data = stbi_load(image_path, &w, &h, &c, 3);
     if (!data) {
@@ -263,14 +238,8 @@ static bool load_image_and_preprocess(
     return true;
 }
 
-static bool load_image_and_preprocess_bytes(
-    const unsigned char * image_bytes,
-    int image_len,
-    int target_size,
-    const float mean[3],
-    const float stdv[3],
-    std::vector<float> & out_nchw
-) {
+static bool load_image_and_preprocess_bytes(const unsigned char * image_bytes, int image_len, int target_size,
+                                            const float mean[3], const float stdv[3], std::vector<float> & out_nchw) {
     if (!image_bytes || image_len <= 0) {
         LOG_ERR("%s: invalid args\n", __func__);
         return false;
@@ -288,18 +257,14 @@ static bool load_image_and_preprocess_bytes(
     return true;
 }
 
-static ggml_tensor * connector_build_op(
-    smolvla_vision_ctx * ctx,
-    ggml_context * ctx0,
-    ggml_tensor * vit_out
-) {
+static ggml_tensor * connector_build_op(smolvla_vision_ctx * ctx, ggml_context * ctx0, ggml_tensor * vit_out) {
     const int hs = ctx->hidden_size;
     const int n_patch = ctx->num_patches;
     const int out_tok = ctx->output_tokens;
-    const int in_feat = ctx->connector_in_features;    // 12288
-    const int scale = (int) std::sqrt((double) (n_patch / out_tok)); // 4
-    const int in_side = (int) std::sqrt((double) n_patch);           // 32
-    const int out_side = in_side / scale;                            // 8
+    const int in_feat = ctx->connector_in_features;                // 12288
+    const int scale = (int)std::sqrt((double)(n_patch / out_tok)); // 4
+    const int in_side = (int)std::sqrt((double)n_patch);           // 32
+    const int out_side = in_side / scale;                          // 8
     GGML_ASSERT(in_side * in_side == n_patch);
     GGML_ASSERT(out_side * out_side == out_tok);
 
@@ -314,11 +279,8 @@ static ggml_tensor * connector_build_op(
     return ggml_mul_mat(ctx0, ctx->connector_w, x);
 }
 
-static ggml_tensor * vision_build_vit_connector_graph(
-    smolvla_vision_ctx * ctx,
-    ggml_context * ctx0,
-    ggml_tensor * inp
-) {
+static ggml_tensor * vision_build_vit_connector_graph(smolvla_vision_ctx * ctx, ggml_context * ctx0,
+                                                      ggml_tensor * inp) {
     const int patch = ctx->patch_size;
     const int n_patches = ctx->num_patches;
     const int hs = ctx->hidden_size;
@@ -327,8 +289,8 @@ static ggml_tensor * vision_build_vit_connector_graph(
     const float eps = ctx->eps;
 
     ggml_tensor * patch_w = ctx->patch_embd_w->type == GGML_TYPE_F32
-        ? ctx->patch_embd_w
-        : ggml_cast(ctx0, ctx->patch_embd_w, GGML_TYPE_F32);
+                                ? ctx->patch_embd_w
+                                : ggml_cast(ctx0, ctx->patch_embd_w, GGML_TYPE_F32);
     ggml_tensor * x = ggml_conv_2d(ctx0, patch_w, inp, patch, patch, 0, 0, 1, 1);
     x = ggml_reshape_3d(ctx0, x, n_patches, hs, 1);
     x = ggml_cont(ctx0, ggml_permute(ctx0, x, 1, 0, 2, 3));
@@ -352,7 +314,7 @@ static ggml_tensor * vision_build_vit_connector_graph(
         ggml_tensor * Q = ggml_add(ctx0, ggml_mul_mat(ctx0, l.q_w, cur), l.q_b);
         ggml_tensor * K = ggml_add(ctx0, ggml_mul_mat(ctx0, l.k_w, cur), l.k_b);
         ggml_tensor * V = ggml_add(ctx0, ggml_mul_mat(ctx0, l.v_w, cur), l.v_b);
-        Q = ggml_scale_inplace(ctx0, Q, 1.0f / sqrtf((float) d_head));
+        Q = ggml_scale_inplace(ctx0, Q, 1.0f / sqrtf((float)d_head));
         Q = ggml_reshape_4d(ctx0, Q, d_head, n_head, n_patches, 1);
         Q = ggml_cont(ctx0, ggml_permute(ctx0, Q, 0, 2, 1, 3));
         Q = ggml_reshape_3d(ctx0, Q, d_head, n_patches, n_head);
@@ -416,15 +378,8 @@ static ggml_cgraph * vision_build_preprocessed_graph(smolvla_vision_ctx * ctx) {
 }
 
 // Build the complete raw-RGB vision graph: preprocess + ViT + connector.
-static ggml_cgraph * vision_build_graph(
-    smolvla_vision_ctx * ctx,
-    int width,
-    int height,
-    int resized_width,
-    int resized_height,
-    int pad_width,
-    int pad_height
-) {
+static ggml_cgraph * vision_build_graph(smolvla_vision_ctx * ctx, int width, int height, int resized_width,
+                                        int resized_height, int pad_width, int pad_height) {
     ggml_init_params ip = {
         ctx->buf_compute_meta.size(),
         ctx->buf_compute_meta.data(),
@@ -441,14 +396,7 @@ static ggml_cgraph * vision_build_graph(
     ggml_set_name(x, "raw_scaled");
     x = ggml_cont(ctx0, ggml_permute(ctx0, x, 2, 0, 1, 3));
     ggml_set_name(x, "raw_planar");
-    x = ggml_interpolate(
-        ctx0,
-        x,
-        resized_width,
-        resized_height,
-        3,
-        1,
-        GGML_SCALE_MODE_BILINEAR);
+    x = ggml_interpolate(ctx0, x, resized_width, resized_height, 3, 1, GGML_SCALE_MODE_BILINEAR);
     ggml_set_name(x, "raw_resized");
     x = ggml_pad_ext(ctx0, x, pad_width, 0, pad_height, 0, 0, 0, 0, 0);
     ggml_set_name(x, "raw_padded");
@@ -462,24 +410,19 @@ static ggml_cgraph * vision_build_graph(
 }
 
 class smolvla_vision_loader : public gguf_loader {
-public:
-    smolvla_vision_loader(
-        smolvla_vision_ctx * ctx,
-        int verbosity)
-        : ctx_(ctx),
-          verbosity_(verbosity) {
-    }
+  public:
+    smolvla_vision_loader(smolvla_vision_ctx * ctx, int verbosity) : ctx_(ctx), verbosity_(verbosity) {}
 
-protected:
+  protected:
     bool parse_metadata(gguf_context * gguf) override {
-        ctx_->image_size        = (int) this->u32_or(gguf, "smolvla.vision.image_size", 512);
-        ctx_->patch_size        = (int) this->u32_or(gguf, "smolvla.vision.patch_size", 16);
-        ctx_->hidden_size       = (int) this->u32_or(gguf, "smolvla.vision.hidden_size", 768);
-        ctx_->intermediate_size = (int) this->u32_or(gguf, "smolvla.vision.intermediate_size", 3072);
-        ctx_->n_heads           = (int) this->u32_or(gguf, "smolvla.vision.num_heads", 12);
-        ctx_->n_layers          = (int) this->u32_or(gguf, "smolvla.vision.num_layers", 12);
-        ctx_->eps               = this->f32_or(gguf, "smolvla.vision.layer_norm_eps", 1e-6f);
-        ctx_->num_patches       = (ctx_->image_size / ctx_->patch_size) * (ctx_->image_size / ctx_->patch_size);
+        ctx_->image_size = (int)this->u32_or(gguf, "smolvla.vision.image_size", 512);
+        ctx_->patch_size = (int)this->u32_or(gguf, "smolvla.vision.patch_size", 16);
+        ctx_->hidden_size = (int)this->u32_or(gguf, "smolvla.vision.hidden_size", 768);
+        ctx_->intermediate_size = (int)this->u32_or(gguf, "smolvla.vision.intermediate_size", 3072);
+        ctx_->n_heads = (int)this->u32_or(gguf, "smolvla.vision.num_heads", 12);
+        ctx_->n_layers = (int)this->u32_or(gguf, "smolvla.vision.num_layers", 12);
+        ctx_->eps = this->f32_or(gguf, "smolvla.vision.layer_norm_eps", 1e-6f);
+        ctx_->num_patches = (ctx_->image_size / ctx_->patch_size) * (ctx_->image_size / ctx_->patch_size);
 
         const float default_mean[3] = {0.5f, 0.5f, 0.5f};
         const float default_std[3] = {0.5f, 0.5f, 0.5f};
@@ -492,13 +435,8 @@ protected:
         }
 
         if (verbosity_ >= 1) {
-            LOG_INF("%s: vision config: image=%d patch=%d hidden=%d layers=%d heads=%d\n",
-                    __func__,
-                    ctx_->image_size,
-                    ctx_->patch_size,
-                    ctx_->hidden_size,
-                    ctx_->n_layers,
-                    ctx_->n_heads);
+            LOG_INF("%s: vision config: image=%d patch=%d hidden=%d layers=%d heads=%d\n", __func__, ctx_->image_size,
+                    ctx_->patch_size, ctx_->hidden_size, ctx_->n_layers, ctx_->n_heads);
             for (size_t i = 0; i < ctx_->image_keys.size(); ++i) {
                 LOG_INF("%s: image_key[%zu]=%s\n", __func__, i, ctx_->image_keys[i].c_str());
             }
@@ -538,8 +476,8 @@ protected:
         ggml_tensor * conn = this->require_tensor(ctx_data, "mm.0.weight");
         // Converter writes numpy shape [out_features, in_features] = [960, 12288].
         // In ggml tensor dims this appears as ne0=in_features, ne1=out_features.
-        ctx_->connector_in_features = (int) conn->ne[0];
-        ctx_->connector_out_features = (int) conn->ne[1];
+        ctx_->connector_in_features = (int)conn->ne[0];
+        ctx_->connector_out_features = (int)conn->ne[1];
         ctx_->pool_num = 16;
         ctx_->output_tokens = ctx_->num_patches / ctx_->pool_num;
         ctx_->connector_w = conn;
@@ -548,7 +486,7 @@ protected:
         return true;
     }
 
-private:
+  private:
     smolvla_vision_ctx * ctx_;
     int verbosity_;
 };
@@ -576,14 +514,8 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     scheduler_config.parallel = false;
     scheduler_config.op_offload = false;
     backend_loader backend;
-    if (!backend.load(
-            ctx->backend_cpu,
-            ctx->backends,
-            ctx->sched,
-            ctx->buft_policy,
-            robotcpp_backend_use_accel_from_env(true),
-            scheduler_config,
-            verbosity)) {
+    if (!backend.load(ctx->backend_cpu, ctx->backends, ctx->sched, ctx->buft_policy,
+                      robotcpp_backend_use_accel_from_env(true), scheduler_config, verbosity)) {
         LOG_ERR("%s: failed to initialize vision backend: %s\n", __func__, backend.error().c_str());
         smolvla_vision_free(ctx);
         return nullptr;
@@ -605,10 +537,8 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     ctx->bufs.push_back(loaded.model_buffer);
 
     if (verbosity >= 1) {
-        LOG_INF("%s: model_buf=%s is_host=%d\n",
-            __func__,
-            ggml_backend_buffer_name(loaded.model_buffer),
-            ggml_backend_buffer_is_host(loaded.model_buffer) ? 1 : 0);
+        LOG_INF("%s: model_buf=%s is_host=%d\n", __func__, ggml_backend_buffer_name(loaded.model_buffer),
+                ggml_backend_buffer_is_host(loaded.model_buffer) ? 1 : 0);
     }
 
     ctx->buf_compute_meta.resize(GGML_DEFAULT_GRAPH_SIZE * ggml_tensor_overhead() + ggml_graph_overhead());
@@ -620,30 +550,30 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
 
     if (verbosity >= 1) {
         LOG_INF("%s: preprocessed vision graph mode: build-each-run\n", __func__);
-        LOG_INF("%s: standalone SigLIP loaded: image=%d patch=%d hidden=%d layers=%d patches=%d\n",
-            __func__, ctx->image_size, ctx->patch_size, ctx->hidden_size, ctx->n_layers, ctx->num_patches);
-        LOG_INF("%s: connector loaded: in=%d out=%d tokens=%d\n",
-            __func__, ctx->connector_in_features, ctx->connector_out_features, ctx->output_tokens);
+        LOG_INF("%s: standalone SigLIP loaded: image=%d patch=%d hidden=%d layers=%d patches=%d\n", __func__,
+                ctx->image_size, ctx->patch_size, ctx->hidden_size, ctx->n_layers, ctx->num_patches);
+        LOG_INF("%s: connector loaded: in=%d out=%d tokens=%d\n", __func__, ctx->connector_in_features,
+                ctx->connector_out_features, ctx->output_tokens);
     }
     return ctx;
 }
 
 void smolvla_vision_free(smolvla_vision_ctx * ctx) {
-    if (!ctx) return;
-    if (ctx->sched) ggml_backend_sched_free(ctx->sched);
+    if (!ctx)
+        return;
+    if (ctx->sched)
+        ggml_backend_sched_free(ctx->sched);
     smolvla_free_model_buffers(ctx->bufs);
     smolvla_free_model_contexts(ctx->ctxs);
     smolvla_free_scheduler_backends(ctx->backends);
     ctx->backend_cpu = nullptr;
-    if (ctx->ctx_gguf) gguf_free(ctx->ctx_gguf);
+    if (ctx->ctx_gguf)
+        gguf_free(ctx->ctx_gguf);
     delete ctx;
 }
 
-static std::vector<float> smolvla_vision_encode_preprocessed(
-    smolvla_vision_ctx * ctx,
-    const std::vector<float> & inp_nchw,
-    int n_threads
-) {
+static std::vector<float> smolvla_vision_encode_preprocessed(smolvla_vision_ctx * ctx,
+                                                             const std::vector<float> & inp_nchw, int n_threads) {
     std::vector<float> result;
     if (!ctx || inp_nchw.empty()) {
         LOG_ERR("%s: invalid args\n", __func__);
@@ -680,8 +610,7 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     }
 
     ggml_backend_tensor_set(inp_raw, inp_nchw.data(), 0, inp_nchw.size() * sizeof(float));
-    ggml_backend_tensor_set(positions, ctx->patch_positions.data(), 0,
-                            ctx->patch_positions.size() * sizeof(int32_t));
+    ggml_backend_tensor_set(positions, ctx->patch_positions.data(), 0, ctx->patch_positions.size() * sizeof(int32_t));
 
     set_backend_threads(ctx->backends, n_threads);
     auto t_compute_start = std::chrono::high_resolution_clock::now();
@@ -689,8 +618,7 @@ static std::vector<float> smolvla_vision_encode_preprocessed(
     auto t_compute_end = std::chrono::high_resolution_clock::now();
 
     if (ctx->verbosity >= 1) {
-        LOG_INF("%s: preprocessed vision graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__,
-                build_alloc_ms,
+        LOG_INF("%s: preprocessed vision graph build+alloc: %.2f ms, compute: %.2f ms\n", __func__, build_alloc_ms,
                 std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
     }
 
@@ -714,44 +642,28 @@ std::vector<float> smolvla_vision_encode_file(smolvla_vision_ctx * ctx, const ch
     return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
-std::vector<float> smolvla_vision_encode_bytes(
-    smolvla_vision_ctx * ctx,
-    const unsigned char * image_bytes,
-    int image_len,
-    int n_threads
-) {
+std::vector<float> smolvla_vision_encode_bytes(smolvla_vision_ctx * ctx, const unsigned char * image_bytes,
+                                               int image_len, int n_threads) {
     if (!ctx || !image_bytes || image_len <= 0) {
         LOG_ERR("%s: invalid args\n", __func__);
         return {};
     }
 
     std::vector<float> inp_nchw;
-    if (!load_image_and_preprocess_bytes(
-            image_bytes,
-            image_len,
-            ctx->image_size,
-            ctx->image_mean,
-            ctx->image_std,
-            inp_nchw)) {
+    if (!load_image_and_preprocess_bytes(image_bytes, image_len, ctx->image_size, ctx->image_mean, ctx->image_std,
+                                         inp_nchw)) {
         return {};
     }
 
     return smolvla_vision_encode_preprocessed(ctx, inp_nchw, n_threads);
 }
 
-static std::vector<float> smolvla_vision_encode_raw_graph(
-    smolvla_vision_ctx * ctx,
-    const uint8_t * data,
-    int width,
-    int height,
-    int channels,
-    int stride_bytes,
-    int n_threads
-) {
+static std::vector<float> smolvla_vision_encode_raw_graph(smolvla_vision_ctx * ctx, const uint8_t * data, int width,
+                                                          int height, int channels, int stride_bytes, int n_threads) {
     std::vector<float> result;
     if (!ctx || !data || width <= 0 || height <= 0 || channels != 3) {
-        LOG_ERR("%s: invalid raw RGB args (data=%p width=%d height=%d channels=%d)\n",
-                __func__, (const void *) data, width, height, channels);
+        LOG_ERR("%s: invalid raw RGB args (data=%p width=%d height=%d channels=%d)\n", __func__, (const void *)data,
+                width, height, channels);
         return result;
     }
     if (!ctx->sched) {
@@ -764,23 +676,22 @@ static std::vector<float> smolvla_vision_encode_raw_graph(
         stride_bytes = tight_stride;
     }
     if (stride_bytes < tight_stride) {
-        LOG_ERR("%s: invalid stride_bytes=%d for width=%d channels=%d\n",
-                __func__, stride_bytes, width, channels);
+        LOG_ERR("%s: invalid stride_bytes=%d for width=%d channels=%d\n", __func__, stride_bytes, width, channels);
         return result;
     }
 
-    const float ratio = std::max((float) width / ctx->image_size, (float) height / ctx->image_size);
-    const int resized_width = std::max(1, (int) std::floor((float) width / ratio));
-    const int resized_height = std::max(1, (int) std::floor((float) height / ratio));
+    const float ratio = std::max((float)width / ctx->image_size, (float)height / ctx->image_size);
+    const int resized_width = std::max(1, (int)std::floor((float)width / ratio));
+    const int resized_height = std::max(1, (int)std::floor((float)height / ratio));
     const int pad_width = std::max(0, ctx->image_size - resized_width);
     const int pad_height = std::max(0, ctx->image_size - resized_height);
 
-    std::vector<float> raw_hwc((size_t) width * (size_t) height * (size_t) channels);
+    std::vector<float> raw_hwc((size_t)width * (size_t)height * (size_t)channels);
     for (int y = 0; y < height; ++y) {
-        const uint8_t * src = data + (size_t) y * (size_t) stride_bytes;
-        float * dst = raw_hwc.data() + (size_t) y * (size_t) tight_stride;
+        const uint8_t * src = data + (size_t)y * (size_t)stride_bytes;
+        float * dst = raw_hwc.data() + (size_t)y * (size_t)tight_stride;
         for (int x = 0; x < tight_stride; ++x) {
-            dst[x] = (float) src[x];
+            dst[x] = (float)src[x];
         }
     }
 
@@ -793,14 +704,8 @@ static std::vector<float> smolvla_vision_encode_raw_graph(
         }
         ggml_backend_sched_reset(ctx->sched);
 
-        ggml_cgraph * graph = vision_build_graph(
-            ctx,
-            width,
-            height,
-            resized_width,
-            resized_height,
-            pad_width,
-            pad_height);
+        ggml_cgraph * graph =
+            vision_build_graph(ctx, width, height, resized_width, resized_height, pad_width, pad_height);
         smolvla_vision_bind_preprocess_tensors_to_backend(ctx->sched, graph, preprocess_backend);
         const bool alloc_ok = graph && ggml_backend_sched_alloc_graph(ctx->sched, graph);
         if (!alloc_ok) {
@@ -834,14 +739,7 @@ static std::vector<float> smolvla_vision_encode_raw_graph(
 
     if (ctx->verbosity >= 1) {
         LOG_INF("%s: raw graph input=%dx%d resized=%dx%d pad=(%d,%d) build+alloc: %.2f ms, compute: %.2f ms\n",
-                __func__,
-                width,
-                height,
-                resized_width,
-                resized_height,
-                pad_width,
-                pad_height,
-                build_alloc_ms,
+                __func__, width, height, resized_width, resized_height, pad_width, pad_height, build_alloc_ms,
                 std::chrono::duration<double, std::milli>(t_compute_end - t_compute_start).count());
     }
 
@@ -850,27 +748,20 @@ static std::vector<float> smolvla_vision_encode_raw_graph(
     return result;
 }
 
-std::vector<float> smolvla_vision_encode_raw(
-    smolvla_vision_ctx * ctx,
-    const uint8_t * data,
-    int width,
-    int height,
-    int channels,
-    int stride_bytes,
-    int n_threads
-) {
+std::vector<float> smolvla_vision_encode_raw(smolvla_vision_ctx * ctx, const uint8_t * data, int width, int height,
+                                             int channels, int stride_bytes, int n_threads) {
     if (!ctx || !data || width <= 0 || height <= 0 || channels != 3) {
-        LOG_ERR("%s: invalid raw RGB args (data=%p width=%d height=%d channels=%d)\n",
-                __func__, (const void *) data, width, height, channels);
+        LOG_ERR("%s: invalid raw RGB args (data=%p width=%d height=%d channels=%d)\n", __func__, (const void *)data,
+                width, height, channels);
         return {};
     }
 
-    return smolvla_vision_encode_raw_graph(
-        ctx, data, width, height, channels, stride_bytes, n_threads);
+    return smolvla_vision_encode_raw_graph(ctx, data, width, height, channels, stride_bytes, n_threads);
 }
 
 int smolvla_vision_embd_size(const smolvla_vision_ctx * ctx) {
-    if (!ctx) return 0;
+    if (!ctx)
+        return 0;
     return ctx->output_tokens * ctx->proj_dim;
 }
 

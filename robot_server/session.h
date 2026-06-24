@@ -8,11 +8,8 @@
 
 namespace robot_server {
 
-bool handle_client(
-    sockets::socket_handle fd,
-    model_adapter & policy,
-    std::mutex & predict_mutex,
-    bool & shutdown_requested);
+bool handle_client(sockets::socket_handle fd, model_adapter & policy, std::mutex & predict_mutex,
+                   bool & shutdown_requested);
 
 } // namespace robot_server
 

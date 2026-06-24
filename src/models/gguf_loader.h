@@ -15,18 +15,14 @@ struct gguf_load_result {
 };
 
 class gguf_loader {
-public:
+  public:
     virtual ~gguf_loader() = default;
 
-    bool load(
-        const char * path,
-        ggml_backend_buffer_type_t model_buft,
-        gguf_load_result & out,
-        int verbosity);
+    bool load(const char * path, ggml_backend_buffer_type_t model_buft, gguf_load_result & out, int verbosity);
 
     const std::string & error() const;
 
-protected:
+  protected:
     virtual bool parse_metadata(gguf_context * gguf) = 0;
     virtual bool bind_tensors(ggml_context * ctx_data) = 0;
 
@@ -43,7 +39,7 @@ protected:
 
     void set_error(const std::string & error);
 
-private:
+  private:
     bool fail(const std::string & error);
 
     std::string error_;

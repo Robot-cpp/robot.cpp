@@ -50,7 +50,7 @@ struct Pi0ComponentRuntime {
 };
 
 class Pi0GraphContext {
-public:
+  public:
     explicit Pi0GraphContext(ggml_init_params params);
     ~Pi0GraphContext();
 
@@ -59,35 +59,21 @@ public:
 
     operator ggml_context *() const;
 
-private:
+  private:
     ggml_context * ctx_ = nullptr;
 };
 
 size_t pi0_graph_context_size(size_t tensor_bytes);
 
-void pi0_init_component_runtime(
-    Pi0ComponentRuntime & runtime,
-    const Pi0BackendConfig & base,
-    const Pi0ComponentConfig & component,
-    const char * label,
-    int verbosity);
+void pi0_init_component_runtime(Pi0ComponentRuntime & runtime, const Pi0BackendConfig & base,
+                                const Pi0ComponentConfig & component, const char * label, int verbosity);
 
 ggml_init_params pi0_graph_init_params(size_t mem_size);
 
-ggml_tensor * pi0_persist_backend_f32(
-    const Pi0ComponentRuntime & runtime,
-    ggml_tensor ** slot,
-    const ggml_tensor * source,
-    int n_dims,
-    int64_t ne0,
-    int64_t ne1,
-    int64_t ne2);
+ggml_tensor * pi0_persist_backend_f32(const Pi0ComponentRuntime & runtime, ggml_tensor ** slot,
+                                      const ggml_tensor * source, int n_dims, int64_t ne0, int64_t ne1, int64_t ne2);
 
-ggml_tensor * pi0_persist_host_f32_2d(
-    const Pi0ComponentRuntime & runtime,
-    ggml_tensor ** slot,
-    const float * source,
-    int64_t ne0,
-    int64_t ne1);
+ggml_tensor * pi0_persist_host_f32_2d(const Pi0ComponentRuntime & runtime, ggml_tensor ** slot, const float * source,
+                                      int64_t ne0, int64_t ne1);
 
 } // namespace robotcpp::pi0

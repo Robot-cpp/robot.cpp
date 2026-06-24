@@ -49,8 +49,7 @@ bool validate_options(const model_args & args, std::string & error) {
 
 } // namespace
 
-Pi0Model::Pi0Model(const model_args & args)
-    : args_(args) {
+Pi0Model::Pi0Model(const model_args & args) : args_(args) {
     pi0_params params = pi0_default_params();
     params.vit_path = args_.vit_path.c_str();
     params.mmproj_path = args_.mmproj_path.c_str();
@@ -106,13 +105,9 @@ bool Pi0Model::predict(const observation & obs, model_result & out, std::string 
         views.push_back(view);
     }
 
-    const pi0_result result = pi0_predict_raw_rgb(
-        ctx_,
-        views.data(),
-        views.size(),
-        obs.state.empty() ? nullptr : obs.state.data(),
-        obs.state.size(),
-        obs.task.c_str());
+    const pi0_result result =
+        pi0_predict_raw_rgb(ctx_, views.data(), views.size(), obs.state.empty() ? nullptr : obs.state.data(),
+                            obs.state.size(), obs.task.c_str());
     if (result.actions == nullptr) {
         error = "pi0_predict_raw_rgb failed";
         return false;
@@ -143,10 +138,7 @@ bool Pi0Model::is_ready() const {
     return ctx_ != nullptr;
 }
 
-bool make_pi0_model(
-    const model_args & args,
-    std::unique_ptr<Model> & out,
-    std::string & error) {
+bool make_pi0_model(const model_args & args, std::unique_ptr<Model> & out, std::string & error) {
     out.reset();
     if (!validate_options(args, error)) {
         return false;

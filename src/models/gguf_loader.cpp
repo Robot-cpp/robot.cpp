@@ -6,11 +6,8 @@
 #include <fstream>
 #include <stdexcept>
 
-bool gguf_loader::load(
-    const char * path,
-    ggml_backend_buffer_type_t model_buft,
-    gguf_load_result & out,
-    int verbosity) {
+bool gguf_loader::load(const char * path, ggml_backend_buffer_type_t model_buft, gguf_load_result & out,
+                       int verbosity) {
     if (!path || !model_buft) {
         return fail("invalid GGUF loader arguments");
     }
@@ -19,8 +16,8 @@ bool gguf_loader::load(
 
     ggml_context * meta = nullptr;
     gguf_init_params params = {
-        /*.no_alloc =*/ true,
-        /*.ctx      =*/ &meta,
+        /*.no_alloc =*/true,
+        /*.ctx      =*/&meta,
     };
 
     gguf_context * gguf = gguf_init_from_file(path, params);
@@ -53,9 +50,8 @@ bool gguf_loader::load(
     try {
         const int n_tensors = gguf_get_n_tensors(gguf);
         if (verbosity >= 1) {
-            std::fprintf(stderr,
-                "%s: loaded GGUF: %d tensors, %lld kv pairs\n",
-                __func__, n_tensors, (long long) gguf_get_n_kv(gguf));
+            std::fprintf(stderr, "%s: loaded GGUF: %d tensors, %lld kv pairs\n", __func__, n_tensors,
+                         (long long)gguf_get_n_kv(gguf));
         }
 
         if (!parse_metadata(gguf)) {
@@ -81,15 +77,14 @@ bool gguf_loader::load(
             model_size += ggml_nbytes(tensor);
         }
         if (verbosity >= 1) {
-            std::fprintf(stderr, "%s: model size = %.2f MB\n",
-                __func__, model_size / (1024.0 * 1024.0));
+            std::fprintf(stderr, "%s: model size = %.2f MB\n", __func__, model_size / (1024.0 * 1024.0));
         }
 
         const size_t ctx_size = ggml_tensor_overhead() * (n_tensors + 1);
         ggml_init_params ggml_params = {
-            /*.mem_size   =*/ ctx_size,
-            /*.mem_buffer =*/ nullptr,
-            /*.no_alloc   =*/ true,
+            /*.mem_size   =*/ctx_size,
+            /*.mem_buffer =*/nullptr,
+            /*.no_alloc   =*/true,
         };
         ctx_data = ggml_init(ggml_params);
         if (!ctx_data) {

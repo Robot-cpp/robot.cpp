@@ -15,7 +15,7 @@ namespace robotcpp::pi0 {
 struct Pi0Context;
 
 class Pi0Tokenizer {
-public:
+  public:
     explicit Pi0Tokenizer(const std::string & tokenizer_path);
     ~Pi0Tokenizer();
 
@@ -25,7 +25,7 @@ public:
     bool available() const;
     bool tokenize_prompt(const std::string & prompt, int max_tokens, std::vector<int32_t> & out) const;
 
-private:
+  private:
     struct LlamaModelDeleter {
         void operator()(llama_model * model) const;
     };

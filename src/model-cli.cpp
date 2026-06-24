@@ -58,7 +58,9 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "Common options:\n");
     std::fprintf(stderr, "  --model-type <type>      Model type (default: smolvla)\n");
     std::fprintf(stderr, "  --image <path>           Input image (repeatable; order matches --image-name)\n");
-    std::fprintf(stderr, "  --image-name <name>      Observation image name (repeatable; default: image for single-image input)\n");
+    std::fprintf(
+        stderr,
+        "  --image-name <name>      Observation image name (repeatable; default: image for single-image input)\n");
     std::fprintf(stderr, "  --state <csv>            Proprio/state values (comma-separated)\n");
     std::fprintf(stderr, "  --task <str>             Task instruction (default: \"grab the block.\")\n");
     std::fprintf(stderr, "  --threads <n>            Number of threads (default: auto)\n");
@@ -114,7 +116,7 @@ bool load_rgb_image(const std::string & path, loaded_image & out) {
     out.height = h;
     out.channels = 3;
     out.stride_bytes = w * out.channels;
-    out.data.assign(pixels, pixels + (size_t) out.stride_bytes * (size_t) out.height);
+    out.data.assign(pixels, pixels + (size_t)out.stride_bytes * (size_t)out.height);
     stbi_image_free(pixels);
     return true;
 }
@@ -198,10 +200,8 @@ int main(int argc, char ** argv) {
         image_names.push_back("image");
     }
     if (image_names.size() != image_paths.size()) {
-        std::fprintf(stderr,
-            "Error: --image count (%zu) must match --image-name count (%zu)\n",
-            image_paths.size(),
-            image_names.size());
+        std::fprintf(stderr, "Error: --image count (%zu) must match --image-name count (%zu)\n", image_paths.size(),
+                     image_names.size());
         return 1;
     }
 
@@ -260,16 +260,14 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    std::cout << "\n=== Predicted Actions ("
-              << result.chunk_size << " steps x "
-              << result.action_dim << " dims) ===\n";
+    std::cout << "\n=== Predicted Actions (" << result.chunk_size << " steps x " << result.action_dim << " dims) ===\n";
 
     const int n_print = std::min(5, result.chunk_size);
     for (int t = 0; t < n_print; t++) {
         std::cout << "Step " << std::setw(2) << t << ": [";
         for (int d = 0; d < result.action_dim; d++) {
-            std::cout << std::fixed << std::setprecision(4)
-                      << std::setw(8) << result.actions[(size_t) t * (size_t) result.action_dim + (size_t) d];
+            std::cout << std::fixed << std::setprecision(4) << std::setw(8)
+                      << result.actions[(size_t)t * (size_t)result.action_dim + (size_t)d];
             if (d < result.action_dim - 1) {
                 std::cout << ", ";
             }
@@ -286,8 +284,8 @@ int main(int argc, char ** argv) {
         for (int t = start_idx; t < result.chunk_size; t++) {
             std::cout << "Step " << std::setw(2) << t << ": [";
             for (int d = 0; d < result.action_dim; d++) {
-                std::cout << std::fixed << std::setprecision(4)
-                          << std::setw(8) << result.actions[(size_t) t * (size_t) result.action_dim + (size_t) d];
+                std::cout << std::fixed << std::setprecision(4) << std::setw(8)
+                          << result.actions[(size_t)t * (size_t)result.action_dim + (size_t)d];
                 if (d < result.action_dim - 1) {
                     std::cout << ", ";
                 }

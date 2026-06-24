@@ -26,9 +26,7 @@ struct ResizeCoord {
 std::vector<ResizeCoord> build_resize_coords(int src_size, int dst_size) {
     std::vector<ResizeCoord> coords(static_cast<size_t>(dst_size));
     for (int i = 0; i < dst_size; ++i) {
-        float src = (static_cast<float>(i) + 0.5f) * static_cast<float>(src_size) /
-                static_cast<float>(dst_size) -
-            0.5f;
+        float src = (static_cast<float>(i) + 0.5f) * static_cast<float>(src_size) / static_cast<float>(dst_size) - 0.5f;
         src = std::max(0.0f, std::min(src, static_cast<float>(src_size - 1)));
         const int lo = static_cast<int>(std::floor(src));
         const int hi = std::min(lo + 1, src_size - 1);
@@ -57,10 +55,7 @@ int find_real_image_key(const std::vector<std::string> & keys, const std::string
 
 } // namespace
 
-bool validate_and_preprocess_pi0(
-    const Pi0ModelConfig & config,
-    const Pi0RawObservation & raw,
-    Pi0Observation & out) {
+bool validate_and_preprocess_pi0(const Pi0ModelConfig & config, const Pi0RawObservation & raw, Pi0Observation & out) {
     out = {};
 
     if (config.common.state_dim > 0) {
@@ -140,9 +135,8 @@ bool validate_and_preprocess_pi0(
         tensor.channels = 3;
         tensor.data.resize(static_cast<size_t>(tensor.width) * tensor.height * tensor.channels);
 
-        const float ratio = std::max(
-            static_cast<float>(image.width) / static_cast<float>(tensor.width),
-            static_cast<float>(image.height) / static_cast<float>(tensor.height));
+        const float ratio = std::max(static_cast<float>(image.width) / static_cast<float>(tensor.width),
+                                     static_cast<float>(image.height) / static_cast<float>(tensor.height));
         const int resized_width = std::max(1, static_cast<int>(static_cast<float>(image.width) / ratio));
         const int resized_height = std::max(1, static_cast<int>(static_cast<float>(image.height) / ratio));
         const int pad_x0 = (tensor.width - resized_width) / 2;
@@ -164,27 +158,21 @@ bool validate_and_preprocess_pi0(
                 const int x0 = xc.lo * image.channels;
                 const int x1 = xc.hi * image.channels;
                 const int dst_x = pad_x0 + rx;
-                float * dst = tensor.data.data() +
-                    (static_cast<size_t>(dst_y) * tensor.width + static_cast<size_t>(dst_x)) * 3;
+                float * dst =
+                    tensor.data.data() + (static_cast<size_t>(dst_y) * tensor.width + static_cast<size_t>(dst_x)) * 3;
 
-                const float r_top =
-                    static_cast<float>(row0[x0 + channel_0]) * xc.lo_weight +
-                    static_cast<float>(row0[x1 + channel_0]) * xc.hi_weight;
-                const float r_bottom =
-                    static_cast<float>(row1[x0 + channel_0]) * xc.lo_weight +
-                    static_cast<float>(row1[x1 + channel_0]) * xc.hi_weight;
-                const float g_top =
-                    static_cast<float>(row0[x0 + channel_1]) * xc.lo_weight +
-                    static_cast<float>(row0[x1 + channel_1]) * xc.hi_weight;
-                const float g_bottom =
-                    static_cast<float>(row1[x0 + channel_1]) * xc.lo_weight +
-                    static_cast<float>(row1[x1 + channel_1]) * xc.hi_weight;
-                const float b_top =
-                    static_cast<float>(row0[x0 + channel_2]) * xc.lo_weight +
-                    static_cast<float>(row0[x1 + channel_2]) * xc.hi_weight;
-                const float b_bottom =
-                    static_cast<float>(row1[x0 + channel_2]) * xc.lo_weight +
-                    static_cast<float>(row1[x1 + channel_2]) * xc.hi_weight;
+                const float r_top = static_cast<float>(row0[x0 + channel_0]) * xc.lo_weight +
+                                    static_cast<float>(row0[x1 + channel_0]) * xc.hi_weight;
+                const float r_bottom = static_cast<float>(row1[x0 + channel_0]) * xc.lo_weight +
+                                       static_cast<float>(row1[x1 + channel_0]) * xc.hi_weight;
+                const float g_top = static_cast<float>(row0[x0 + channel_1]) * xc.lo_weight +
+                                    static_cast<float>(row0[x1 + channel_1]) * xc.hi_weight;
+                const float g_bottom = static_cast<float>(row1[x0 + channel_1]) * xc.lo_weight +
+                                       static_cast<float>(row1[x1 + channel_1]) * xc.hi_weight;
+                const float b_top = static_cast<float>(row0[x0 + channel_2]) * xc.lo_weight +
+                                    static_cast<float>(row0[x1 + channel_2]) * xc.hi_weight;
+                const float b_bottom = static_cast<float>(row1[x0 + channel_2]) * xc.lo_weight +
+                                       static_cast<float>(row1[x1 + channel_2]) * xc.hi_weight;
                 dst[0] = normalize_u8(r_top * yc.lo_weight + r_bottom * yc.hi_weight);
                 dst[1] = normalize_u8(g_top * yc.lo_weight + g_bottom * yc.hi_weight);
                 dst[2] = normalize_u8(b_top * yc.lo_weight + b_bottom * yc.hi_weight);

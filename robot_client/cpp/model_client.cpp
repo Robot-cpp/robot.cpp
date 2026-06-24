@@ -12,12 +12,8 @@ namespace robot_server {
 namespace client {
 namespace {
 
-bool send_message(
-    sockets::socket_handle fd,
-    uint16_t op,
-    uint32_t request_id,
-    const std::vector<uint8_t> & payload,
-    std::string & error) {
+bool send_message(sockets::socket_handle fd, uint16_t op, uint32_t request_id, const std::vector<uint8_t> & payload,
+                  std::string & error) {
     proto::header h;
     h.op = op;
     h.request_id = request_id;
@@ -34,11 +30,7 @@ bool send_message(
     return true;
 }
 
-bool recv_message(
-    sockets::socket_handle fd,
-    proto::header & h,
-    std::vector<uint8_t> & payload,
-    std::string & error) {
+bool recv_message(sockets::socket_handle fd, proto::header & h, std::vector<uint8_t> & payload, std::string & error) {
     std::vector<uint8_t> header(proto::k_header_size);
     if (!sockets::recv_exact(fd, header.data(), header.size(), error)) {
         return false;
@@ -50,7 +42,7 @@ bool recv_message(
         return false;
     }
 
-    payload.assign((size_t) h.payload_len, 0);
+    payload.assign((size_t)h.payload_len, 0);
     if (!payload.empty() && !sockets::recv_exact(fd, payload.data(), payload.size(), error)) {
         return false;
     }
@@ -81,7 +73,7 @@ bool make_predict_request(const ModelObservation & obs, proto::predict_request &
             return false;
         }
 
-        const size_t image_size = (size_t) stride * (size_t) src.height;
+        const size_t image_size = (size_t)stride * (size_t)src.height;
         proto::image_payload image;
         image.name = src.name.empty() ? "image" + std::to_string(i) : src.name;
         image.image_format = proto::image_raw_rgb_u8;
@@ -102,7 +94,7 @@ const float * ModelResponse::action_row(uint32_t index) const {
     if (action_dim == 0 || index >= chunk_size) {
         return nullptr;
     }
-    const size_t offset = (size_t) index * (size_t) action_dim;
+    const size_t offset = (size_t)index * (size_t)action_dim;
     if (offset + action_dim > actions_flat.size()) {
         return nullptr;
     }
@@ -172,11 +164,8 @@ bool ModelClient::predict(const ModelObservation & obs, ModelResponse & response
     return true;
 }
 
-bool ModelClient::call(
-    uint16_t op,
-    const std::vector<uint8_t> & request_payload,
-    std::vector<uint8_t> & response_payload,
-    std::string & error) {
+bool ModelClient::call(uint16_t op, const std::vector<uint8_t> & request_payload,
+                       std::vector<uint8_t> & response_payload, std::string & error) {
     if (!sockets::startup(error)) {
         return false;
     }

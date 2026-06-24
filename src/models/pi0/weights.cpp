@@ -33,29 +33,29 @@ Pi0TransformerLayerWeights build_transformer_layer(ggml_context * ctx, const std
 
 } // namespace
 
-Pi0Weights build_pi0_weights(
-    const Pi0ModelConfig & config,
-    ggml_context * vit,
-    ggml_context * mmproj,
-    ggml_context * llm,
-    ggml_context * state,
-    ggml_context * action_decoder) {
+Pi0Weights build_pi0_weights(const Pi0ModelConfig & config, ggml_context * vit, ggml_context * mmproj,
+                             ggml_context * llm, ggml_context * state, ggml_context * action_decoder) {
     Pi0Weights out;
     const Pi0Config & pi0 = pi0_config(config);
     out.state_w = bind_pi0_tensor(state, pi0_state_tensor(config, "weight"));
     out.state_b = bind_pi0_tensor(state, pi0_state_tensor(config, "bias"));
     out.action_in_w = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_in_proj.weight"));
     out.action_in_b = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_in_proj.bias"));
-    out.action_time_in_w = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
-    out.action_time_in_b = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_in.bias"));
-    out.action_time_out_w = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_out.weight"));
-    out.action_time_out_b = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_out.bias"));
+    out.action_time_in_w =
+        bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
+    out.action_time_in_b =
+        bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_in.bias"));
+    out.action_time_out_w =
+        bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_out.weight"));
+    out.action_time_out_b =
+        bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_time_mlp_out.bias"));
     out.action_out_w = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_out_proj.weight"));
     out.action_out_b = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "action_out_proj.bias"));
     out.action_norm_scale = bind_pi0_tensor(action_decoder, pi0_action_decoder_tensor(config, "norm.scale"));
     out.action_layers.reserve(static_cast<size_t>(std::max(0, pi0.action.expert_layers)));
     for (int layer = 0; layer < pi0.action.expert_layers; ++layer) {
-        out.action_layers.push_back(build_transformer_layer(action_decoder, pi0_action_decoder_layer_prefix(config, layer)));
+        out.action_layers.push_back(
+            build_transformer_layer(action_decoder, pi0_action_decoder_layer_prefix(config, layer)));
     }
 
     out.llm_norm_scale = bind_pi0_tensor(llm, pi0_llm_tensor(config, "norm.scale"));

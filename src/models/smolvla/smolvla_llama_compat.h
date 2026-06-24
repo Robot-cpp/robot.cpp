@@ -20,13 +20,13 @@ static inline bool llama_kv_cache_is_v_trans(llama_context * ctx) {
 static inline ggml_tensor * llama_kv_cache_k_tensor(llama_context * ctx, int32_t il) {
     llama_memory_t mem = ctx ? llama_get_memory(ctx) : nullptr;
     llama_kv_cache * kv = static_cast<llama_kv_cache *>(mem);
-    return kv && il >= 0 && il < (int32_t) kv->layers.size() ? kv->layers[il].k : nullptr;
+    return kv && il >= 0 && il < (int32_t)kv->layers.size() ? kv->layers[il].k : nullptr;
 }
 
 static inline ggml_tensor * llama_kv_cache_v_tensor(llama_context * ctx, int32_t il) {
     llama_memory_t mem = ctx ? llama_get_memory(ctx) : nullptr;
     llama_kv_cache * kv = static_cast<llama_kv_cache *>(mem);
-    return kv && il >= 0 && il < (int32_t) kv->layers.size() ? kv->layers[il].v : nullptr;
+    return kv && il >= 0 && il < (int32_t)kv->layers.size() ? kv->layers[il].v : nullptr;
 }
 
 static inline void llama_kv_cache_clear(llama_context * ctx) {
