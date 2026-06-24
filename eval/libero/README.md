@@ -151,10 +151,24 @@ CMAKE_CUDA_ARCHITECTURES=80 \
 bash eval/libero/run_model_server.sh
 ```
 
-Common overrides are environment variables: `BUILD_DIR`, `ROBOTCPP_BACKEND`,
-`HOST`, `PORT`, `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH`,
-`MUJOCO_GL`, `PYOPENGL_PLATFORM`, and `OUTPUT`. Extra shell arguments are passed
-to `python -m eval.libero.run_model_server` before `--server-command`.
+Configure the wrapper with environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `BUILD_DIR`, `ROBOTCPP_BACKEND`, `CMAKE_CUDA_ARCHITECTURES` | Build and backend selection. |
+| `GGUF_DIR`, `MODEL`, `SERVER_BIN` | Split GGUF inputs and `model-server` binary. |
+| `HOST`, `PORT` | Shared client/server endpoint. Set these here so both sides match. |
+| `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH` | LIBERO rollout selection. |
+| `MUJOCO_GL`, `PYOPENGL_PLATFORM`, `OUTPUT` | Rendering and result output. |
+
+Arguments after `run_model_server.sh` are passed to
+`python -m eval.libero.run_model_server` before the generated
+`--server-command` block. Use them for runner-only flags:
+
+```sh
+OUTPUT=eval/results/pi0-libero-object.json \
+bash eval/libero/run_model_server.sh --episode-length 400
+```
 
 Run the Python rollout runner directly when the server command should be fully
 explicit:

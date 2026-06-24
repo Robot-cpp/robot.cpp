@@ -5,20 +5,21 @@ usage() {
     cat <<'EOF'
 Run LIBERO eval against a freshly built model-server.
 
-Common overrides:
-  CONDA_ENV=vlacpp-libero   optional conda env for the Python eval runner
-  ROBOTCPP_BACKEND=cuda     model-server backend: cuda or cpu
-  BUILD_DIR=build-cuda      CMake build directory; defaults to build for cpu
-  GGUF_DIR=...              split GGUF checkpoint directory
-  MODEL=...                 split GGUF filename prefix
-  SUITE=libero_object       LIBERO suite
-  TASK_IDS=0                comma list of task ids
-  N_EPISODES=1              episodes per task
-  CMAKE_CUDA_ARCHITECTURES=80
+Wrapper configuration:
+  CONDA_ENV=vlacpp-libero      optional conda env for the Python eval runner
+  ROBOTCPP_BACKEND=cuda        model-server backend: cuda or cpu
+  BUILD_DIR=build-cuda         CMake build directory; defaults to build for cuda
+  GGUF_DIR=...                 split GGUF checkpoint directory
+  MODEL=...                    split GGUF filename prefix
+  HOST=127.0.0.1 PORT=5555     shared client/server endpoint
+  SUITE=libero_object          LIBERO suite
+  TASK_IDS=0 N_EPISODES=1      rollout selection
+  OUTPUT=...                   optional result JSON path
+  CMAKE_CUDA_ARCHITECTURES=80  optional CUDA architecture override
 
-Extra arguments are passed to eval.libero.run_model_server before the
-model-server command. Configure host/port through HOST and PORT so the eval
-client and launched server stay in sync.
+Arguments after this script are passed to eval.libero.run_model_server before
+the generated --server-command block. Use HOST and PORT env vars instead of
+extra --host/--port flags so the eval client and launched server stay in sync.
 EOF
 }
 
