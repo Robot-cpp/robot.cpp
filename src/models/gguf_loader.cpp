@@ -6,21 +6,18 @@
 #include <fstream>
 #include <stdexcept>
 
-bool gguf_loader::load(
-    const char * path,
-    ggml_backend_buffer_type_t model_buft,
-    gguf_load_result & out,
-    int verbosity) {
+bool gguf_loader::load(const char * path, ggml_backend_buffer_type_t model_buft, gguf_load_result & out,
+                       int verbosity) {
     if (!path || !model_buft) {
         return fail("invalid GGUF loader arguments");
     }
 
     out = gguf_load_result();
 
-    ggml_context * meta = nullptr;
+    ggml_context * meta     = nullptr;
     gguf_init_params params = {
-        /*.no_alloc =*/ true,
-        /*.ctx      =*/ &meta,
+        /*.no_alloc =*/true,
+        /*.ctx      =*/&meta,
     };
 
     gguf_context * gguf = gguf_init_from_file(path, params);
@@ -28,7 +25,7 @@ bool gguf_loader::load(
         return fail(std::string("failed to load GGUF: ") + path);
     }
 
-    ggml_context * ctx_data = nullptr;
+    ggml_context * ctx_data            = nullptr;
     ggml_backend_buffer_t model_buffer = nullptr;
 
     auto cleanup = [&]() {
@@ -53,9 +50,8 @@ bool gguf_loader::load(
     try {
         const int n_tensors = gguf_get_n_tensors(gguf);
         if (verbosity >= 1) {
-            std::fprintf(stderr,
-                "%s: loaded GGUF: %d tensors, %lld kv pairs\n",
-                __func__, n_tensors, (long long) gguf_get_n_kv(gguf));
+            std::fprintf(stderr, "%s: loaded GGUF: %d tensors, %lld kv pairs\n", __func__, n_tensors,
+                         (long long)gguf_get_n_kv(gguf));
         }
 
         if (!parse_metadata(gguf)) {
@@ -65,14 +61,14 @@ bool gguf_loader::load(
 
         if (n_tensors == 0) {
             out.gguf = gguf;
-            gguf = nullptr;
+            gguf     = nullptr;
             cleanup();
             return true;
         }
 
         size_t model_size = 0;
         for (int i = 0; i < n_tensors; ++i) {
-            const char * name = gguf_get_tensor_name(gguf, i);
+            const char * name    = gguf_get_tensor_name(gguf, i);
             ggml_tensor * tensor = ggml_get_tensor(meta, name);
             if (!tensor) {
                 cleanup();
@@ -81,15 +77,14 @@ bool gguf_loader::load(
             model_size += ggml_nbytes(tensor);
         }
         if (verbosity >= 1) {
-            std::fprintf(stderr, "%s: model size = %.2f MB\n",
-                __func__, model_size / (1024.0 * 1024.0));
+            std::fprintf(stderr, "%s: model size = %.2f MB\n", __func__, model_size / (1024.0 * 1024.0));
         }
 
-        const size_t ctx_size = ggml_tensor_overhead() * (n_tensors + 1);
+        const size_t ctx_size        = ggml_tensor_overhead() * (n_tensors + 1);
         ggml_init_params ggml_params = {
-            /*.mem_size   =*/ ctx_size,
-            /*.mem_buffer =*/ nullptr,
-            /*.no_alloc   =*/ true,
+            /*.mem_size   =*/ctx_size,
+            /*.mem_buffer =*/nullptr,
+            /*.no_alloc   =*/true,
         };
         ctx_data = ggml_init(ggml_params);
         if (!ctx_data) {
@@ -98,9 +93,9 @@ bool gguf_loader::load(
         }
 
         for (int i = 0; i < n_tensors; ++i) {
-            const char * name = gguf_get_tensor_name(gguf, i);
+            const char * name         = gguf_get_tensor_name(gguf, i);
             ggml_tensor * meta_tensor = ggml_get_tensor(meta, name);
-            ggml_tensor * cur = ggml_dup_tensor(ctx_data, meta_tensor);
+            ggml_tensor * cur         = ggml_dup_tensor(ctx_data, meta_tensor);
             ggml_set_name(cur, name);
         }
 
@@ -118,8 +113,8 @@ bool gguf_loader::load(
 
         std::vector<uint8_t> read_buf;
         for (int i = 0; i < n_tensors; ++i) {
-            const char * name = gguf_get_tensor_name(gguf, i);
-            ggml_tensor * cur = ggml_get_tensor(ctx_data, name);
+            const char * name   = gguf_get_tensor_name(gguf, i);
+            ggml_tensor * cur   = ggml_get_tensor(ctx_data, name);
             const size_t offset = gguf_get_data_offset(gguf) + gguf_get_tensor_offset(gguf, i);
             fin.seekg(offset, std::ios::beg);
             if (!fin) {
@@ -156,12 +151,12 @@ bool gguf_loader::load(
         return fail(e.what());
     }
 
-    out.gguf = gguf;
-    out.ctx_data = ctx_data;
+    out.gguf         = gguf;
+    out.ctx_data     = ctx_data;
     out.model_buffer = model_buffer;
-    gguf = nullptr;
-    ctx_data = nullptr;
-    model_buffer = nullptr;
+    gguf             = nullptr;
+    ctx_data         = nullptr;
+    model_buffer     = nullptr;
     cleanup();
     return true;
 }
@@ -185,7 +180,7 @@ float gguf_loader::f32_or(gguf_context * gguf, const char * key, float fallback)
 }
 
 void gguf_loader::f32_arr3_or(gguf_context * gguf, const char * key, float out[3], const float fallback[3]) {
-    const int n = arr_n(gguf, key);
+    const int n        = arr_n(gguf, key);
     const float * data = static_cast<const float *>(arr_data(gguf, key));
     if (n < 3 || !data) {
         out[0] = fallback[0];
@@ -219,7 +214,7 @@ ggml_tensor * gguf_loader::require_tensor(ggml_context * ctx_data, const std::st
 
 std::vector<float> gguf_loader::read_f32_tensor(ggml_context * ctx_data, const std::string & name) {
     ggml_tensor * tensor = require_tensor(ctx_data, name);
-    const int64_t n = ggml_nelements(tensor);
+    const int64_t n      = ggml_nelements(tensor);
     std::vector<float> out(n);
     const size_t nbytes = ggml_nbytes(tensor);
     std::vector<uint8_t> raw(nbytes);

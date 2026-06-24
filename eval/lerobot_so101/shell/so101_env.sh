@@ -36,7 +36,7 @@ EOF
 fi
 export ROBOT_CAMERAS="${ROBOT_CAMERAS//$'\n'/}"
 
-# --- Inference client (python -m base_policy) ---
+# --- Inference client (python -m eval.lerobot_so101.run_sync) ---
 export ROBOT_PLATFORM="lerobot_so101"
 export SERVER="${SERVER:-127.0.0.1:5555}"
 export TASK="${TASK:-grab the block.}"

@@ -118,7 +118,7 @@ bool gguf_f32_array(gguf_context * gguf, const char * key, std::vector<float> & 
     if (gguf_get_kv_type(gguf, idx) != GGUF_TYPE_ARRAY || gguf_get_arr_type(gguf, idx) != GGUF_TYPE_FLOAT32) {
         throw std::runtime_error(std::string("invalid GGUF f32-array metadata type: ") + key);
     }
-    const size_t count = gguf_get_arr_n(gguf, idx);
+    const size_t count   = gguf_get_arr_n(gguf, idx);
     const float * values = static_cast<const float *>(gguf_get_arr_data(gguf, idx));
     if (values == nullptr && count != 0) {
         throw std::runtime_error(std::string("missing GGUF array data: ") + key);
@@ -127,10 +127,7 @@ bool gguf_f32_array(gguf_context * gguf, const char * key, std::vector<float> & 
     return true;
 }
 
-bool parse_component_metadata(
-    gguf_context * gguf,
-    const char * prefix,
-    Pi0ComponentConfig & component) {
+bool parse_component_metadata(gguf_context * gguf, const char * prefix, Pi0ComponentConfig & component) {
     std::string key = std::string(prefix) + "architecture";
     gguf_string(gguf, key.c_str(), component.architecture);
     key = std::string(prefix) + "prefix";
@@ -170,12 +167,12 @@ bool validate_common_metadata(const Pi0ModelConfig & config) {
     }
     if ((!config.common.state_mean.empty() || !config.common.state_std.empty()) &&
         (config.common.state_mean.size() != static_cast<size_t>(config.common.state_dim) ||
-            config.common.state_std.size() != static_cast<size_t>(config.common.state_dim))) {
+         config.common.state_std.size() != static_cast<size_t>(config.common.state_dim))) {
         return pi0_load_error("state_mean and state_std must both match state_dim");
     }
     if ((!config.common.action_mean.empty() || !config.common.action_std.empty()) &&
         (config.common.action_mean.size() != static_cast<size_t>(config.common.action_dim) ||
-            config.common.action_std.size() != static_cast<size_t>(config.common.action_dim))) {
+         config.common.action_std.size() != static_cast<size_t>(config.common.action_dim))) {
         return pi0_load_error("action_mean and action_std must both match action_dim");
     }
     return true;
@@ -212,12 +209,10 @@ bool parse_pi0_gguf_metadata(gguf_context * gguf, Pi0ModelConfig & config) {
 }
 
 class Pi0ComponentLoader final : public gguf_loader {
-public:
-    explicit Pi0ComponentLoader(Pi0ModelConfig & config)
-        : config_(config) {
-    }
+  public:
+    explicit Pi0ComponentLoader(Pi0ModelConfig & config) : config_(config) {}
 
-protected:
+  protected:
     bool parse_metadata(gguf_context * gguf) override {
         try {
             return parse_pi0_gguf_metadata(gguf, config_);
@@ -228,14 +223,13 @@ protected:
     }
 
     bool bind_tensors(ggml_context * ctx_data) override {
-        for (ggml_tensor * cur = ggml_get_first_tensor(ctx_data); cur != nullptr; cur = ggml_get_next_tensor(ctx_data, cur)) {
+        for (ggml_tensor * cur = ggml_get_first_tensor(ctx_data); cur != nullptr;
+             cur               = ggml_get_next_tensor(ctx_data, cur)) {
             const std::string name = ggml_get_name(cur);
             if (!should_load_pi0_tensor(config_, name)) {
                 continue;
             }
-            if (cur->type != GGML_TYPE_F32 &&
-                cur->type != GGML_TYPE_F16 &&
-                cur->type != GGML_TYPE_BF16 &&
+            if (cur->type != GGML_TYPE_F32 && cur->type != GGML_TYPE_F16 && cur->type != GGML_TYPE_BF16 &&
                 !ggml_is_quantized(cur->type)) {
                 set_error("unsupported pi0 tensor type: " + name);
                 return false;
@@ -244,7 +238,7 @@ protected:
         return true;
     }
 
-private:
+  private:
     Pi0ModelConfig & config_;
 };
 
@@ -253,10 +247,9 @@ private:
 static bool should_load_pi0_tensor(const Pi0ModelConfig & config, const std::string & name) {
     const Pi0Config & pi0 = pi0_config(config);
     return starts_with(name, pi0.action.component.tensor_prefix) ||
-        starts_with(name, pi0.state.component.tensor_prefix) ||
-        starts_with(name, pi0.mmproj.component.tensor_prefix) ||
-        starts_with(name, pi0.vision.component.tensor_prefix) ||
-        starts_with(name, pi0.llm.component.tensor_prefix);
+           starts_with(name, pi0.state.component.tensor_prefix) ||
+           starts_with(name, pi0.mmproj.component.tensor_prefix) ||
+           starts_with(name, pi0.vision.component.tensor_prefix) || starts_with(name, pi0.llm.component.tensor_prefix);
 }
 
 std::string pi0_action_decoder_tensor(const Pi0ModelConfig & config, const std::string & suffix) {
@@ -315,15 +308,9 @@ bool has_shape(ggml_context * ctx, const std::string & name, std::initializer_li
     return true;
 }
 
-bool has_transformer_stack(
-    ggml_context * ctx,
-    const std::string & final_norm_scale_name,
-    const std::string & layers_prefix,
-    int layers,
-    int64_t width,
-    int64_t q_out,
-    int64_t kv_out,
-    int64_t mlp) {
+bool has_transformer_stack(ggml_context * ctx, const std::string & final_norm_scale_name,
+                           const std::string & layers_prefix, int layers, int64_t width, int64_t q_out, int64_t kv_out,
+                           int64_t mlp) {
     if (!has_shape(ctx, final_norm_scale_name, {width})) {
         return false;
     }
@@ -349,18 +336,16 @@ bool has_transformer_stack(
 namespace {
 
 bool has_valid_pi0_action_projection_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
-    ggml_tensor * in_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.weight"));
-    ggml_tensor * in_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.bias"));
-    ggml_tensor * time_in_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
-    ggml_tensor * time_in_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.bias"));
+    ggml_tensor * in_w       = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.weight"));
+    ggml_tensor * in_b       = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.bias"));
+    ggml_tensor * time_in_w  = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
+    ggml_tensor * time_in_b  = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.bias"));
     ggml_tensor * time_out_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_out.weight"));
     ggml_tensor * time_out_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_out.bias"));
-    ggml_tensor * out_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.weight"));
-    ggml_tensor * out_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.bias"));
-    if (in_w == nullptr || in_b == nullptr ||
-        time_in_w == nullptr || time_in_b == nullptr ||
-        time_out_w == nullptr || time_out_b == nullptr ||
-        out_w == nullptr || out_b == nullptr) {
+    ggml_tensor * out_w      = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.weight"));
+    ggml_tensor * out_b      = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.bias"));
+    if (in_w == nullptr || in_b == nullptr || time_in_w == nullptr || time_in_b == nullptr || time_out_w == nullptr ||
+        time_out_b == nullptr || out_w == nullptr || out_b == nullptr) {
         return false;
     }
 
@@ -368,44 +353,34 @@ bool has_valid_pi0_action_projection_tensors(const Pi0ModelConfig & config, ggml
         return false;
     }
     const int64_t width = in_w->ne[1];
-    return in_b->ne[0] == width &&
-        ggml_n_dims(time_in_w) == 2 && time_in_w->ne[0] == 2 * width && time_in_w->ne[1] == width &&
-        ggml_n_dims(time_in_b) == 1 && time_in_b->ne[0] == width &&
-        ggml_n_dims(time_out_w) == 2 && time_out_w->ne[0] == width && time_out_w->ne[1] == width &&
-        ggml_n_dims(time_out_b) == 1 && time_out_b->ne[0] == width &&
-        ggml_n_dims(out_w) == 2 && out_w->ne[0] == width && out_w->ne[1] == config.common.action_dim &&
-        ggml_n_dims(out_b) == 1 && out_b->ne[0] == config.common.action_dim;
+    return in_b->ne[0] == width && ggml_n_dims(time_in_w) == 2 && time_in_w->ne[0] == 2 * width &&
+           time_in_w->ne[1] == width && ggml_n_dims(time_in_b) == 1 && time_in_b->ne[0] == width &&
+           ggml_n_dims(time_out_w) == 2 && time_out_w->ne[0] == width && time_out_w->ne[1] == width &&
+           ggml_n_dims(time_out_b) == 1 && time_out_b->ne[0] == width && ggml_n_dims(out_w) == 2 &&
+           out_w->ne[0] == width && out_w->ne[1] == config.common.action_dim && ggml_n_dims(out_b) == 1 &&
+           out_b->ne[0] == config.common.action_dim;
 }
 
 bool has_valid_pi0_merger_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
     const Pi0Config & pi0 = pi0_config(config);
-    ggml_tensor * weight = find_pi0_tensor(ctx, pi0_merger_tensor(config, "weight"));
-    ggml_tensor * bias = find_pi0_tensor(ctx, pi0_merger_tensor(config, "bias"));
+    ggml_tensor * weight  = find_pi0_tensor(ctx, pi0_merger_tensor(config, "weight"));
+    ggml_tensor * bias    = find_pi0_tensor(ctx, pi0_merger_tensor(config, "bias"));
     if (weight == nullptr || bias == nullptr) {
         return false;
     }
-    if (pi0.vision.width <= 0 ||
-        pi0.llm.width <= 0 ||
-        ggml_n_dims(weight) != 2 ||
-        ggml_n_dims(bias) != 1) {
+    if (pi0.vision.width <= 0 || pi0.llm.width <= 0 || ggml_n_dims(weight) != 2 || ggml_n_dims(bias) != 1) {
         return false;
     }
-    return weight->ne[0] == pi0.vision.width &&
-        weight->ne[1] == pi0.llm.width &&
-        bias->ne[0] == pi0.llm.width;
+    return weight->ne[0] == pi0.vision.width && weight->ne[1] == pi0.llm.width && bias->ne[0] == pi0.llm.width;
 }
 
 bool has_valid_pi0_vit_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
     const Pi0Config & pi0 = pi0_config(config);
-    if (pi0.vision.layers <= 0 ||
-        pi0.vision.width <= 0 ||
-        pi0.vision.patch_height <= 0 ||
-        pi0.vision.patch_width <= 0 ||
-        pi0.vision.heads <= 0 ||
-        pi0.vision.norm_epsilon <= 0.0f) {
+    if (pi0.vision.layers <= 0 || pi0.vision.width <= 0 || pi0.vision.patch_height <= 0 ||
+        pi0.vision.patch_width <= 0 || pi0.vision.heads <= 0 || pi0.vision.norm_epsilon <= 0.0f) {
         return false;
     }
-    const int64_t width = pi0.vision.width;
+    const int64_t width   = pi0.vision.width;
     const int64_t patch_h = pi0.vision.patch_height;
     const int64_t patch_w = pi0.vision.patch_width;
     const int64_t patches = (config.common.image_width / patch_w) * (config.common.image_height / patch_h);
@@ -435,57 +410,35 @@ bool has_valid_pi0_vit_tensors(const Pi0ModelConfig & config, ggml_context * ctx
 
 bool has_valid_pi0_action_expert_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
     const Pi0Config & pi0 = pi0_config(config);
-    if (pi0.action.expert_layers <= 0 ||
-        pi0.action.expert_width <= 0 ||
-        pi0.action.expert_q_out <= 0 ||
-        pi0.action.expert_kv_out <= 0 ||
-        pi0.action.expert_mlp_width <= 0) {
+    if (pi0.action.expert_layers <= 0 || pi0.action.expert_width <= 0 || pi0.action.expert_q_out <= 0 ||
+        pi0.action.expert_kv_out <= 0 || pi0.action.expert_mlp_width <= 0) {
         return false;
     }
-    const int64_t width = pi0.action.expert_width;
-    const int64_t q_out = pi0.action.expert_q_out;
+    const int64_t width  = pi0.action.expert_width;
+    const int64_t q_out  = pi0.action.expert_q_out;
     const int64_t kv_out = pi0.action.expert_kv_out;
-    const int64_t mlp = pi0.action.expert_mlp_width;
-    return has_transformer_stack(
-        ctx,
-        pi0_action_decoder_tensor(config, "norm.scale"),
-        pi0_action_decoder_tensor(config, "layers."),
-        pi0.action.expert_layers,
-        width,
-        q_out,
-        kv_out,
-        mlp);
+    const int64_t mlp    = pi0.action.expert_mlp_width;
+    return has_transformer_stack(ctx, pi0_action_decoder_tensor(config, "norm.scale"),
+                                 pi0_action_decoder_tensor(config, "layers."), pi0.action.expert_layers, width, q_out,
+                                 kv_out, mlp);
 }
 
 bool has_valid_pi0_language_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
     const Pi0Config & pi0 = pi0_config(config);
-    if (pi0.llm.layers <= 0 ||
-        pi0.llm.width <= 0 ||
-        pi0.llm.q_out <= 0 ||
-        pi0.llm.kv_out <= 0 ||
+    if (pi0.llm.layers <= 0 || pi0.llm.width <= 0 || pi0.llm.q_out <= 0 || pi0.llm.kv_out <= 0 ||
         pi0.llm.mlp_width <= 0) {
         return false;
     }
-    const int64_t width = pi0.llm.width;
-    const int64_t q_out = pi0.llm.q_out;
-    const int64_t kv_out = pi0.llm.kv_out;
-    const int64_t mlp = pi0.llm.mlp_width;
+    const int64_t width   = pi0.llm.width;
+    const int64_t q_out   = pi0.llm.q_out;
+    const int64_t kv_out  = pi0.llm.kv_out;
+    const int64_t mlp     = pi0.llm.mlp_width;
     ggml_tensor * lm_head = find_pi0_tensor(ctx, pi0_lm_head(config));
-    if (lm_head == nullptr ||
-        ggml_n_dims(lm_head) != 2 ||
-        lm_head->ne[0] != width ||
-        lm_head->ne[1] <= 0) {
+    if (lm_head == nullptr || ggml_n_dims(lm_head) != 2 || lm_head->ne[0] != width || lm_head->ne[1] <= 0) {
         return false;
     }
-    return has_transformer_stack(
-        ctx,
-        pi0_llm_tensor(config, "norm.scale"),
-        pi0_llm_tensor(config, "layers."),
-        pi0.llm.layers,
-        width,
-        q_out,
-        kv_out,
-        mlp);
+    return has_transformer_stack(ctx, pi0_llm_tensor(config, "norm.scale"), pi0_llm_tensor(config, "layers."),
+                                 pi0.llm.layers, width, q_out, kv_out, mlp);
 }
 
 } // namespace
@@ -493,7 +446,7 @@ bool has_valid_pi0_language_tensors(const Pi0ModelConfig & config, ggml_context 
 namespace {
 
 void merge_pi0_role_config(Pi0ModelConfig & base, const Pi0ModelConfig & current, const char * role) {
-    Pi0Config & dst = ensure_pi0_config(base);
+    Pi0Config & dst       = ensure_pi0_config(base);
     const Pi0Config & src = pi0_config(current);
     const std::string role_name(role);
     if (role_name == "vit") {
@@ -513,29 +466,24 @@ void merge_pi0_role_config(Pi0ModelConfig & base, const Pi0ModelConfig & current
 
 bool validate_pi0_component_dtypes(const Pi0ModelConfig & config) {
     const Pi0Config & pi0 = pi0_config(config);
-    auto check = [](const char * role, const Pi0ComponentConfig & component) {
+    auto check            = [](const char * role, const Pi0ComponentConfig & component) {
         if (is_component_dtype(component.runtime.data_type)) {
             return true;
         }
-        return pi0_load_error(
-            std::string("unsupported pi0 component dtype for ") + role + ": " + component.runtime.data_type);
+        return pi0_load_error(std::string("unsupported pi0 component dtype for ") + role + ": " +
+                              component.runtime.data_type);
     };
 
-    return check("vit", pi0.vision.component) &&
-        check("mmproj", pi0.mmproj.component) &&
-        check("llm", pi0.llm.component) &&
-        check("state", pi0.state.component) &&
-        check("action_decoder", pi0.action.component);
+    return check("vit", pi0.vision.component) && check("mmproj", pi0.mmproj.component) &&
+           check("llm", pi0.llm.component) && check("state", pi0.state.component) &&
+           check("action_decoder", pi0.action.component);
 }
 
-bool read_component_metadata(
-    const std::string & path,
-    const char * role,
-    Pi0ModelConfig & component_config) {
-    ggml_context * meta = nullptr;
+bool read_component_metadata(const std::string & path, const char * role, Pi0ModelConfig & component_config) {
+    ggml_context * meta     = nullptr;
     gguf_init_params params = {
-        /*.no_alloc =*/ true,
-        /*.ctx      =*/ &meta,
+        /*.no_alloc =*/true,
+        /*.ctx      =*/&meta,
     };
     gguf_context * gguf = gguf_init_from_file(path.c_str(), params);
     if (gguf == nullptr) {
@@ -563,17 +511,14 @@ bool read_component_metadata(
         return pi0_load_error("unsupported pi0 component model_type: " + component_config.common.model_type);
     }
     if (component_config.component_role != role) {
-        const std::string actual = component_config.component_role.empty() ? "<missing>" : component_config.component_role;
+        const std::string actual =
+            component_config.component_role.empty() ? "<missing>" : component_config.component_role;
         return pi0_load_error(std::string("pi0 component role mismatch: expected ") + role + ", got " + actual);
     }
     return true;
 }
 
-bool merge_component_config(
-    const std::string & path,
-    const char * role,
-    Pi0ModelConfig & config,
-    bool & have_config) {
+bool merge_component_config(const std::string & path, const char * role, Pi0ModelConfig & config, bool & have_config) {
     if (!require_path(path, role)) {
         return false;
     }
@@ -582,22 +527,16 @@ bool merge_component_config(
         return false;
     }
     if (!have_config) {
-        config = component_config;
+        config      = component_config;
         have_config = true;
     } else {
         const Pi0CommonConfig & lhs = config.common;
         const Pi0CommonConfig & rhs = component_config.common;
-        if (lhs.model_type != rhs.model_type ||
-            lhs.image_width != rhs.image_width ||
-            lhs.image_height != rhs.image_height ||
-            lhs.state_dim != rhs.state_dim ||
-            lhs.action_dim != rhs.action_dim ||
-            lhs.action_horizon != rhs.action_horizon ||
-            lhs.max_token_len != rhs.max_token_len ||
-            lhs.image_keys != rhs.image_keys ||
-            lhs.state_mean != rhs.state_mean ||
-            lhs.state_std != rhs.state_std ||
-            lhs.action_mean != rhs.action_mean ||
+        if (lhs.model_type != rhs.model_type || lhs.image_width != rhs.image_width ||
+            lhs.image_height != rhs.image_height || lhs.state_dim != rhs.state_dim ||
+            lhs.action_dim != rhs.action_dim || lhs.action_horizon != rhs.action_horizon ||
+            lhs.max_token_len != rhs.max_token_len || lhs.image_keys != rhs.image_keys ||
+            lhs.state_mean != rhs.state_mean || lhs.state_std != rhs.state_std || lhs.action_mean != rhs.action_mean ||
             lhs.action_std != rhs.action_std) {
             return pi0_load_error(std::string("pi0 component config mismatch: ") + role);
         }
@@ -606,11 +545,8 @@ bool merge_component_config(
     return true;
 }
 
-bool load_component_tensors(
-    const std::string & path,
-    const char * role,
-    ggml_backend_buffer_type_t model_buft,
-    gguf_load_result & out_component) {
+bool load_component_tensors(const std::string & path, const char * role, ggml_backend_buffer_type_t model_buft,
+                            gguf_load_result & out_component) {
     Pi0ModelConfig component_config;
     Pi0ComponentLoader loader(component_config);
     if (!loader.load(path.c_str(), model_buft, out_component, 0)) {
@@ -621,25 +557,24 @@ bool load_component_tensors(
         return pi0_load_error("unsupported pi0 component model_type: " + component_config.common.model_type);
     }
     if (component_config.component_role != role) {
-        const std::string actual = component_config.component_role.empty() ? "<missing>" : component_config.component_role;
+        const std::string actual =
+            component_config.component_role.empty() ? "<missing>" : component_config.component_role;
         free_pi0_loaded_component(out_component);
         return pi0_load_error(std::string("pi0 component role mismatch: expected ") + role + ", got " + actual);
     }
     return true;
 }
 
-bool init_pi0_component_backends(
-    const Pi0ModelConfig & config,
-    const Pi0BackendConfig & backend,
-    Pi0Components & components,
-    int verbosity) {
+bool init_pi0_component_backends(const Pi0ModelConfig & config, const Pi0BackendConfig & backend,
+                                 Pi0Components & components, int verbosity) {
     const Pi0Config & pi0 = pi0_config(config);
     try {
         pi0_init_component_runtime(components.vit.runtime, backend, pi0.vision.component, "vit", verbosity);
         pi0_init_component_runtime(components.mmproj.runtime, backend, pi0.mmproj.component, "mmproj", verbosity);
         pi0_init_component_runtime(components.llm.runtime, backend, pi0.llm.component, "llm", verbosity);
         pi0_init_component_runtime(components.state.runtime, backend, pi0.state.component, "state", verbosity);
-        pi0_init_component_runtime(components.action_decoder.runtime, backend, pi0.action.component, "action_decoder", verbosity);
+        pi0_init_component_runtime(components.action_decoder.runtime, backend, pi0.action.component, "action_decoder",
+                                   verbosity);
     } catch (const std::exception & error) {
         return pi0_load_error(error.what());
     }
@@ -648,12 +583,8 @@ bool init_pi0_component_backends(
 
 } // namespace
 
-bool load_pi0_components(
-    const Pi0ComponentPaths & paths,
-    const Pi0BackendConfig & backend,
-    Pi0ModelConfig & out_config,
-    Pi0Components & out_components,
-    int verbosity) {
+bool load_pi0_components(const Pi0ComponentPaths & paths, const Pi0BackendConfig & backend, Pi0ModelConfig & out_config,
+                         Pi0Components & out_components, int verbosity) {
     Pi0ModelConfig config;
     bool have_config = false;
     if (!merge_component_config(paths.vit, "vit", config, have_config)) {
@@ -684,29 +615,31 @@ bool load_pi0_components(
     if (!init_pi0_component_backends(config, backend, components, verbosity)) {
         return false;
     }
-    if (!load_component_tensors(paths.vit, "vit", components.vit.runtime.buft_policy.model_buft, components.vit.loaded)) {
+    if (!load_component_tensors(paths.vit, "vit", components.vit.runtime.buft_policy.model_buft,
+                                components.vit.loaded)) {
         return false;
     }
-    if (!load_component_tensors(paths.mmproj, "mmproj", components.mmproj.runtime.buft_policy.model_buft, components.mmproj.loaded)) {
+    if (!load_component_tensors(paths.mmproj, "mmproj", components.mmproj.runtime.buft_policy.model_buft,
+                                components.mmproj.loaded)) {
         return false;
     }
-    if (!load_component_tensors(paths.llm, "llm", components.llm.runtime.buft_policy.model_buft, components.llm.loaded)) {
+    if (!load_component_tensors(paths.llm, "llm", components.llm.runtime.buft_policy.model_buft,
+                                components.llm.loaded)) {
         return false;
     }
-    if (!load_component_tensors(paths.state, "state", components.state.runtime.buft_policy.model_buft, components.state.loaded)) {
+    if (!load_component_tensors(paths.state, "state", components.state.runtime.buft_policy.model_buft,
+                                components.state.loaded)) {
         return false;
     }
-    if (!load_component_tensors(
-            paths.action_decoder,
-            "action_decoder",
-            components.action_decoder.runtime.buft_policy.model_buft,
-            components.action_decoder.loaded)) {
+    if (!load_component_tensors(paths.action_decoder, "action_decoder",
+                                components.action_decoder.runtime.buft_policy.model_buft,
+                                components.action_decoder.loaded)) {
         return false;
     }
     if (!validate_pi0_model_config(config, components)) {
         return false;
     }
-    out_config = std::move(config);
+    out_config     = std::move(config);
     out_components = std::move(components);
     return true;
 }
@@ -732,27 +665,19 @@ static bool validate_pi0_model_config(Pi0ModelConfig & config, const Pi0Componen
     if (config.common.state_dim > 0) {
         ggml_tensor * state_w = find_pi0_tensor(components.state.loaded.ctx_data, pi0_state_tensor(config, "weight"));
         ggml_tensor * state_b = find_pi0_tensor(components.state.loaded.ctx_data, pi0_state_tensor(config, "bias"));
-        if (state_w == nullptr || state_b == nullptr ||
-            ggml_n_dims(state_w) != 2 ||
-            state_w->ne[0] != config.common.state_dim ||
-            ggml_n_dims(state_b) != 1 ||
-            state_b->ne[0] != state_w->ne[1] ||
-            (pi0.action.width > 0 && state_w->ne[1] != pi0.action.width)) {
-            return pi0_load_error("pi0 state component requires state_proj tensors with ggml ne order [state_dim, action_width]");
+        if (state_w == nullptr || state_b == nullptr || ggml_n_dims(state_w) != 2 ||
+            state_w->ne[0] != config.common.state_dim || ggml_n_dims(state_b) != 1 ||
+            state_b->ne[0] != state_w->ne[1] || (pi0.action.width > 0 && state_w->ne[1] != pi0.action.width)) {
+            return pi0_load_error(
+                "pi0 state component requires state_proj tensors with ggml ne order [state_dim, action_width]");
         }
     }
     if (!has_valid_pi0_action_projection_tensors(config, components.action_decoder.loaded.ctx_data)) {
         return pi0_load_error("pi0 model requires pi0 action decoder projection tensors");
     }
     const bool required_weights_present =
-        pi0.vision.layers > 0 &&
-        pi0.vision.width > 0 &&
-        pi0.vision.patch_height > 0 &&
-        pi0.vision.patch_width > 0 &&
-        pi0.vision.heads > 0 &&
-        pi0.vision.norm_epsilon > 0.0f &&
-        pi0.llm.layers > 0 &&
-        pi0.action.expert_layers > 0 &&
+        pi0.vision.layers > 0 && pi0.vision.width > 0 && pi0.vision.patch_height > 0 && pi0.vision.patch_width > 0 &&
+        pi0.vision.heads > 0 && pi0.vision.norm_epsilon > 0.0f && pi0.llm.layers > 0 && pi0.action.expert_layers > 0 &&
         has_valid_pi0_vit_tensors(config, components.vit.loaded.ctx_data) &&
         has_valid_pi0_merger_tensors(config, components.mmproj.loaded.ctx_data) &&
         has_valid_pi0_language_tensors(config, components.llm.loaded.ctx_data) &&

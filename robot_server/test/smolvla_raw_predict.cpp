@@ -25,19 +25,19 @@ struct args_t {
     std::string raw_rgb_path;
     std::string dump_dir;
     std::string state_csv;
-    std::string task = "grab the block.";
-    int width = 0;
-    int height = 0;
-    int channels = 3;
-    int stride_bytes = 0;
-    int threads = 0;
-    int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
+    std::string task   = "grab the block.";
+    int width          = 0;
+    int height         = 0;
+    int channels       = 3;
+    int stride_bytes   = 0;
+    int threads        = 0;
+    int noise_mode     = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
-    int verbosity = 0;
+    int verbosity      = 0;
 };
 
 static void quiet_llama_log_callback(ggml_log_level level, const char * text, void * user_data) {
-    (void) user_data;
+    (void)user_data;
     if (level == GGML_LOG_LEVEL_ERROR) {
         std::fputs(text, stderr);
     }
@@ -86,11 +86,11 @@ static bool read_file_bytes(const std::string & path, std::vector<uint8_t> & out
         return false;
     }
     fin.seekg(0, std::ios::beg);
-    out.assign((size_t) size, 0);
+    out.assign((size_t)size, 0);
     if (!out.empty()) {
-        fin.read((char *) out.data(), size);
+        fin.read((char *)out.data(), size);
     }
-    return (bool) fin || fin.eof();
+    return (bool)fin || fin.eof();
 }
 
 static bool write_actions_dump(const std::string & dir, const smolvla_result & result) {
@@ -119,27 +119,27 @@ static bool write_actions_dump(const std::string & dir, const smolvla_result & r
             std::fprintf(stderr, "Error: failed to write final_actions.bin\n");
             return false;
         }
-        fout.write((const char *) result.actions, (size_t) result.chunk_size * (size_t) result.action_dim * sizeof(float));
+        fout.write((const char *)result.actions, (size_t)result.chunk_size * (size_t)result.action_dim * sizeof(float));
     }
     return true;
 }
 
 static void print_usage(const char * prog) {
     std::fprintf(stderr,
-        "Usage: %s --llm <path> --mmproj <path> --raw-rgb <path> --width <w> --height <h> [options]\n"
-        "  --llm <path>             LLM GGUF path\n"
-        "  --state-proj <path>      State projector GGUF path\n"
-        "  --action-expert <path>   Action expert GGUF path\n"
-        "  --state <csv>            State values\n"
-        "  --task <str>             Task instruction\n"
-        "  --channels <n>           Must be 3 (default: 3)\n"
-        "  --stride-bytes <n>       Row stride, <=0 means width*3\n"
-        "  --threads <n>            CPU threads\n"
-        "  --noise-mode <mode>      gaussian|debug-sin\n"
-        "  --noise-seed <n>         RNG seed\n"
-        "  --dump-dir <path>        Write meta.txt and final_actions.bin\n"
-        "  --verbosity <n>          Engine verbosity\n",
-        prog);
+                 "Usage: %s --llm <path> --mmproj <path> --raw-rgb <path> --width <w> --height <h> [options]\n"
+                 "  --llm <path>             LLM GGUF path\n"
+                 "  --state-proj <path>      State projector GGUF path\n"
+                 "  --action-expert <path>   Action expert GGUF path\n"
+                 "  --state <csv>            State values\n"
+                 "  --task <str>             Task instruction\n"
+                 "  --channels <n>           Must be 3 (default: 3)\n"
+                 "  --stride-bytes <n>       Row stride, <=0 means width*3\n"
+                 "  --threads <n>            CPU threads\n"
+                 "  --noise-mode <mode>      gaussian|debug-sin\n"
+                 "  --noise-seed <n>         RNG seed\n"
+                 "  --dump-dir <path>        Write meta.txt and final_actions.bin\n"
+                 "  --verbosity <n>          Engine verbosity\n",
+                 prog);
 }
 
 static bool parse_args(int argc, char ** argv, args_t & args) {
@@ -178,7 +178,7 @@ static bool parse_args(int argc, char ** argv, args_t & args) {
                 return false;
             }
         } else if (arg == "--noise-seed" && i + 1 < argc) {
-            args.noise_seed = (int64_t) std::atoll(argv[++i]);
+            args.noise_seed = (int64_t)std::atoll(argv[++i]);
         } else if (arg == "--dump-dir" && i + 1 < argc) {
             args.dump_dir = argv[++i];
         } else if (arg == "--verbosity" && i + 1 < argc) {
@@ -188,8 +188,8 @@ static bool parse_args(int argc, char ** argv, args_t & args) {
             return false;
         }
     }
-    if (args.llm_path.empty() || args.mmproj_path.empty() || args.raw_rgb_path.empty() ||
-        args.width <= 0 || args.height <= 0) {
+    if (args.llm_path.empty() || args.mmproj_path.empty() || args.raw_rgb_path.empty() || args.width <= 0 ||
+        args.height <= 0) {
         return false;
     }
     return true;
@@ -211,8 +211,8 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    const int stride = args.stride_bytes <= 0 ? args.width * args.channels : args.stride_bytes;
-    const size_t min_len = (size_t) stride * (size_t) args.height;
+    const int stride     = args.stride_bytes <= 0 ? args.width * args.channels : args.stride_bytes;
+    const size_t min_len = (size_t)stride * (size_t)args.height;
     if (raw.size() < min_len) {
         std::fprintf(stderr, "Error: raw RGB file too small: got %zu need at least %zu\n", raw.size(), min_len);
         return 1;
@@ -223,15 +223,15 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    smolvla_params params = smolvla_default_params();
-    params.llm_path = args.llm_path.c_str();
-    params.mmproj_path = args.mmproj_path.c_str();
-    params.state_proj_path = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
+    smolvla_params params     = smolvla_default_params();
+    params.llm_path           = args.llm_path.c_str();
+    params.mmproj_path        = args.mmproj_path.c_str();
+    params.state_proj_path    = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
-    params.n_threads = args.threads;
-    params.noise_mode = args.noise_mode;
-    params.noise_seed = args.noise_seed;
-    params.verbosity = args.verbosity;
+    params.n_threads          = args.threads;
+    params.noise_mode         = args.noise_mode;
+    params.noise_seed         = args.noise_seed;
+    params.verbosity          = args.verbosity;
 
     smolvla_context * ctx = smolvla_init(params);
     if (!ctx) {
@@ -239,24 +239,16 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    smolvla_result result = smolvla_predict_raw_rgb(
-        ctx,
-        raw.data(),
-        args.width,
-        args.height,
-        args.channels,
-        args.stride_bytes,
-        state.empty() ? nullptr : state.data(),
-        (int) state.size(),
-        args.task.c_str());
+    smolvla_result result =
+        smolvla_predict_raw_rgb(ctx, raw.data(), args.width, args.height, args.channels, args.stride_bytes,
+                                state.empty() ? nullptr : state.data(), (int)state.size(), args.task.c_str());
     if (!result.actions) {
         std::fprintf(stderr, "Error: raw predict failed\n");
         smolvla_free(ctx);
         return 1;
     }
 
-    std::cout << "chunk_size=" << result.chunk_size
-              << " action_dim=" << result.action_dim
+    std::cout << "chunk_size=" << result.chunk_size << " action_dim=" << result.action_dim
               << " first_action=" << std::fixed << std::setprecision(6) << result.actions[0] << "\n";
 
     const bool dump_ok = write_actions_dump(args.dump_dir, result);

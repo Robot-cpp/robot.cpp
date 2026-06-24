@@ -10,6 +10,8 @@
 
 ```
 eval/lerobot_so101/
+├── run_sync.py                 # 入口：ROBOT_PLATFORM -> SyncControlLoop
+├── sync_loop.py                # observe -> predict -> act 循环
 ├── so101_client.py             # SO101RobotClient（BasePolicy 实现）
 ├── utils/
 │   ├── robot.py                # build_camera_config 等
@@ -18,10 +20,7 @@ eval/lerobot_so101/
 ├── test/                       # test_camera.py, run_camera_test.sh
 └── shell/                      # so101_env.sh, run_robot_client.sh 等
 
-robot_client/base_policy/
-├── run_sync.py                 # 入口：ROBOT_PLATFORM -> SyncControlLoop
-├── base.py                     # BasePolicy
-└── sync_loop.py                # observe -> predict -> act 循环
+eval/base_platform.py           # BasePolicy
 ```
 
 ## 安装
@@ -51,7 +50,7 @@ pip install -e "eval/lerobot_so101/lerobot_camera_opencv_crop"
 | `MODEL_IMAGE_NAME`            | 发给 model-server 的 image key（本 checkpoint 默认 `observation.images.camera1`） |
 | `CAMERA_`*                    | 分辨率、backend、resize、warmup 等                              |
 | `ROBOT_USE_DEGREES`           | follower 关节单位（默认 degrees）                                |
-| `ROBOT_PLATFORM`              | `base_policy` 平台（默认 `lerobot_so101` → `so101_client.py`） |
+| `ROBOT_PLATFORM`              | 平台选择（默认 `lerobot_so101` → `eval.lerobot_so101.so101_client`） |
 | `SERVER` / `TASK` / `FPS`     | vla.cpp TCP 推理                                           |
 | `DATASET_REPO_ID` 等           | 录制数据集                                                    |
 
@@ -88,7 +87,7 @@ bash eval/lerobot_so101/shell/run_robot_client.sh
 
 ```bash
 source eval/lerobot_so101/shell/so101_env.sh
-python -m base_policy
+python -m eval.lerobot_so101.run_sync
 ```
 
 按键：**R** 回 home，**Q** 退出。
@@ -136,4 +135,3 @@ cd eval/lerobot_so101
 cd eval/lerobot_so101
 ./shell/record_dataset.sh
 ```
-

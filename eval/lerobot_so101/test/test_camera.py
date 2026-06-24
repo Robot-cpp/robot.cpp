@@ -24,8 +24,8 @@ from lerobot.cameras.configs import Cv2Backends
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.import_utils import register_third_party_plugins
 
-from utils.robot import build_camera_config
-from model_client import image_to_rgb_hwc_u8_bytes, state_to_list
+from eval.lerobot_so101.utils.robot import build_camera_config
+from robot_client.python.model_client import image_to_rgb_hwc_u8_bytes, state_to_list
 
 # Default matches shell/run_robot_client.sh (camera1 + warmup_s).
 DEFAULT_ROBOT_CAMERAS = (

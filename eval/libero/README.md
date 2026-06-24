@@ -199,8 +199,8 @@ stay last because it consumes the rest of the command line. The runner itself is
 model-agnostic; pi0-specific values appear only in this launch command. The
 optional `ROBOTCPP_BACKEND` environment override selects the server backend.
 
-The reusable simulation policy and server lifecycle helpers live in
-`robot_client/base_policy/sim_policy.py`. The LIBERO client supplies only the
+The reusable base policy and server lifecycle helpers live in
+`robot_client/policy/base_policy.py`. The LIBERO client supplies only the
 LIBERO-specific request adapter, matching LeRobot LIBERO rollout input
 semantics:
 

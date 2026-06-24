@@ -15,10 +15,10 @@ enum class model_type {
 struct model_image {
     std::string name;
     const uint8_t * data = nullptr;
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    int stride_bytes = 0;
+    int width            = 0;
+    int height           = 0;
+    int channels         = 0;
+    int stride_bytes     = 0;
 };
 
 struct observation {
@@ -41,17 +41,17 @@ struct model_result {
 
 struct model_args {
     model_type type = model_type::smolvla;
-    int threads = 0;
-    int verbosity = 0;
+    int threads     = 0;
+    int verbosity   = 0;
 
     // smolvla
     std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;
-    int n_batch = 512;
-    int n_ctx = 2048;
-    int noise_mode = 0;
+    int n_batch        = 512;
+    int n_ctx          = 2048;
+    int noise_mode     = 0;
     int64_t noise_seed = -1;
 
     // pi0
@@ -62,19 +62,13 @@ struct model_args {
 };
 
 class Model {
-public:
-    virtual ~Model() = default;
-    virtual const char * type() const = 0;
-    virtual bool predict(
-        const observation & obs,
-        model_result & out,
-        std::string & error) = 0;
+  public:
+    virtual ~Model()                                                                       = default;
+    virtual const char * type() const                                                      = 0;
+    virtual bool predict(const observation & obs, model_result & out, std::string & error) = 0;
     virtual void reset() {}
 };
 
-bool make_model(
-    const model_args & args,
-    std::unique_ptr<Model> & out,
-    std::string & error);
+bool make_model(const model_args & args, std::unique_ptr<Model> & out, std::string & error);
 
 } // namespace robotcpp

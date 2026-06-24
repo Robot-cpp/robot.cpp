@@ -35,7 +35,7 @@ bool startup(std::string & error) {
         return false;
     }
 #else
-    (void) error;
+    (void)error;
 #endif
     return true;
 }
@@ -54,19 +54,19 @@ socket_handle tcp_listen(const char * host, uint16_t port, int backlog, std::str
     }
 
     int yes = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *) &yes, sizeof(yes));
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
 
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port   = htons(port);
     if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
         error = std::string("invalid IPv4 host: ") + host;
         close(fd);
         return invalid_socket;
     }
 
-    if (::bind(fd, (sockaddr *) &addr, sizeof(addr)) != 0) {
+    if (::bind(fd, (sockaddr *)&addr, sizeof(addr)) != 0) {
         error = socket_error_string("bind failed");
         close(fd);
         return invalid_socket;
@@ -81,8 +81,8 @@ socket_handle tcp_listen(const char * host, uint16_t port, int backlog, std::str
 
 socket_handle tcp_accept(socket_handle server, std::string & peer, std::string & error) {
     sockaddr_in addr;
-    socklen_t len = sizeof(addr);
-    socket_handle fd = ::accept(server, (sockaddr *) &addr, &len);
+    socklen_t len    = sizeof(addr);
+    socket_handle fd = ::accept(server, (sockaddr *)&addr, &len);
     if (fd == invalid_socket) {
         error = socket_error_string("accept failed");
         return invalid_socket;
@@ -107,13 +107,13 @@ socket_handle tcp_connect(const char * host, uint16_t port, std::string & error)
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port   = htons(port);
     if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
         error = std::string("invalid IPv4 host: ") + host;
         close(fd);
         return invalid_socket;
     }
-    if (::connect(fd, (sockaddr *) &addr, sizeof(addr)) != 0) {
+    if (::connect(fd, (sockaddr *)&addr, sizeof(addr)) != 0) {
         error = socket_error_string("connect failed");
         close(fd);
         return invalid_socket;
@@ -122,11 +122,11 @@ socket_handle tcp_connect(const char * host, uint16_t port, std::string & error)
 }
 
 bool send_all(socket_handle fd, const void * data, size_t len, std::string & error) {
-    const uint8_t * p = (const uint8_t *) data;
-    size_t sent = 0;
+    const uint8_t * p = (const uint8_t *)data;
+    size_t sent       = 0;
     while (sent < len) {
 #ifdef _WIN32
-        int n = ::send(fd, (const char *) p + sent, (int) (len - sent), 0);
+        int n = ::send(fd, (const char *)p + sent, (int)(len - sent), 0);
 #else
         ssize_t n = ::send(fd, p + sent, len - sent, 0);
 #endif
@@ -134,17 +134,17 @@ bool send_all(socket_handle fd, const void * data, size_t len, std::string & err
             error = socket_error_string("send failed");
             return false;
         }
-        sent += (size_t) n;
+        sent += (size_t)n;
     }
     return true;
 }
 
 bool recv_exact(socket_handle fd, void * data, size_t len, std::string & error) {
-    uint8_t * p = (uint8_t *) data;
+    uint8_t * p     = (uint8_t *)data;
     size_t received = 0;
     while (received < len) {
 #ifdef _WIN32
-        int n = ::recv(fd, (char *) p + received, (int) (len - received), 0);
+        int n = ::recv(fd, (char *)p + received, (int)(len - received), 0);
 #else
         ssize_t n = ::recv(fd, p + received, len - received, 0);
 #endif
@@ -156,7 +156,7 @@ bool recv_exact(socket_handle fd, void * data, size_t len, std::string & error) 
             error = socket_error_string("recv failed");
             return false;
         }
-        received += (size_t) n;
+        received += (size_t)n;
     }
     return true;
 }

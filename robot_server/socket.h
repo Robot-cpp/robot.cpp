@@ -13,10 +13,10 @@ namespace robot_server {
 namespace sockets {
 
 #ifdef _WIN32
-using socket_handle = SOCKET;
+using socket_handle                           = SOCKET;
 static constexpr socket_handle invalid_socket = INVALID_SOCKET;
 #else
-using socket_handle = int;
+using socket_handle                           = int;
 static constexpr socket_handle invalid_socket = -1;
 #endif
 
