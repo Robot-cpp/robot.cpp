@@ -13,7 +13,7 @@ namespace {
 
 void add_metric(model_result & out, const char * name, double value) {
     model_metric metric;
-    metric.name = name;
+    metric.name  = name;
     metric.value = value;
     out.metrics.push_back(metric);
 }
@@ -41,17 +41,17 @@ bool validate_options(const model_args & options, std::string & error) {
 } // namespace
 
 SmolVLAModel::SmolVLAModel(const model_args & args) : args_(args) {
-    smolvla_params params = smolvla_default_params();
-    params.llm_path = args_.llm_path.c_str();
-    params.mmproj_path = args_.mmproj_path.c_str();
-    params.state_proj_path = args_.state_proj_path.c_str();
+    smolvla_params params     = smolvla_default_params();
+    params.llm_path           = args_.llm_path.c_str();
+    params.mmproj_path        = args_.mmproj_path.c_str();
+    params.state_proj_path    = args_.state_proj_path.c_str();
     params.action_expert_path = args_.action_expert_path.c_str();
-    params.n_threads = args_.threads;
-    params.n_batch = args_.n_batch;
-    params.n_ctx = args_.n_ctx;
-    params.noise_mode = args_.noise_mode;
-    params.noise_seed = args_.noise_seed;
-    params.verbosity = args_.verbosity;
+    params.n_threads          = args_.threads;
+    params.n_batch            = args_.n_batch;
+    params.n_ctx              = args_.n_ctx;
+    params.noise_mode         = args_.noise_mode;
+    params.noise_seed         = args_.noise_seed;
+    params.verbosity          = args_.verbosity;
 
     ctx_ = smolvla_init(params);
 }
@@ -84,11 +84,11 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
             return false;
         }
         smolvla_image_view view{};
-        view.name = image.name.empty() ? nullptr : image.name.c_str();
-        view.data = image.data;
-        view.width = image.width;
-        view.height = image.height;
-        view.channels = image.channels;
+        view.name         = image.name.empty() ? nullptr : image.name.c_str();
+        view.data         = image.data;
+        view.width        = image.width;
+        view.height       = image.height;
+        view.channels     = image.channels;
         view.stride_bytes = image.stride_bytes;
         views.push_back(view);
     }

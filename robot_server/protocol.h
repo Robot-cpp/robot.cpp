@@ -8,25 +8,25 @@
 namespace robot_server {
 namespace protocol {
 
-static constexpr uint32_t k_magic = 0x414c5653u; // "SVLA" in little-endian bytes.
-static constexpr uint16_t k_version = 3;
-static constexpr uint16_t k_header_size = 32;
+static constexpr uint32_t k_magic               = 0x414c5653u; // "SVLA" in little-endian bytes.
+static constexpr uint16_t k_version             = 3;
+static constexpr uint16_t k_header_size         = 32;
 static constexpr uint64_t k_default_max_payload = 256ull * 1024ull * 1024ull;
 
 enum op : uint16_t {
-    op_health = 1,
-    op_reset = 2,
-    op_predict = 3,
+    op_health   = 1,
+    op_reset    = 2,
+    op_predict  = 3,
     op_shutdown = 4,
 };
 
 enum status : uint32_t {
-    status_ok = 0,
-    status_bad_request = 1,
-    status_bad_magic = 2,
-    status_bad_version = 3,
+    status_ok              = 0,
+    status_bad_request     = 1,
+    status_bad_magic       = 2,
+    status_bad_version     = 3,
     status_payload_too_big = 4,
-    status_internal_error = 5,
+    status_internal_error  = 5,
 };
 
 enum image_format : uint32_t {
@@ -35,24 +35,24 @@ enum image_format : uint32_t {
 
 struct image_payload {
     uint32_t image_format = image_raw_rgb_u8;
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t channels = 0;
+    uint32_t width        = 0;
+    uint32_t height       = 0;
+    uint32_t channels     = 0;
     uint32_t stride_bytes = 0;
     std::string name;
     std::vector<uint8_t> data;
 };
 
 struct header {
-    uint32_t magic = k_magic;
-    uint16_t version = k_version;
+    uint32_t magic       = k_magic;
+    uint16_t version     = k_version;
     uint16_t header_size = k_header_size;
-    uint16_t op = 0;
-    uint16_t flags = 0;
-    uint32_t request_id = 0;
-    uint32_t status = status_ok;
+    uint16_t op          = 0;
+    uint16_t flags       = 0;
+    uint32_t request_id  = 0;
+    uint32_t status      = status_ok;
     uint64_t payload_len = 0;
-    uint32_t reserved = 0;
+    uint32_t reserved    = 0;
 };
 
 struct metric {

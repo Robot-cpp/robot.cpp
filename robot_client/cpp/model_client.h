@@ -12,10 +12,10 @@ namespace client {
 
 struct ModelImage {
     const uint8_t * rgb_hwc_u8 = nullptr;
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t stride_bytes = 0;
-    std::string name = "image";
+    uint32_t width             = 0;
+    uint32_t height            = 0;
+    uint32_t stride_bytes      = 0;
+    std::string name           = "image";
 };
 
 struct ModelObservation {
@@ -48,7 +48,7 @@ class ModelClient {
               std::string & error);
 
     std::string host_;
-    uint16_t port_ = 5555;
+    uint16_t port_            = 5555;
     uint32_t next_request_id_ = 1;
 };
 

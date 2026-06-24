@@ -14,7 +14,7 @@ namespace {
 
 void add_metric(model_result & out, const char * name, double value) {
     model_metric metric;
-    metric.name = name;
+    metric.name  = name;
     metric.value = value;
     out.metrics.push_back(metric);
 }
@@ -50,16 +50,16 @@ bool validate_options(const model_args & args, std::string & error) {
 } // namespace
 
 Pi0Model::Pi0Model(const model_args & args) : args_(args) {
-    pi0_params params = pi0_default_params();
-    params.vit_path = args_.vit_path.c_str();
-    params.mmproj_path = args_.mmproj_path.c_str();
-    params.llm_path = args_.llm_path.c_str();
-    params.tokenizer_path = args_.tokenizer_path.c_str();
-    params.state_path = args_.state_path.c_str();
+    pi0_params params          = pi0_default_params();
+    params.vit_path            = args_.vit_path.c_str();
+    params.mmproj_path         = args_.mmproj_path.c_str();
+    params.llm_path            = args_.llm_path.c_str();
+    params.tokenizer_path      = args_.tokenizer_path.c_str();
+    params.state_path          = args_.state_path.c_str();
     params.action_decoder_path = args_.action_decoder_path.c_str();
-    params.n_threads = args_.threads;
-    params.noise_seed = args_.noise_seed;
-    params.verbosity = args_.verbosity;
+    params.n_threads           = args_.threads;
+    params.noise_seed          = args_.noise_seed;
+    params.verbosity           = args_.verbosity;
 
     ctx_ = pi0_init(params);
 }
@@ -96,11 +96,11 @@ bool Pi0Model::predict(const observation & obs, model_result & out, std::string 
             return false;
         }
         pi0_image_view view{};
-        view.name = image.name.c_str();
-        view.data = image.data;
-        view.width = image.width;
-        view.height = image.height;
-        view.channels = image.channels;
+        view.name         = image.name.c_str();
+        view.data         = image.data;
+        view.width        = image.width;
+        view.height       = image.height;
+        view.channels     = image.channels;
         view.stride_bytes = image.stride_bytes;
         views.push_back(view);
     }
@@ -113,8 +113,8 @@ bool Pi0Model::predict(const observation & obs, model_result & out, std::string 
         return false;
     }
 
-    out.chunk_size = result.chunk_size;
-    out.action_dim = result.action_dim;
+    out.chunk_size     = result.chunk_size;
+    out.action_dim     = result.action_dim;
     const size_t count = static_cast<size_t>(result.chunk_size) * static_cast<size_t>(result.action_dim);
     out.actions.assign(result.actions, result.actions + count);
 

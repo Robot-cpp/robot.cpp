@@ -9,8 +9,8 @@
 #include <vector>
 
 struct gguf_load_result {
-    gguf_context * gguf = nullptr;
-    ggml_context * ctx_data = nullptr;
+    gguf_context * gguf                = nullptr;
+    ggml_context * ctx_data            = nullptr;
     ggml_backend_buffer_t model_buffer = nullptr;
 };
 
@@ -23,7 +23,7 @@ class gguf_loader {
     const std::string & error() const;
 
   protected:
-    virtual bool parse_metadata(gguf_context * gguf) = 0;
+    virtual bool parse_metadata(gguf_context * gguf)   = 0;
     virtual bool bind_tensors(ggml_context * ctx_data) = 0;
 
     uint32_t require_u32(gguf_context * gguf, const char * key);

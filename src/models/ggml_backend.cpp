@@ -38,7 +38,7 @@ static ggml_backend_buffer_type_t backend_host_buft(ggml_backend_t backend) {
 
 static bool mode_for_device(ggml_backend_dev_t dev, backend_mode & mode, std::string & error) {
     ggml_backend_reg_t reg = dev ? ggml_backend_dev_backend_reg(dev) : nullptr;
-    const char * reg_name = reg ? ggml_backend_reg_name(reg) : "";
+    const char * reg_name  = reg ? ggml_backend_reg_name(reg) : "";
     if (reg_name && std::strcmp(reg_name, "CUDA") == 0) {
         mode = backend_mode::cuda;
         return true;
@@ -71,10 +71,10 @@ bool backend_loader::load(ggml_backend_t & cpu_backend, std::vector<ggml_backend
                           ggml_backend_sched_t & scheduler, backend_buft_policy & buft_policy, bool use_accel,
                           const backend_scheduler_config & scheduler_config, int verbosity) {
     cpu_backend = nullptr;
-    scheduler = nullptr;
+    scheduler   = nullptr;
     backends.clear();
     buft_policy = backend_buft_policy();
-    mode_ = backend_mode::cpu;
+    mode_       = backend_mode::cpu;
 
     if (!init_backends(cpu_backend, backends, use_accel, verbosity) ||
         !init_buft_policy(cpu_backend, backends, buft_policy, verbosity) ||
@@ -88,11 +88,11 @@ bool backend_loader::load(ggml_backend_t & cpu_backend, std::vector<ggml_backend
 bool backend_loader::init_backends(ggml_backend_t & cpu_backend, std::vector<ggml_backend_t> & backends, bool use_accel,
                                    int verbosity) {
 
-    mode_ = backend_mode::cpu;
+    mode_                     = backend_mode::cpu;
     const backend_mode wanted = desired_mode();
 
     for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        ggml_backend_dev_t dev                = ggml_backend_dev_get(i);
         const enum ggml_backend_dev_type type = ggml_backend_dev_type(dev);
         if (type == GGML_BACKEND_DEVICE_TYPE_CPU) {
             continue;
@@ -155,16 +155,16 @@ bool backend_loader::init_buft_policy(ggml_backend_t cpu_backend, const std::vec
     }
 
     ggml_backend_buffer_type_t host_buft = backend_host_buft(backends.front());
-    buft_policy.host_buft = host_buft ? host_buft : cpu_buft;
+    buft_policy.host_buft                = host_buft ? host_buft : cpu_buft;
     if (mode_ == backend_mode::cpu) {
-        buft_policy.model_buft = cpu_buft;
+        buft_policy.model_buft   = cpu_buft;
         buft_policy.runtime_buft = cpu_buft;
     } else if (mode_ == backend_mode::cuda || mode_ == backend_mode::metal) {
         ggml_backend_buffer_type_t device_buft = ggml_backend_get_default_buffer_type(backends.front());
         if (!device_buft) {
             return fail("failed to resolve primary backend buffer type");
         }
-        buft_policy.model_buft = device_buft;
+        buft_policy.model_buft   = device_buft;
         buft_policy.runtime_buft = device_buft;
     } else {
         return fail("unsupported backend mode for buffer policy");

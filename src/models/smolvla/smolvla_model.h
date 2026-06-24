@@ -15,7 +15,7 @@ class SmolVLAModel final : public Model {
     SmolVLAModel(const model_args & args);
     ~SmolVLAModel() override;
 
-    SmolVLAModel(const SmolVLAModel &) = delete;
+    SmolVLAModel(const SmolVLAModel &)             = delete;
     SmolVLAModel & operator=(const SmolVLAModel &) = delete;
 
     const char * type() const override;

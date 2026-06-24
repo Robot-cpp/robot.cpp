@@ -25,15 +25,15 @@ struct args_t {
     std::string raw_rgb_path;
     std::string dump_dir;
     std::string state_csv;
-    std::string task = "grab the block.";
-    int width = 0;
-    int height = 0;
-    int channels = 3;
-    int stride_bytes = 0;
-    int threads = 0;
-    int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
+    std::string task   = "grab the block.";
+    int width          = 0;
+    int height         = 0;
+    int channels       = 3;
+    int stride_bytes   = 0;
+    int threads        = 0;
+    int noise_mode     = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
-    int verbosity = 0;
+    int verbosity      = 0;
 };
 
 static void quiet_llama_log_callback(ggml_log_level level, const char * text, void * user_data) {
@@ -211,7 +211,7 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    const int stride = args.stride_bytes <= 0 ? args.width * args.channels : args.stride_bytes;
+    const int stride     = args.stride_bytes <= 0 ? args.width * args.channels : args.stride_bytes;
     const size_t min_len = (size_t)stride * (size_t)args.height;
     if (raw.size() < min_len) {
         std::fprintf(stderr, "Error: raw RGB file too small: got %zu need at least %zu\n", raw.size(), min_len);
@@ -223,15 +223,15 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    smolvla_params params = smolvla_default_params();
-    params.llm_path = args.llm_path.c_str();
-    params.mmproj_path = args.mmproj_path.c_str();
-    params.state_proj_path = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
+    smolvla_params params     = smolvla_default_params();
+    params.llm_path           = args.llm_path.c_str();
+    params.mmproj_path        = args.mmproj_path.c_str();
+    params.state_proj_path    = args.state_proj_path.empty() ? nullptr : args.state_proj_path.c_str();
     params.action_expert_path = args.action_expert_path.empty() ? nullptr : args.action_expert_path.c_str();
-    params.n_threads = args.threads;
-    params.noise_mode = args.noise_mode;
-    params.noise_seed = args.noise_seed;
-    params.verbosity = args.verbosity;
+    params.n_threads          = args.threads;
+    params.noise_mode         = args.noise_mode;
+    params.noise_seed         = args.noise_seed;
+    params.verbosity          = args.verbosity;
 
     smolvla_context * ctx = smolvla_init(params);
     if (!ctx) {

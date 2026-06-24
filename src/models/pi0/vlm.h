@@ -19,7 +19,7 @@ class Pi0Tokenizer {
     explicit Pi0Tokenizer(const std::string & tokenizer_path);
     ~Pi0Tokenizer();
 
-    Pi0Tokenizer(const Pi0Tokenizer &) = delete;
+    Pi0Tokenizer(const Pi0Tokenizer &)             = delete;
     Pi0Tokenizer & operator=(const Pi0Tokenizer &) = delete;
 
     bool available() const;

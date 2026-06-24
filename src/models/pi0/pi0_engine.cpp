@@ -62,7 +62,7 @@ struct pi0_context {
     pi0_context(robotcpp::pi0::Pi0ModelConfig config, std::string tokenizer_path,
                 robotcpp::pi0::Pi0Components components, uint32_t seed)
         : model(std::move(config), tokenizer_path, std::move(components)) {
-        runtime.seed = seed;
+        runtime.seed       = seed;
         runtime.flow_steps = 10;
         runtime.rng.seed(seed);
     }
@@ -71,19 +71,19 @@ struct pi0_context {
 pi0_params pi0_default_params(void) {
     pi0_params params;
     std::memset(&params, 0, sizeof(params));
-    params.n_threads = 0;
+    params.n_threads  = 0;
     params.noise_seed = -1;
-    params.verbosity = 1;
+    params.verbosity  = 1;
     return params;
 }
 
 pi0_context * pi0_init(pi0_params params) {
     robotcpp::pi0::Pi0ComponentPaths paths;
-    paths.vit = params.vit_path ? params.vit_path : "";
-    paths.mmproj = params.mmproj_path ? params.mmproj_path : "";
-    paths.llm = params.llm_path ? params.llm_path : "";
-    paths.tokenizer = params.tokenizer_path ? params.tokenizer_path : "";
-    paths.state = params.state_path ? params.state_path : "";
+    paths.vit            = params.vit_path ? params.vit_path : "";
+    paths.mmproj         = params.mmproj_path ? params.mmproj_path : "";
+    paths.llm            = params.llm_path ? params.llm_path : "";
+    paths.tokenizer      = params.tokenizer_path ? params.tokenizer_path : "";
+    paths.state          = params.state_path ? params.state_path : "";
     paths.action_decoder = params.action_decoder_path ? params.action_decoder_path : "";
 
     robotcpp::pi0::Pi0BackendConfig backend;
@@ -117,56 +117,56 @@ pi0_result pi0_predict_raw_rgb(pi0_context * ctx, const pi0_image_view * images,
         return empty_result();
     }
 
-    ctx->last_timings = empty_stage_timings();
+    ctx->last_timings         = empty_stage_timings();
     ctx->runtime.last_timings = {};
 
     std::vector<robotcpp::pi0::Pi0RawImageView> raw_images;
     raw_images.reserve(image_count);
     for (size_t i = 0; i < image_count; ++i) {
         robotcpp::pi0::Pi0RawImageView image;
-        image.name = images[i].name;
-        image.data = images[i].data;
-        image.width = images[i].width;
-        image.height = images[i].height;
-        image.channels = images[i].channels;
+        image.name         = images[i].name;
+        image.data         = images[i].data;
+        image.width        = images[i].width;
+        image.height       = images[i].height;
+        image.channels     = images[i].channels;
         image.stride_bytes = images[i].stride_bytes;
         raw_images.push_back(image);
     }
 
     robotcpp::pi0::Pi0RawObservation raw;
-    raw.images = raw_images.empty() ? nullptr : raw_images.data();
+    raw.images      = raw_images.empty() ? nullptr : raw_images.data();
     raw.image_count = raw_images.size();
-    raw.state = state;
+    raw.state       = state;
     raw.state_count = state_dim;
-    raw.prompt = task;
+    raw.prompt      = task;
 
     const auto total_start = Clock::now();
     robotcpp::pi0::Pi0Observation observation;
-    const bool ok = robotcpp::pi0::validate_and_preprocess_pi0(ctx->model.config, raw, observation);
+    const bool ok              = robotcpp::pi0::validate_and_preprocess_pi0(ctx->model.config, raw, observation);
     const auto preprocess_done = Clock::now();
     ctx->runtime.last_timings.preprocess_ms = elapsed_ms(total_start, preprocess_done);
     if (!ok) {
         ctx->last_timings.preprocess_ms = ctx->runtime.last_timings.preprocess_ms;
-        ctx->last_timings.total_ms = elapsed_ms(total_start, Clock::now());
+        ctx->last_timings.total_ms      = elapsed_ms(total_start, Clock::now());
         return empty_result();
     }
 
     try {
         const auto prefix_start = Clock::now();
         robotcpp::pi0::pi0_prefill_prefix(ctx->model, observation);
-        const auto prefix_done = Clock::now();
+        const auto prefix_done              = Clock::now();
         ctx->runtime.last_timings.prefix_ms = elapsed_ms(prefix_start, prefix_done);
 
         std::vector<float> state_context;
         const auto state_start = Clock::now();
         robotcpp::pi0::pi0_state_context(ctx->model, observation.state, state_context);
-        const auto state_done = Clock::now();
+        const auto state_done              = Clock::now();
         ctx->runtime.last_timings.state_ms = elapsed_ms(state_start, state_done);
 
         const auto denoise_start = Clock::now();
         robotcpp::pi0::pi0_sample_actions(ctx->model, ctx->runtime, state_context, observation.noise,
                                           ctx->action_buffer);
-        const auto denoise_done = Clock::now();
+        const auto denoise_done              = Clock::now();
         ctx->runtime.last_timings.denoise_ms = elapsed_ms(denoise_start, denoise_done);
     } catch (const std::exception & error) {
         pi0_log_error(error.what());
@@ -177,16 +177,16 @@ pi0_result pi0_predict_raw_rgb(pi0_context * ctx, const pi0_image_view * images,
     const double output_ms = elapsed_ms(preprocess_done, output_done) - ctx->runtime.last_timings.prefix_ms -
                              ctx->runtime.last_timings.state_ms - ctx->runtime.last_timings.denoise_ms;
     ctx->runtime.last_timings.output_ms = std::max(0.0, output_ms);
-    ctx->runtime.last_timings.total_ms = elapsed_ms(total_start, output_done);
-    ctx->last_timings.preprocess_ms = ctx->runtime.last_timings.preprocess_ms;
-    ctx->last_timings.prefix_ms = ctx->runtime.last_timings.prefix_ms;
-    ctx->last_timings.state_ms = ctx->runtime.last_timings.state_ms;
-    ctx->last_timings.denoise_ms = ctx->runtime.last_timings.denoise_ms;
-    ctx->last_timings.output_ms = ctx->runtime.last_timings.output_ms;
-    ctx->last_timings.total_ms = ctx->runtime.last_timings.total_ms;
+    ctx->runtime.last_timings.total_ms  = elapsed_ms(total_start, output_done);
+    ctx->last_timings.preprocess_ms     = ctx->runtime.last_timings.preprocess_ms;
+    ctx->last_timings.prefix_ms         = ctx->runtime.last_timings.prefix_ms;
+    ctx->last_timings.state_ms          = ctx->runtime.last_timings.state_ms;
+    ctx->last_timings.denoise_ms        = ctx->runtime.last_timings.denoise_ms;
+    ctx->last_timings.output_ms         = ctx->runtime.last_timings.output_ms;
+    ctx->last_timings.total_ms          = ctx->runtime.last_timings.total_ms;
 
     pi0_result result;
-    result.actions = ctx->action_buffer.empty() ? nullptr : ctx->action_buffer.data();
+    result.actions    = ctx->action_buffer.empty() ? nullptr : ctx->action_buffer.data();
     result.chunk_size = ctx->model.config.common.action_horizon;
     result.action_dim = ctx->model.config.common.action_dim;
     return result;

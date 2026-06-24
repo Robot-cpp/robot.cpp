@@ -205,8 +205,8 @@ static bool dump_m7_actions(const smolvla_context * ctx, const float * actions, 
 // expert-side prefix runtime directly from backend tensors.
 static bool extract_llm_kv_cache(smolvla_context * ctx) {
     const int n_layers = ctx->expert->num_layers;
-    const int kv_dim = ctx->expert->n_kv_heads * ctx->expert->head_dim; // 5*64 = 320
-    const int seq_len = ctx->fixed_prefix_seq_len;
+    const int kv_dim   = ctx->expert->n_kv_heads * ctx->expert->head_dim; // 5*64 = 320
+    const int seq_len  = ctx->fixed_prefix_seq_len;
     const bool v_trans = llama_kv_cache_is_v_trans(ctx->ctx_llama);
 
     if (seq_len <= 0) {
@@ -223,7 +223,7 @@ static bool extract_llm_kv_cache(smolvla_context * ctx) {
     }
 
     ctx->llm_kv_seq_len = seq_len;
-    ctx->llm_kv_dim = kv_dim;
+    ctx->llm_kv_dim     = kv_dim;
     std::vector<struct ggml_tensor *> prefix_k_tensors(n_layers, nullptr);
     std::vector<struct ggml_tensor *> prefix_v_tensors(n_layers, nullptr);
     for (int il = 0; il < n_layers; ++il) {
@@ -259,7 +259,7 @@ static bool lookup_token_embeddings(struct ggml_tensor * tok_embd, const llama_t
     }
 
     const size_t row_stride = (size_t)tok_embd->nb[1];
-    const int64_t n_vocab = tok_embd->ne[1];
+    const int64_t n_vocab   = tok_embd->ne[1];
 
     if (tok_embd->type == GGML_TYPE_F32) {
         for (int i = 0; i < n_tokens; i++) {
@@ -318,23 +318,23 @@ struct smolvla_params smolvla_default_params(void) {
     struct smolvla_params params;
     memset(&params, 0, sizeof(params));
 
-    params.llm_path = nullptr;
-    params.mmproj_path = nullptr;
-    params.state_proj_path = nullptr;
+    params.llm_path           = nullptr;
+    params.mmproj_path        = nullptr;
+    params.state_proj_path    = nullptr;
     params.action_expert_path = nullptr;
-    params.n_threads = 0; // auto
-    params.n_batch = 512;
-    params.n_ctx = 2048;
-    params.noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
-    params.noise_seed = -1;
-    params.verbosity = 0;
+    params.n_threads          = 0; // auto
+    params.n_batch            = 512;
+    params.n_ctx              = 2048;
+    params.noise_mode         = SMOLVLA_NOISE_MODE_GAUSSIAN;
+    params.noise_seed         = -1;
+    params.verbosity          = 0;
 
     return params;
 }
 
 static struct smolvla_result smolvla_empty_result(void) {
     struct smolvla_result result;
-    result.actions = nullptr;
+    result.actions    = nullptr;
     result.chunk_size = 0;
     result.action_dim = 0;
     return result;
@@ -380,29 +380,29 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
 
     // Allocate context
     smolvla_context * ctx = new smolvla_context();
-    ctx->llm = nullptr;
-    ctx->ctx_llama = nullptr;
-    ctx->tok_embd = nullptr;
-    ctx->expert = nullptr;
-    ctx->action_dim = 0;
-    ctx->chunk_size = 0;
-    ctx->num_steps = 0;
-    ctx->n_threads = params.n_threads > 0 ? params.n_threads : 4;
-    ctx->n_batch = params.n_batch > 0 ? params.n_batch : 512;
-    ctx->n_ctx = params.n_ctx > 0 ? params.n_ctx : 2048;
-    ctx->n_embd = 0;
-    ctx->lang_max_len = 0;
-    ctx->lang_pad_id = LLAMA_TOKEN_NULL;
-    ctx->noise_mode = params.noise_mode;
+    ctx->llm              = nullptr;
+    ctx->ctx_llama        = nullptr;
+    ctx->tok_embd         = nullptr;
+    ctx->expert           = nullptr;
+    ctx->action_dim       = 0;
+    ctx->chunk_size       = 0;
+    ctx->num_steps        = 0;
+    ctx->n_threads        = params.n_threads > 0 ? params.n_threads : 4;
+    ctx->n_batch          = params.n_batch > 0 ? params.n_batch : 512;
+    ctx->n_ctx            = params.n_ctx > 0 ? params.n_ctx : 2048;
+    ctx->n_embd           = 0;
+    ctx->lang_max_len     = 0;
+    ctx->lang_pad_id      = LLAMA_TOKEN_NULL;
+    ctx->noise_mode       = params.noise_mode;
     if (ctx->noise_mode != SMOLVLA_NOISE_MODE_GAUSSIAN && ctx->noise_mode != SMOLVLA_NOISE_MODE_DEBUG_SIN) {
         fprintf(stderr, "[SmolVLA] Warning: invalid noise_mode=%d, falling back to gaussian\n", ctx->noise_mode);
         ctx->noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
     }
-    ctx->noise_seed = params.noise_seed;
-    ctx->verbosity = params.verbosity;
-    ctx->fixed_prefix_seq_len = -1;
+    ctx->noise_seed               = params.noise_seed;
+    ctx->verbosity                = params.verbosity;
+    ctx->fixed_prefix_seq_len     = -1;
     ctx->lang_pad_emb_cache_ready = false;
-    ctx->lang_pad_emb_cache_id = -1;
+    ctx->lang_pad_emb_cache_id    = -1;
 
     if (ctx->noise_seed >= 0) {
         ctx->noise_rng.seed((uint64_t)ctx->noise_seed);
@@ -443,7 +443,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     if (params.llm_path) {
         llama_backend_init();
         llama_model_params model_params = llama_model_default_params();
-        ctx->llm = llama_load_model_from_file(params.llm_path, model_params);
+        ctx->llm                        = llama_load_model_from_file(params.llm_path, model_params);
         if (!ctx->llm) {
             fprintf(stderr, "[SmolVLA] Error: failed to load LLM from %s\n", params.llm_path);
             smolvla_free(ctx);
@@ -455,14 +455,14 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         }
 
         llama_context_params cparams = llama_context_default_params();
-        cparams.n_ctx = ctx->n_ctx;
-        cparams.n_batch = ctx->n_batch;
-        cparams.n_seq_max = 3;
-        cparams.n_threads = ctx->n_threads;
-        cparams.n_threads_batch = ctx->n_threads;
-        cparams.embeddings = true;
-        cparams.kv_unified = true;
-        cparams.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+        cparams.n_ctx                = ctx->n_ctx;
+        cparams.n_batch              = ctx->n_batch;
+        cparams.n_seq_max            = 3;
+        cparams.n_threads            = ctx->n_threads;
+        cparams.n_threads_batch      = ctx->n_threads;
+        cparams.embeddings           = true;
+        cparams.kv_unified           = true;
+        cparams.flash_attn_type      = LLAMA_FLASH_ATTN_TYPE_DISABLED;
         // F32 K cache for better precision matching Python (V cache must stay F16 without flash_attn)
         cparams.type_k = GGML_TYPE_F32;
         // TODO: Python apply_rope uses default max_wavelength=10000 (not config's 100000)
@@ -476,7 +476,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
             return nullptr;
         }
 
-        ctx->n_embd = llama_n_embd(ctx->llm);
+        ctx->n_embd   = llama_n_embd(ctx->llm);
         ctx->tok_embd = llama_get_model_tensor(ctx->llm, "token_embd.weight");
         if (!ctx->tok_embd) {
             fprintf(stderr, "[SmolVLA] Error: failed to get token_embd.weight\n");
@@ -500,7 +500,7 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         } else {
             ctx->action_dim = ctx->expert->action_dim;
             ctx->chunk_size = ctx->expert->chunk_size;
-            ctx->num_steps = ctx->expert->num_steps;
+            ctx->num_steps  = ctx->expert->num_steps;
             if (ctx->action_dim <= 0 || ctx->chunk_size <= 0 || ctx->num_steps <= 0) {
                 fprintf(stderr,
                         "[SmolVLA] Error: invalid action expert shape from GGUF "
@@ -514,8 +514,8 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
     }
 
     if (ctx->vision && ctx->expert) {
-        const int n_vis = smolvla_vision_n_tokens(ctx->vision);
-        const int n_state = !ctx->state_emb.empty() ? 1 : 0;
+        const int n_vis           = smolvla_vision_n_tokens(ctx->vision);
+        const int n_state         = !ctx->state_emb.empty() ? 1 : 0;
         ctx->fixed_prefix_seq_len = n_vis + ctx->lang_max_len + n_state;
         if (!smolvla_action_expert_init_fixed_prefix_runtime(ctx->expert, ctx->fixed_prefix_seq_len)) {
             fprintf(stderr, "[SmolVLA] Error: failed to initialize fixed prefix runtime (seq_len=%d)\n",
@@ -550,8 +550,8 @@ static bool smolvla_prepare_vision_embeddings(struct smolvla_context * ctx,
     }
 
     const int n_tokens_per_cam = smolvla_vision_n_tokens(ctx->vision);
-    const int proj_dim = ctx->vision->proj_dim;
-    const size_t one_cam_size = (size_t)n_tokens_per_cam * proj_dim;
+    const int proj_dim         = ctx->vision->proj_dim;
+    const size_t one_cam_size  = (size_t)n_tokens_per_cam * proj_dim;
     for (size_t i = 0; i < camera_embs.size(); ++i) {
         if (camera_embs[i].size() != one_cam_size) {
             fprintf(stderr, "[SmolVLA] Error: vision output size mismatch for camera %zu (%zu vs %zu)\n", i,
@@ -729,7 +729,7 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
                     fprintf(stderr, "[SmolVLA] Error: pad token embedding lookup failed\n");
                     return result;
                 }
-                ctx->lang_pad_emb_cache_id = ctx->lang_pad_id;
+                ctx->lang_pad_emb_cache_id    = ctx->lang_pad_id;
                 ctx->lang_pad_emb_cache_ready = true;
             }
             for (int i = n_raw; i < (int)task_tokens.size(); ++i) {
@@ -744,8 +744,8 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
         }
 
         //=====1.4 Concatenate embeddings → prefix
-        const int n_vis = (int)ctx->vision_emb.size() / ctx->n_embd;
-        const int n_task = (int)task_tokens.size();
+        const int n_vis   = (int)ctx->vision_emb.size() / ctx->n_embd;
+        const int n_task  = (int)task_tokens.size();
         const int n_state = (!ctx->state_emb.empty() && (int)ctx->state_emb.size() == ctx->n_embd) ? 1 : 0;
         const int n_total = n_vis + n_task + n_state;
         if (n_vis <= 0 || n_total <= 0) {
@@ -810,26 +810,26 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
         //   state token:          seq_id={1}   — can see valid prefix, prefix can't see it
         llama_set_causal_attn(ctx->ctx_llama, false);
         llama_batch batch = llama_batch_init(n_total, ctx->n_embd, 2);
-        batch.n_tokens = n_total;
+        batch.n_tokens    = n_total;
         memcpy(batch.embd, merged_embeds.data(), (size_t)n_total * ctx->n_embd * sizeof(float));
         int pad_position = 0;
         for (int i = 0; i < n_total; ++i) {
             batch.logits[i] = 0;
             if (!pad_mask[i]) {
                 // padded tokens: seq_id={2}, invisible to valid tokens
-                batch.pos[i] = pad_position++;
-                batch.n_seq_id[i] = 1;
+                batch.pos[i]       = pad_position++;
+                batch.n_seq_id[i]  = 1;
                 batch.seq_id[i][0] = 2;
             } else if (i < n_total - 1) {
                 // valid prefix tokens: seq_id={0,1}
-                batch.pos[i] = position_ids[i];
-                batch.n_seq_id[i] = 2;
+                batch.pos[i]       = position_ids[i];
+                batch.n_seq_id[i]  = 2;
                 batch.seq_id[i][0] = 0;
                 batch.seq_id[i][1] = 1;
             } else {
                 // state token: seq_id={1}
-                batch.pos[i] = position_ids[i];
-                batch.n_seq_id[i] = 1;
+                batch.pos[i]       = position_ids[i];
+                batch.n_seq_id[i]  = 1;
                 batch.seq_id[i][0] = 1;
             }
         }
@@ -875,7 +875,7 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
 
     const auto t_phase20 = smolvla_clock::now();
     {
-        const int chunk = ctx->chunk_size;
+        const int chunk             = ctx->chunk_size;
         const int padded_action_dim = ctx->expert->max_action_dim;
 
         std::vector<uint8_t> prefix_valid_mask_u8(ctx->prefix_valid_mask.size(), 1);
@@ -912,7 +912,7 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
         std::fill(ctx->action_buffer.begin(), ctx->action_buffer.end(), 0.0f);
         for (int t = 0; t < chunk; ++t) {
             const float * raw_row = x_t.data() + (size_t)t * padded_action_dim;
-            float * out_row = ctx->action_buffer.data() + (size_t)t * ctx->action_dim;
+            float * out_row       = ctx->action_buffer.data() + (size_t)t * ctx->action_dim;
             for (int d = 0; d < final_action_dim; ++d) {
                 out_row[d] = raw_row[d] * ctx->expert->action_std[d] + ctx->expert->action_mean[d];
             }
@@ -935,7 +935,7 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
     }
     ctx->last_timings.phase2_ms = smolvla_elapsed_ms(t_phase20, smolvla_clock::now());
 
-    result.actions = ctx->action_buffer.data();
+    result.actions    = ctx->action_buffer.data();
     result.chunk_size = ctx->chunk_size;
     if (result.action_dim == 0) {
         result.action_dim = ctx->action_dim;
@@ -963,9 +963,9 @@ struct smolvla_result smolvla_predict(struct smolvla_context * ctx, const char *
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
     }
 
-    const auto t_vision0 = smolvla_clock::now();
+    const auto t_vision0            = smolvla_clock::now();
     std::vector<float> main_cam_emb = smolvla_vision_encode_file(ctx->vision, image_path, ctx->n_threads);
-    ctx->last_timings.vision_ms = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
+    ctx->last_timings.vision_ms     = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
     if (!smolvla_prepare_vision_embedding(ctx, main_cam_emb)) {
         fprintf(stderr, "[SmolVLA] Error: vision encode failed for image path input\n");
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
@@ -993,9 +993,9 @@ struct smolvla_result smolvla_predict_bytes(struct smolvla_context * ctx, const 
         fprintf(stderr, "[SmolVLA] predict_bytes: image_len=%d\n", image_len);
     }
 
-    const auto t_vision0 = smolvla_clock::now();
+    const auto t_vision0            = smolvla_clock::now();
     std::vector<float> main_cam_emb = smolvla_vision_encode_bytes(ctx->vision, image_bytes, image_len, ctx->n_threads);
-    ctx->last_timings.vision_ms = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
+    ctx->last_timings.vision_ms     = smolvla_elapsed_ms(t_vision0, smolvla_clock::now());
     if (!smolvla_prepare_vision_embedding(ctx, main_cam_emb)) {
         fprintf(stderr, "[SmolVLA] Error: vision encode failed for bytes input\n");
         return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);
@@ -1010,10 +1010,10 @@ struct smolvla_result smolvla_predict_raw_rgb(struct smolvla_context * ctx, cons
     smolvla_image_view image{};
     image.name =
         ctx && ctx->vision && !ctx->vision->image_keys.empty() ? ctx->vision->image_keys.front().c_str() : nullptr;
-    image.data = rgb;
-    image.width = width;
-    image.height = height;
-    image.channels = channels;
+    image.data         = rgb;
+    image.width        = width;
+    image.height       = height;
+    image.channels     = channels;
     image.stride_bytes = stride_bytes;
     return smolvla_predict_raw_rgb_batch(ctx, &image, 1, state, state_dim, task);
 }
@@ -1050,7 +1050,7 @@ struct smolvla_result smolvla_predict_raw_rgb_batch(struct smolvla_context * ctx
     std::vector<const smolvla_image_view *> images_by_key(image_keys.size(), nullptr);
     for (size_t i = 0; i < image_count; ++i) {
         const smolvla_image_view & image = images[i];
-        const int key_index = smolvla_find_image_key(image_keys, image.name);
+        const int key_index              = smolvla_find_image_key(image_keys, image.name);
         if (key_index < 0) {
             fprintf(stderr, "[SmolVLA] Error: unknown image view name: %s\n", image.name ? image.name : "(unnamed)");
             return smolvla_finish_predict(ctx, smolvla_empty_result(), t_total0);

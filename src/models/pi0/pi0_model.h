@@ -14,7 +14,7 @@ class Pi0Model final : public Model {
     explicit Pi0Model(const model_args & args);
     ~Pi0Model() override;
 
-    Pi0Model(const Pi0Model &) = delete;
+    Pi0Model(const Pi0Model &)             = delete;
     Pi0Model & operator=(const Pi0Model &) = delete;
 
     const char * type() const override;

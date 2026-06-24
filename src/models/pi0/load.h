@@ -27,7 +27,7 @@ struct Pi0LoadedComponent {
     Pi0LoadedComponent() = default;
     ~Pi0LoadedComponent() { free_pi0_loaded_component(loaded); }
 
-    Pi0LoadedComponent(const Pi0LoadedComponent &) = delete;
+    Pi0LoadedComponent(const Pi0LoadedComponent &)             = delete;
     Pi0LoadedComponent & operator=(const Pi0LoadedComponent &) = delete;
 
     Pi0LoadedComponent(Pi0LoadedComponent && other) noexcept : loaded(other.loaded), runtime(std::move(other.runtime)) {
@@ -37,8 +37,8 @@ struct Pi0LoadedComponent {
     Pi0LoadedComponent & operator=(Pi0LoadedComponent && other) noexcept {
         if (this != &other) {
             free_pi0_loaded_component(loaded);
-            loaded = other.loaded;
-            runtime = std::move(other.runtime);
+            loaded       = other.loaded;
+            runtime      = std::move(other.runtime);
             other.loaded = {};
         }
         return *this;

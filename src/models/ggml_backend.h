@@ -12,14 +12,14 @@ enum class backend_mode {
 };
 
 struct backend_buft_policy {
-    ggml_backend_buffer_type_t model_buft = nullptr;
+    ggml_backend_buffer_type_t model_buft   = nullptr;
     ggml_backend_buffer_type_t runtime_buft = nullptr;
-    ggml_backend_buffer_type_t host_buft = nullptr;
+    ggml_backend_buffer_type_t host_buft    = nullptr;
 };
 
 struct backend_scheduler_config {
-    int max_nodes = 4096;
-    bool parallel = false;
+    int max_nodes   = 4096;
+    bool parallel   = false;
     bool op_offload = true;
 };
 

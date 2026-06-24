@@ -47,10 +47,10 @@ struct smolvla_state_proj {
     ggml_backend_buffer_t params_buffer = nullptr;
 
     // Model parameters
-    int state_dim = 6;      // Actual input dimension (from dataset)
-    int max_state_dim = 32; // Padded input dimension
-    int hidden_size = 960;  // Output dimension
-    int verbosity = 0;
+    int state_dim     = 6;   // Actual input dimension (from dataset)
+    int max_state_dim = 32;  // Padded input dimension
+    int hidden_size   = 960; // Output dimension
+    int verbosity     = 0;
 
     // Normalization statistics (MEAN_STD mode)
     std::vector<float> norm_mean; // [state_dim]
@@ -61,7 +61,7 @@ struct smolvla_state_proj {
     // weight: [hidden_size, max_state_dim] = [960, 32]
     // bias: [hidden_size] = [960]
     struct ggml_tensor * weight = nullptr;
-    struct ggml_tensor * bias = nullptr;
+    struct ggml_tensor * bias   = nullptr;
 
     // Compute buffer
     std::vector<uint8_t> buf_compute_meta;

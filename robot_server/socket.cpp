@@ -59,7 +59,7 @@ socket_handle tcp_listen(const char * host, uint16_t port, int backlog, std::str
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port   = htons(port);
     if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
         error = std::string("invalid IPv4 host: ") + host;
         close(fd);
@@ -81,7 +81,7 @@ socket_handle tcp_listen(const char * host, uint16_t port, int backlog, std::str
 
 socket_handle tcp_accept(socket_handle server, std::string & peer, std::string & error) {
     sockaddr_in addr;
-    socklen_t len = sizeof(addr);
+    socklen_t len    = sizeof(addr);
     socket_handle fd = ::accept(server, (sockaddr *)&addr, &len);
     if (fd == invalid_socket) {
         error = socket_error_string("accept failed");
@@ -107,7 +107,7 @@ socket_handle tcp_connect(const char * host, uint16_t port, std::string & error)
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port   = htons(port);
     if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
         error = std::string("invalid IPv4 host: ") + host;
         close(fd);
@@ -123,7 +123,7 @@ socket_handle tcp_connect(const char * host, uint16_t port, std::string & error)
 
 bool send_all(socket_handle fd, const void * data, size_t len, std::string & error) {
     const uint8_t * p = (const uint8_t *)data;
-    size_t sent = 0;
+    size_t sent       = 0;
     while (sent < len) {
 #ifdef _WIN32
         int n = ::send(fd, (const char *)p + sent, (int)(len - sent), 0);
@@ -140,7 +140,7 @@ bool send_all(socket_handle fd, const void * data, size_t len, std::string & err
 }
 
 bool recv_exact(socket_handle fd, void * data, size_t len, std::string & error) {
-    uint8_t * p = (uint8_t *)data;
+    uint8_t * p     = (uint8_t *)data;
     size_t received = 0;
     while (received < len) {
 #ifdef _WIN32

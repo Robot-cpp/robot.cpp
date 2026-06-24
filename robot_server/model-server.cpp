@@ -26,15 +26,15 @@ struct server_args {
     std::string action_decoder_path;
     std::string state_proj_path;
     std::string action_expert_path;
-    std::string task = "grab the block.";
-    std::string host = "127.0.0.1";
-    int port = 5555;
-    int threads = 0;
-    int n_batch = 512;
-    int n_ctx = 2048;
-    int noise_mode = SMOLVLA_NOISE_MODE_GAUSSIAN;
+    std::string task   = "grab the block.";
+    std::string host   = "127.0.0.1";
+    int port           = 5555;
+    int threads        = 0;
+    int n_batch        = 512;
+    int n_ctx          = 2048;
+    int noise_mode     = SMOLVLA_NOISE_MODE_GAUSSIAN;
     int64_t noise_seed = -1;
-    int verbosity = 0;
+    int verbosity      = 0;
 };
 
 static bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
@@ -184,21 +184,21 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
 
 static robotcpp::model_args make_model_args(const server_args & args) {
     robotcpp::model_args model_args;
-    model_args.type = args.model_type;
-    model_args.threads = args.threads;
-    model_args.verbosity = args.verbosity;
-    model_args.llm_path = args.llm_path;
-    model_args.mmproj_path = args.mmproj_path;
-    model_args.vit_path = args.vit_path;
-    model_args.tokenizer_path = args.tokenizer_path;
-    model_args.state_path = args.state_path;
+    model_args.type                = args.model_type;
+    model_args.threads             = args.threads;
+    model_args.verbosity           = args.verbosity;
+    model_args.llm_path            = args.llm_path;
+    model_args.mmproj_path         = args.mmproj_path;
+    model_args.vit_path            = args.vit_path;
+    model_args.tokenizer_path      = args.tokenizer_path;
+    model_args.state_path          = args.state_path;
     model_args.action_decoder_path = args.action_decoder_path;
-    model_args.state_proj_path = args.state_proj_path;
-    model_args.action_expert_path = args.action_expert_path;
-    model_args.n_batch = args.n_batch;
-    model_args.n_ctx = args.n_ctx;
-    model_args.noise_mode = args.noise_mode;
-    model_args.noise_seed = args.noise_seed;
+    model_args.state_proj_path     = args.state_proj_path;
+    model_args.action_expert_path  = args.action_expert_path;
+    model_args.n_batch             = args.n_batch;
+    model_args.n_ctx               = args.n_ctx;
+    model_args.noise_mode          = args.noise_mode;
+    model_args.noise_seed          = args.noise_seed;
     return model_args;
 }
 

@@ -17,7 +17,7 @@ struct Pi0PrefixKvRuntime {
     std::vector<ggml_tensor *> k_layers;
     std::vector<ggml_tensor *> v_layers;
     ggml_tensor * vision_prefix_embeddings = nullptr;
-    ggml_tensor * prompt_embeddings = nullptr;
+    ggml_tensor * prompt_embeddings        = nullptr;
 
     void reset() { token_count = 0; }
 };
@@ -77,7 +77,7 @@ inline void pi0_linear_batch(const Pi0Context & ctx, const Pi0ComponentRuntime &
     if (weight == nullptr || bias == nullptr || ggml_n_dims(weight) != 2 || ggml_n_dims(bias) != 1) {
         throw std::invalid_argument("pi0 linear expects rank-2 weight and rank-1 bias");
     }
-    const int64_t in = weight->ne[0];
+    const int64_t in  = weight->ne[0];
     const int64_t out = weight->ne[1];
     if (in <= 0 || out <= 0 || batch <= 0 || bias->ne[0] != out ||
         input.size() != static_cast<size_t>(batch) * static_cast<size_t>(in)) {

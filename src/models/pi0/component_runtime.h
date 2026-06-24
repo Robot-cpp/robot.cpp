@@ -13,14 +13,14 @@
 namespace robotcpp::pi0 {
 
 struct Pi0PersistentAllocation {
-    ggml_context * ctx = nullptr;
+    ggml_context * ctx           = nullptr;
     ggml_backend_buffer_t buffer = nullptr;
 
     Pi0PersistentAllocation() = default;
     Pi0PersistentAllocation(ggml_context * context, ggml_backend_buffer_t backend_buffer);
     ~Pi0PersistentAllocation();
 
-    Pi0PersistentAllocation(const Pi0PersistentAllocation &) = delete;
+    Pi0PersistentAllocation(const Pi0PersistentAllocation &)             = delete;
     Pi0PersistentAllocation & operator=(const Pi0PersistentAllocation &) = delete;
 
     Pi0PersistentAllocation(Pi0PersistentAllocation && other) noexcept;
@@ -40,7 +40,7 @@ struct Pi0ComponentRuntime {
     Pi0ComponentRuntime() = default;
     ~Pi0ComponentRuntime();
 
-    Pi0ComponentRuntime(const Pi0ComponentRuntime &) = delete;
+    Pi0ComponentRuntime(const Pi0ComponentRuntime &)             = delete;
     Pi0ComponentRuntime & operator=(const Pi0ComponentRuntime &) = delete;
 
     Pi0ComponentRuntime(Pi0ComponentRuntime && other) noexcept;
@@ -54,7 +54,7 @@ class Pi0GraphContext {
     explicit Pi0GraphContext(ggml_init_params params);
     ~Pi0GraphContext();
 
-    Pi0GraphContext(const Pi0GraphContext &) = delete;
+    Pi0GraphContext(const Pi0GraphContext &)             = delete;
     Pi0GraphContext & operator=(const Pi0GraphContext &) = delete;
 
     operator ggml_context *() const;

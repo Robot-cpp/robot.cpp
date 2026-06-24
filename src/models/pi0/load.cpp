@@ -118,7 +118,7 @@ bool gguf_f32_array(gguf_context * gguf, const char * key, std::vector<float> & 
     if (gguf_get_kv_type(gguf, idx) != GGUF_TYPE_ARRAY || gguf_get_arr_type(gguf, idx) != GGUF_TYPE_FLOAT32) {
         throw std::runtime_error(std::string("invalid GGUF f32-array metadata type: ") + key);
     }
-    const size_t count = gguf_get_arr_n(gguf, idx);
+    const size_t count   = gguf_get_arr_n(gguf, idx);
     const float * values = static_cast<const float *>(gguf_get_arr_data(gguf, idx));
     if (values == nullptr && count != 0) {
         throw std::runtime_error(std::string("missing GGUF array data: ") + key);
@@ -224,7 +224,7 @@ class Pi0ComponentLoader final : public gguf_loader {
 
     bool bind_tensors(ggml_context * ctx_data) override {
         for (ggml_tensor * cur = ggml_get_first_tensor(ctx_data); cur != nullptr;
-             cur = ggml_get_next_tensor(ctx_data, cur)) {
+             cur               = ggml_get_next_tensor(ctx_data, cur)) {
             const std::string name = ggml_get_name(cur);
             if (!should_load_pi0_tensor(config_, name)) {
                 continue;
@@ -336,14 +336,14 @@ bool has_transformer_stack(ggml_context * ctx, const std::string & final_norm_sc
 namespace {
 
 bool has_valid_pi0_action_projection_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
-    ggml_tensor * in_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.weight"));
-    ggml_tensor * in_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.bias"));
-    ggml_tensor * time_in_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
-    ggml_tensor * time_in_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.bias"));
+    ggml_tensor * in_w       = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.weight"));
+    ggml_tensor * in_b       = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_in_proj.bias"));
+    ggml_tensor * time_in_w  = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.weight"));
+    ggml_tensor * time_in_b  = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_in.bias"));
     ggml_tensor * time_out_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_out.weight"));
     ggml_tensor * time_out_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_time_mlp_out.bias"));
-    ggml_tensor * out_w = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.weight"));
-    ggml_tensor * out_b = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.bias"));
+    ggml_tensor * out_w      = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.weight"));
+    ggml_tensor * out_b      = find_pi0_tensor(ctx, pi0_action_decoder_tensor(config, "action_out_proj.bias"));
     if (in_w == nullptr || in_b == nullptr || time_in_w == nullptr || time_in_b == nullptr || time_out_w == nullptr ||
         time_out_b == nullptr || out_w == nullptr || out_b == nullptr) {
         return false;
@@ -363,8 +363,8 @@ bool has_valid_pi0_action_projection_tensors(const Pi0ModelConfig & config, ggml
 
 bool has_valid_pi0_merger_tensors(const Pi0ModelConfig & config, ggml_context * ctx) {
     const Pi0Config & pi0 = pi0_config(config);
-    ggml_tensor * weight = find_pi0_tensor(ctx, pi0_merger_tensor(config, "weight"));
-    ggml_tensor * bias = find_pi0_tensor(ctx, pi0_merger_tensor(config, "bias"));
+    ggml_tensor * weight  = find_pi0_tensor(ctx, pi0_merger_tensor(config, "weight"));
+    ggml_tensor * bias    = find_pi0_tensor(ctx, pi0_merger_tensor(config, "bias"));
     if (weight == nullptr || bias == nullptr) {
         return false;
     }
@@ -380,7 +380,7 @@ bool has_valid_pi0_vit_tensors(const Pi0ModelConfig & config, ggml_context * ctx
         pi0.vision.patch_width <= 0 || pi0.vision.heads <= 0 || pi0.vision.norm_epsilon <= 0.0f) {
         return false;
     }
-    const int64_t width = pi0.vision.width;
+    const int64_t width   = pi0.vision.width;
     const int64_t patch_h = pi0.vision.patch_height;
     const int64_t patch_w = pi0.vision.patch_width;
     const int64_t patches = (config.common.image_width / patch_w) * (config.common.image_height / patch_h);
@@ -414,10 +414,10 @@ bool has_valid_pi0_action_expert_tensors(const Pi0ModelConfig & config, ggml_con
         pi0.action.expert_kv_out <= 0 || pi0.action.expert_mlp_width <= 0) {
         return false;
     }
-    const int64_t width = pi0.action.expert_width;
-    const int64_t q_out = pi0.action.expert_q_out;
+    const int64_t width  = pi0.action.expert_width;
+    const int64_t q_out  = pi0.action.expert_q_out;
     const int64_t kv_out = pi0.action.expert_kv_out;
-    const int64_t mlp = pi0.action.expert_mlp_width;
+    const int64_t mlp    = pi0.action.expert_mlp_width;
     return has_transformer_stack(ctx, pi0_action_decoder_tensor(config, "norm.scale"),
                                  pi0_action_decoder_tensor(config, "layers."), pi0.action.expert_layers, width, q_out,
                                  kv_out, mlp);
@@ -429,10 +429,10 @@ bool has_valid_pi0_language_tensors(const Pi0ModelConfig & config, ggml_context 
         pi0.llm.mlp_width <= 0) {
         return false;
     }
-    const int64_t width = pi0.llm.width;
-    const int64_t q_out = pi0.llm.q_out;
-    const int64_t kv_out = pi0.llm.kv_out;
-    const int64_t mlp = pi0.llm.mlp_width;
+    const int64_t width   = pi0.llm.width;
+    const int64_t q_out   = pi0.llm.q_out;
+    const int64_t kv_out  = pi0.llm.kv_out;
+    const int64_t mlp     = pi0.llm.mlp_width;
     ggml_tensor * lm_head = find_pi0_tensor(ctx, pi0_lm_head(config));
     if (lm_head == nullptr || ggml_n_dims(lm_head) != 2 || lm_head->ne[0] != width || lm_head->ne[1] <= 0) {
         return false;
@@ -446,7 +446,7 @@ bool has_valid_pi0_language_tensors(const Pi0ModelConfig & config, ggml_context 
 namespace {
 
 void merge_pi0_role_config(Pi0ModelConfig & base, const Pi0ModelConfig & current, const char * role) {
-    Pi0Config & dst = ensure_pi0_config(base);
+    Pi0Config & dst       = ensure_pi0_config(base);
     const Pi0Config & src = pi0_config(current);
     const std::string role_name(role);
     if (role_name == "vit") {
@@ -466,7 +466,7 @@ void merge_pi0_role_config(Pi0ModelConfig & base, const Pi0ModelConfig & current
 
 bool validate_pi0_component_dtypes(const Pi0ModelConfig & config) {
     const Pi0Config & pi0 = pi0_config(config);
-    auto check = [](const char * role, const Pi0ComponentConfig & component) {
+    auto check            = [](const char * role, const Pi0ComponentConfig & component) {
         if (is_component_dtype(component.runtime.data_type)) {
             return true;
         }
@@ -480,7 +480,7 @@ bool validate_pi0_component_dtypes(const Pi0ModelConfig & config) {
 }
 
 bool read_component_metadata(const std::string & path, const char * role, Pi0ModelConfig & component_config) {
-    ggml_context * meta = nullptr;
+    ggml_context * meta     = nullptr;
     gguf_init_params params = {
         /*.no_alloc =*/true,
         /*.ctx      =*/&meta,
@@ -527,7 +527,7 @@ bool merge_component_config(const std::string & path, const char * role, Pi0Mode
         return false;
     }
     if (!have_config) {
-        config = component_config;
+        config      = component_config;
         have_config = true;
     } else {
         const Pi0CommonConfig & lhs = config.common;
@@ -639,7 +639,7 @@ bool load_pi0_components(const Pi0ComponentPaths & paths, const Pi0BackendConfig
     if (!validate_pi0_model_config(config, components)) {
         return false;
     }
-    out_config = std::move(config);
+    out_config     = std::move(config);
     out_components = std::move(components);
     return true;
 }

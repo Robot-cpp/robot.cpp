@@ -254,8 +254,8 @@ bool decode_predict_request(const std::vector<uint8_t> & payload, predict_reques
     req = predict_request{};
     reader r(payload.data(), payload.size());
     uint32_t image_count = 0;
-    uint32_t state_dim = 0;
-    uint32_t task_len = 0;
+    uint32_t state_dim   = 0;
+    uint32_t task_len    = 0;
 
     if (!r.u32(image_count) || !r.u32(state_dim) || !r.u32(task_len)) {
         error = "short predict request";

@@ -20,9 +20,9 @@ namespace {
 
 struct loaded_image {
     std::vector<uint8_t> data;
-    int width = 0;
-    int height = 0;
-    int channels = 3;
+    int width        = 0;
+    int height       = 0;
+    int channels     = 3;
     int stride_bytes = 0;
 };
 
@@ -104,17 +104,17 @@ bool parse_state(const char * csv, std::vector<float> & out) {
 }
 
 bool load_rgb_image(const std::string & path, loaded_image & out) {
-    int w = 0;
-    int h = 0;
-    int c = 0;
+    int w                  = 0;
+    int h                  = 0;
+    int c                  = 0;
     unsigned char * pixels = stbi_load(path.c_str(), &w, &h, &c, 3);
     if (!pixels) {
         std::fprintf(stderr, "Error: failed to load image '%s'\n", path.c_str());
         return false;
     }
-    out.width = w;
-    out.height = h;
-    out.channels = 3;
+    out.width        = w;
+    out.height       = h;
+    out.channels     = 3;
     out.stride_bytes = w * out.channels;
     out.data.assign(pixels, pixels + (size_t)out.stride_bytes * (size_t)out.height);
     stbi_image_free(pixels);
@@ -225,7 +225,7 @@ int main(int argc, char ** argv) {
         std::fprintf(stderr, "Error: failed to initialize model: %s\n", error.c_str());
         return 1;
     }
-    const auto init_end = std::chrono::high_resolution_clock::now();
+    const auto init_end                     = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> init_time = init_end - init_start;
     std::fprintf(stderr, "[model-cli] Model initialization: %.2f seconds\n", init_time.count());
 
@@ -234,16 +234,16 @@ int main(int argc, char ** argv) {
     for (size_t i = 0; i < image_names.size(); ++i) {
         const loaded_image & image = images[i];
         robotcpp::model_image model_image;
-        model_image.name = image_names[i];
-        model_image.data = image.data.data();
-        model_image.width = image.width;
-        model_image.height = image.height;
-        model_image.channels = image.channels;
+        model_image.name         = image_names[i];
+        model_image.data         = image.data.data();
+        model_image.width        = image.width;
+        model_image.height       = image.height;
+        model_image.channels     = image.channels;
         model_image.stride_bytes = image.stride_bytes;
         obs.images.push_back(model_image);
     }
     obs.state = state_vec;
-    obs.task = task;
+    obs.task  = task;
 
     const auto pred_start = std::chrono::high_resolution_clock::now();
     robotcpp::model_result result;
@@ -251,7 +251,7 @@ int main(int argc, char ** argv) {
         std::fprintf(stderr, "Error: prediction failed: %s\n", error.c_str());
         return 1;
     }
-    const auto pred_end = std::chrono::high_resolution_clock::now();
+    const auto pred_end                     = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> pred_time = pred_end - pred_start;
     std::fprintf(stderr, "[model-cli] Prediction: %.2f seconds\n", pred_time.count());
 

@@ -25,7 +25,7 @@ extern "C" {
 struct smolvla_context;
 
 enum smolvla_noise_mode {
-    SMOLVLA_NOISE_MODE_GAUSSIAN = 0,
+    SMOLVLA_NOISE_MODE_GAUSSIAN  = 0,
     SMOLVLA_NOISE_MODE_DEBUG_SIN = 1,
 };
 

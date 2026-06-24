@@ -5,7 +5,7 @@
 #include <cstring>
 #include <utility>
 
-namespace proto = robot_server::protocol;
+namespace proto   = robot_server::protocol;
 namespace sockets = robot_server::sockets;
 
 namespace robot_server {
@@ -15,8 +15,8 @@ namespace {
 bool send_message(sockets::socket_handle fd, uint16_t op, uint32_t request_id, const std::vector<uint8_t> & payload,
                   std::string & error) {
     proto::header h;
-    h.op = op;
-    h.request_id = request_id;
+    h.op          = op;
+    h.request_id  = request_id;
     h.payload_len = payload.size();
 
     std::vector<uint8_t> header;
@@ -55,7 +55,7 @@ bool make_predict_request(const ModelObservation & obs, proto::predict_request &
         return false;
     }
 
-    req.task = obs.prompt;
+    req.task  = obs.prompt;
     req.state = obs.state;
     req.images.clear();
     req.images.reserve(obs.images.size());
@@ -75,11 +75,11 @@ bool make_predict_request(const ModelObservation & obs, proto::predict_request &
 
         const size_t image_size = (size_t)stride * (size_t)src.height;
         proto::image_payload image;
-        image.name = src.name.empty() ? "image" + std::to_string(i) : src.name;
+        image.name         = src.name.empty() ? "image" + std::to_string(i) : src.name;
         image.image_format = proto::image_raw_rgb_u8;
-        image.width = src.width;
-        image.height = src.height;
-        image.channels = 3;
+        image.width        = src.width;
+        image.height       = src.height;
+        image.channels     = 3;
         image.stride_bytes = stride;
         image.data.resize(image_size);
         std::memcpy(image.data.data(), src.rgb_hwc_u8, image_size);
@@ -157,10 +157,10 @@ bool ModelClient::predict(const ModelObservation & obs, ModelResponse & response
         return false;
     }
 
-    response.chunk_size = resp.chunk_size;
-    response.action_dim = resp.action_dim;
+    response.chunk_size   = resp.chunk_size;
+    response.action_dim   = resp.action_dim;
     response.actions_flat = std::move(resp.actions);
-    response.metrics = std::move(resp.metrics);
+    response.metrics      = std::move(resp.metrics);
     return true;
 }
 
@@ -177,7 +177,7 @@ bool ModelClient::call(uint16_t op, const std::vector<uint8_t> & request_payload
     }
 
     const uint32_t request_id = next_request_id_++;
-    bool ok = send_message(fd, op, request_id, request_payload, error);
+    bool ok                   = send_message(fd, op, request_id, request_payload, error);
     proto::header response_header;
     if (ok) {
         ok = recv_message(fd, response_header, response_payload, error);

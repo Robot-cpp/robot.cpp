@@ -37,7 +37,7 @@ static ggml_cgraph * state_proj_build_graph(smolvla_state_proj * ctx) {
     };
 
     struct ggml_context * ctx0 = ggml_init(params);
-    struct ggml_cgraph * gf = ggml_new_graph(ctx0);
+    struct ggml_cgraph * gf    = ggml_new_graph(ctx0);
 
     // Input tensor: [max_state_dim] (padded and normalized)
     struct ggml_tensor * inp = ggml_new_tensor_1d(ctx0, GGML_TYPE_F32, ctx->max_state_dim);
@@ -53,7 +53,7 @@ static ggml_cgraph * state_proj_build_graph(smolvla_state_proj * ctx) {
     // Linear: out = inp @ weight.T + bias
     // weight is [hidden_size, max_state_dim], mul_mat handles transpose
     struct ggml_tensor * cur = ggml_mul_mat(ctx0, ctx->weight, inp);
-    cur = ggml_add(ctx0, cur, bias_f32);
+    cur                      = ggml_add(ctx0, cur, bias_f32);
 
     // Output
     ggml_set_name(cur, "state_output");
@@ -76,7 +76,7 @@ static void normalize_state_mean_std(const float * input, float * output, int di
     // Normalize actual dimensions
     for (int i = 0; i < dim && i < (int)mean.size(); i++) {
         float denom = std[i] + eps;
-        output[i] = (input[i] - mean[i]) / denom;
+        output[i]   = (input[i] - mean[i]) / denom;
     }
 
     // Zero-pad remaining dimensions
@@ -101,13 +101,13 @@ class smolvla_state_proj_loader : public gguf_loader {
 
     bool bind_tensors(ggml_context * ctx_data) override {
         ctx_->weight = this->require_tensor(ctx_data, "smolvla.state_proj.weight");
-        ctx_->bias = this->require_tensor(ctx_data, "smolvla.state_proj.bias");
+        ctx_->bias   = this->require_tensor(ctx_data, "smolvla.state_proj.bias");
 
         ctx_->max_state_dim = (int)ctx_->weight->ne[0];
-        ctx_->hidden_size = (int)ctx_->weight->ne[1];
+        ctx_->hidden_size   = (int)ctx_->weight->ne[1];
 
         ctx_->norm_mean = this->read_f32_tensor(ctx_data, "smolvla.norm.observation_state_mean");
-        ctx_->norm_std = this->read_f32_tensor(ctx_data, "smolvla.norm.observation_state_std");
+        ctx_->norm_std  = this->read_f32_tensor(ctx_data, "smolvla.norm.observation_state_std");
         ctx_->has_norm_stats =
             !ctx_->norm_mean.empty() && !ctx_->norm_std.empty() && ctx_->norm_mean.size() == ctx_->norm_std.size();
 
@@ -127,11 +127,11 @@ class smolvla_state_proj_loader : public gguf_loader {
 struct smolvla_state_proj * smolvla_state_proj_load(const char * fname, int verbosity) {
     // Create context
     smolvla_state_proj * ctx = new smolvla_state_proj();
-    ctx->verbosity = verbosity;
+    ctx->verbosity           = verbosity;
 
     backend_scheduler_config scheduler_config;
-    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
-    scheduler_config.parallel = false;
+    scheduler_config.max_nodes  = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel   = false;
     scheduler_config.op_offload = false;
     backend_loader backend;
     if (!backend.load(ctx->backend_cpu, ctx->backends, ctx->sched, ctx->buft_policy, false, scheduler_config,
@@ -149,8 +149,8 @@ struct smolvla_state_proj * smolvla_state_proj_load(const char * fname, int verb
             return nullptr;
         }
     }
-    ctx->ctx_gguf = loaded.gguf;
-    ctx->ctx_data = loaded.ctx_data;
+    ctx->ctx_gguf      = loaded.gguf;
+    ctx->ctx_data      = loaded.ctx_data;
     ctx->params_buffer = loaded.model_buffer;
 
     if (ctx->has_norm_stats) {
@@ -212,7 +212,7 @@ bool smolvla_state_proj_encode(struct smolvla_state_proj * ctx, int n_threads, c
 
     // Build compute graph
     auto t_build_start = std::chrono::high_resolution_clock::now();
-    ggml_cgraph * gf = state_proj_build_graph(ctx);
+    ggml_cgraph * gf   = state_proj_build_graph(ctx);
     ggml_backend_sched_reset(ctx->sched);
     if (!gf || !ggml_backend_sched_alloc_graph(ctx->sched, gf)) {
         LOG_ERR("%s: failed to allocate state_proj graph\n", __func__);

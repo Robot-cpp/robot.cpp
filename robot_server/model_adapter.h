@@ -17,7 +17,7 @@ class model_adapter {
     explicit model_adapter(std::unique_ptr<robotcpp::Model> model);
     ~model_adapter();
 
-    model_adapter(const model_adapter &) = delete;
+    model_adapter(const model_adapter &)             = delete;
     model_adapter & operator=(const model_adapter &) = delete;
 
     bool predict(const robot_server::protocol::predict_request & req, robot_server::protocol::predict_response & resp,

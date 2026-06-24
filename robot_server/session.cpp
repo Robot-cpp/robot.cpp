@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace proto = robot_server::protocol;
+namespace proto  = robot_server::protocol;
 using clock_type = std::chrono::steady_clock;
 
 namespace robot_server {
@@ -32,7 +32,7 @@ static double elapsed_ms(const clock_type::time_point & a, const clock_type::tim
 
 static void add_metric(proto::predict_response & resp, const char * name, double value) {
     proto::metric metric;
-    metric.name = name;
+    metric.name  = name;
     metric.value = value;
     resp.metrics.push_back(std::move(metric));
 }
@@ -40,9 +40,9 @@ static void add_metric(proto::predict_response & resp, const char * name, double
 static bool send_message(sockets::socket_handle fd, uint16_t op, uint32_t request_id, uint32_t status,
                          const std::vector<uint8_t> & payload, std::string & error) {
     proto::header h;
-    h.op = op;
-    h.request_id = request_id;
-    h.status = status;
+    h.op          = op;
+    h.request_id  = request_id;
+    h.status      = status;
     h.payload_len = payload.size();
 
     std::vector<uint8_t> hdr;
@@ -124,8 +124,8 @@ bool handle_client(sockets::socket_handle fd, model_adapter & policy, std::mutex
             std::unique_lock<std::mutex> lock(predict_mutex);
             const double server_queue_ms = elapsed_ms(t_queue0, clock_type::now());
 
-            const auto t_predict0 = clock_type::now();
-            const bool ok = policy.predict(req, resp, error);
+            const auto t_predict0          = clock_type::now();
+            const bool ok                  = policy.predict(req, resp, error);
             const double server_predict_ms = elapsed_ms(t_predict0, clock_type::now());
             lock.unlock();
 

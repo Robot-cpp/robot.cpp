@@ -64,9 +64,9 @@ ggml_tensor * persistent_f32(const Pi0ComponentRuntime & runtime, ggml_tensor **
 
     const int64_t ne[] = {ne0, ne1, ne2, 1};
     ggml_init_params params{};
-    params.mem_size = 2 * ggml_tensor_overhead();
-    params.mem_buffer = nullptr;
-    params.no_alloc = true;
+    params.mem_size    = 2 * ggml_tensor_overhead();
+    params.mem_buffer  = nullptr;
+    params.no_alloc    = true;
     ggml_context * ctx = ggml_init(params);
     if (ctx == nullptr) {
         throw std::runtime_error("failed to initialize pi0 persistent tensor context");
@@ -99,16 +99,16 @@ Pi0PersistentAllocation::~Pi0PersistentAllocation() {
 
 Pi0PersistentAllocation::Pi0PersistentAllocation(Pi0PersistentAllocation && other) noexcept
     : ctx(other.ctx), buffer(other.buffer) {
-    other.ctx = nullptr;
+    other.ctx    = nullptr;
     other.buffer = nullptr;
 }
 
 Pi0PersistentAllocation & Pi0PersistentAllocation::operator=(Pi0PersistentAllocation && other) noexcept {
     if (this != &other) {
         reset();
-        ctx = other.ctx;
-        buffer = other.buffer;
-        other.ctx = nullptr;
+        ctx          = other.ctx;
+        buffer       = other.buffer;
+        other.ctx    = nullptr;
         other.buffer = nullptr;
     }
     return *this;
@@ -134,28 +134,28 @@ Pi0ComponentRuntime::Pi0ComponentRuntime(Pi0ComponentRuntime && other) noexcept
       buft_policy(other.buft_policy), n_threads(other.n_threads),
       persistent_allocations(std::move(other.persistent_allocations)) {
     other.backend_cpu = nullptr;
-    other.sched = nullptr;
+    other.sched       = nullptr;
     other.backends.clear();
     other.persistent_allocations.clear();
     other.buft_policy = {};
-    other.n_threads = 0;
+    other.n_threads   = 0;
 }
 
 Pi0ComponentRuntime & Pi0ComponentRuntime::operator=(Pi0ComponentRuntime && other) noexcept {
     if (this != &other) {
         reset();
-        backend_cpu = other.backend_cpu;
-        sched = other.sched;
-        backends = std::move(other.backends);
-        buft_policy = other.buft_policy;
-        n_threads = other.n_threads;
+        backend_cpu            = other.backend_cpu;
+        sched                  = other.sched;
+        backends               = std::move(other.backends);
+        buft_policy            = other.buft_policy;
+        n_threads              = other.n_threads;
         persistent_allocations = std::move(other.persistent_allocations);
-        other.backend_cpu = nullptr;
-        other.sched = nullptr;
+        other.backend_cpu      = nullptr;
+        other.sched            = nullptr;
         other.backends.clear();
         other.persistent_allocations.clear();
         other.buft_policy = {};
-        other.n_threads = 0;
+        other.n_threads   = 0;
     }
     return *this;
 }
@@ -174,7 +174,7 @@ void Pi0ComponentRuntime::reset() {
     backends.clear();
     backend_cpu = nullptr;
     buft_policy = {};
-    n_threads = 0;
+    n_threads   = 0;
 }
 
 Pi0GraphContext::Pi0GraphContext(ggml_init_params params) {
@@ -202,12 +202,12 @@ void pi0_init_component_runtime(Pi0ComponentRuntime & runtime, const Pi0BackendC
                                 const Pi0ComponentConfig & component, const char * label, int verbosity) {
     runtime.reset();
     const Pi0BackendConfig resolved = component_backend_config(base, component);
-    const bool use_accel = resolved.use_accel;
-    runtime.n_threads = resolved.n_threads;
+    const bool use_accel            = resolved.use_accel;
+    runtime.n_threads               = resolved.n_threads;
 
     backend_scheduler_config scheduler_config;
-    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
-    scheduler_config.parallel = false;
+    scheduler_config.max_nodes  = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel   = false;
     scheduler_config.op_offload = use_accel;
 
     backend_loader loader;
@@ -230,9 +230,9 @@ void pi0_init_component_runtime(Pi0ComponentRuntime & runtime, const Pi0BackendC
 
 ggml_init_params pi0_graph_init_params(size_t mem_size) {
     ggml_init_params params{};
-    params.mem_size = mem_size;
+    params.mem_size   = mem_size;
     params.mem_buffer = nullptr;
-    params.no_alloc = true;
+    params.no_alloc   = true;
     return params;
 }
 

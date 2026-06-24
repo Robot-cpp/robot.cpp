@@ -37,7 +37,7 @@ std::vector<float> make_random_state(uint32_t dim) {
 
 int main(int argc, char ** argv) {
     std::string host = "127.0.0.1";
-    uint16_t port = 5555;
+    uint16_t port    = 5555;
     if (argc > 1) {
         host = argv[1];
     }
@@ -45,20 +45,20 @@ int main(int argc, char ** argv) {
         port = (uint16_t)std::stoi(argv[2]);
     }
 
-    const uint32_t width = 224;
-    const uint32_t height = 224;
+    const uint32_t width       = 224;
+    const uint32_t height      = 224;
     std::vector<uint8_t> image = make_random_rgb_image(width, height);
-    std::vector<float> state = make_random_state(6);
+    std::vector<float> state   = make_random_state(6);
 
     client::ModelObservation obs;
     client::ModelImage camera;
-    camera.name = "image";
-    camera.rgb_hwc_u8 = image.data();
-    camera.width = width;
-    camera.height = height;
+    camera.name         = "image";
+    camera.rgb_hwc_u8   = image.data();
+    camera.width        = width;
+    camera.height       = height;
     camera.stride_bytes = width * 3;
     obs.images.push_back(camera);
-    obs.state = state;
+    obs.state  = state;
     obs.prompt = "grab the block.";
 
     client::ModelClient model(host, port);

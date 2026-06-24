@@ -182,8 +182,8 @@ static bool ensure_prefix_kv_runtime(smolvla_action_expert * ctx, int prefix_seq
 
     clear_prefix_kv_runtime(ctx);
 
-    const size_t tensor_count = 2 * (size_t)ctx->num_layers + 1;
-    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    const size_t tensor_count      = 2 * (size_t)ctx->num_layers + 1;
+    const size_t ctx_size          = ggml_tensor_overhead() * tensor_count;
     struct ggml_init_params params = {
         /*.mem_size   =*/ctx_size,
         /*.mem_buffer =*/nullptr,
@@ -200,7 +200,7 @@ static bool ensure_prefix_kv_runtime(smolvla_action_expert * ctx, int prefix_seq
     ctx->prefix_kv_runtime.k_layers.resize(ctx->num_layers, nullptr);
     ctx->prefix_kv_runtime.v_layers.resize(ctx->num_layers, nullptr);
     for (int layer_idx = 0; layer_idx < ctx->num_layers; ++layer_idx) {
-        const bool is_cross = ctx->layers[layer_idx].is_cross_attn;
+        const bool is_cross  = ctx->layers[layer_idx].is_cross_attn;
         const int prefix_dim = is_cross ? ctx->llm_kv_dim : ctx->n_kv_heads * ctx->head_dim;
 
         ctx->prefix_kv_runtime.k_layers[layer_idx] =
@@ -236,18 +236,18 @@ class smolvla_action_expert_loader : public gguf_loader {
 
   protected:
     bool parse_metadata(gguf_context * gguf) override {
-        ctx_->hidden_size = (int)this->u32_or(gguf, "smolvla.expert.hidden_size", 720);
+        ctx_->hidden_size       = (int)this->u32_or(gguf, "smolvla.expert.hidden_size", 720);
         ctx_->intermediate_size = (int)this->u32_or(gguf, "smolvla.expert.intermediate_size", 2048);
-        ctx_->num_layers = (int)this->u32_or(gguf, "smolvla.expert.num_layers", 16);
-        ctx_->head_dim = (int)this->require_u32(gguf, "smolvla.expert.head_dim");
-        ctx_->n_q_heads = (int)this->require_u32(gguf, "smolvla.expert.num_attention_heads");
-        ctx_->n_kv_heads = (int)this->require_u32(gguf, "smolvla.expert.num_key_value_heads");
-        ctx_->max_action_dim = (int)this->require_u32(gguf, "smolvla.action_dim");
-        ctx_->chunk_size = (int)this->require_u32(gguf, "smolvla.chunk_size");
-        ctx_->num_steps = (int)this->require_u32(gguf, "smolvla.num_steps");
+        ctx_->num_layers        = (int)this->u32_or(gguf, "smolvla.expert.num_layers", 16);
+        ctx_->head_dim          = (int)this->require_u32(gguf, "smolvla.expert.head_dim");
+        ctx_->n_q_heads         = (int)this->require_u32(gguf, "smolvla.expert.num_attention_heads");
+        ctx_->n_kv_heads        = (int)this->require_u32(gguf, "smolvla.expert.num_key_value_heads");
+        ctx_->max_action_dim    = (int)this->require_u32(gguf, "smolvla.action_dim");
+        ctx_->chunk_size        = (int)this->require_u32(gguf, "smolvla.chunk_size");
+        ctx_->num_steps         = (int)this->require_u32(gguf, "smolvla.num_steps");
         ctx_->self_attn_every_n = (int)this->u32_or(gguf, "smolvla.self_attn_every_n_layers", 2);
-        ctx_->min_period = this->f32_or(gguf, "smolvla.min_period", 0.004f);
-        ctx_->max_period = this->f32_or(gguf, "smolvla.max_period", 4.0f);
+        ctx_->min_period        = this->f32_or(gguf, "smolvla.min_period", 0.004f);
+        ctx_->max_period        = this->f32_or(gguf, "smolvla.max_period", 4.0f);
 
         is_cross_.assign(ctx_->num_layers, false);
         const int cross_n = this->arr_n(gguf, "smolvla.expert.cross_attn_layers");
@@ -290,13 +290,13 @@ class smolvla_action_expert_loader : public gguf_loader {
     }
 
     bool bind_tensors(ggml_context * ctx_data) override {
-        ctx_->action_in_proj_w = this->require_tensor(ctx_data, "smolvla.action_in_proj.weight");
-        ctx_->action_in_proj_b = this->require_tensor(ctx_data, "smolvla.action_in_proj.bias");
+        ctx_->action_in_proj_w  = this->require_tensor(ctx_data, "smolvla.action_in_proj.weight");
+        ctx_->action_in_proj_b  = this->require_tensor(ctx_data, "smolvla.action_in_proj.bias");
         ctx_->action_out_proj_w = this->require_tensor(ctx_data, "smolvla.action_out_proj.weight");
         ctx_->action_out_proj_b = this->require_tensor(ctx_data, "smolvla.action_out_proj.bias");
 
-        ctx_->time_mlp_in_w = this->require_tensor(ctx_data, "smolvla.time_mlp.0.weight");
-        ctx_->time_mlp_in_b = this->require_tensor(ctx_data, "smolvla.time_mlp.0.bias");
+        ctx_->time_mlp_in_w  = this->require_tensor(ctx_data, "smolvla.time_mlp.0.weight");
+        ctx_->time_mlp_in_b  = this->require_tensor(ctx_data, "smolvla.time_mlp.0.bias");
         ctx_->time_mlp_out_w = this->require_tensor(ctx_data, "smolvla.time_mlp.2.weight");
         ctx_->time_mlp_out_b = this->require_tensor(ctx_data, "smolvla.time_mlp.2.bias");
 
@@ -305,17 +305,17 @@ class smolvla_action_expert_loader : public gguf_loader {
         ctx_->layers.resize(ctx_->num_layers);
         for (int i = 0; i < ctx_->num_layers; ++i) {
             smolvla_expert_layer & L = ctx_->layers[i];
-            const std::string pfx = fmt("smolvla.expert.blk.%d.", i);
+            const std::string pfx    = fmt("smolvla.expert.blk.%d.", i);
 
-            L.attn_norm = this->require_tensor(ctx_data, pfx + "attn_norm.weight");
-            L.attn_q = this->require_tensor(ctx_data, pfx + "attn_q.weight");
-            L.attn_k = this->require_tensor(ctx_data, pfx + "attn_k.weight");
-            L.attn_v = this->require_tensor(ctx_data, pfx + "attn_v.weight");
-            L.attn_output = this->require_tensor(ctx_data, pfx + "attn_output.weight");
-            L.ffn_norm = this->require_tensor(ctx_data, pfx + "ffn_norm.weight");
-            L.ffn_gate = this->require_tensor(ctx_data, pfx + "ffn_gate.weight");
-            L.ffn_up = this->require_tensor(ctx_data, pfx + "ffn_up.weight");
-            L.ffn_down = this->require_tensor(ctx_data, pfx + "ffn_down.weight");
+            L.attn_norm     = this->require_tensor(ctx_data, pfx + "attn_norm.weight");
+            L.attn_q        = this->require_tensor(ctx_data, pfx + "attn_q.weight");
+            L.attn_k        = this->require_tensor(ctx_data, pfx + "attn_k.weight");
+            L.attn_v        = this->require_tensor(ctx_data, pfx + "attn_v.weight");
+            L.attn_output   = this->require_tensor(ctx_data, pfx + "attn_output.weight");
+            L.ffn_norm      = this->require_tensor(ctx_data, pfx + "ffn_norm.weight");
+            L.ffn_gate      = this->require_tensor(ctx_data, pfx + "ffn_gate.weight");
+            L.ffn_up        = this->require_tensor(ctx_data, pfx + "ffn_up.weight");
+            L.ffn_down      = this->require_tensor(ctx_data, pfx + "ffn_down.weight");
             L.is_cross_attn = i < (int)is_cross_.size() && is_cross_[i];
         }
 
@@ -327,8 +327,8 @@ class smolvla_action_expert_loader : public gguf_loader {
         }
 
         ctx_->action_mean = this->read_f32_tensor(ctx_data, "smolvla.unnorm.action_mean");
-        ctx_->action_std = this->read_f32_tensor(ctx_data, "smolvla.unnorm.action_std");
-        ctx_->action_dim = (int)ctx_->action_mean.size();
+        ctx_->action_std  = this->read_f32_tensor(ctx_data, "smolvla.unnorm.action_std");
+        ctx_->action_dim  = (int)ctx_->action_mean.size();
 
         return true;
     }
@@ -344,13 +344,13 @@ class smolvla_action_expert_loader : public gguf_loader {
 // ============================================================================
 
 struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, int verbosity) {
-    auto * ctx = new smolvla_action_expert();
+    auto * ctx     = new smolvla_action_expert();
     ctx->verbosity = verbosity;
 
     ctx->sched = nullptr;
     backend_scheduler_config scheduler_config;
-    scheduler_config.max_nodes = 4096 * 16;
-    scheduler_config.parallel = false;
+    scheduler_config.max_nodes  = 4096 * 16;
+    scheduler_config.parallel   = false;
     scheduler_config.op_offload = true;
     backend_loader backend;
     if (!backend.load(ctx->backend_cpu, ctx->backends, ctx->sched, ctx->buft_policy,
@@ -446,16 +446,16 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
 static void compute_sinusoidal_time_emb(float timestep, int dimension, float min_period, float max_period,
                                         float * output // [dimension]
 ) {
-    const int half = dimension / 2;
-    const double ratio = (double)max_period / (double)min_period;
+    const int half      = dimension / 2;
+    const double ratio  = (double)max_period / (double)min_period;
     const double two_pi = 2.0 * M_PI;
 
     for (int i = 0; i < half; i++) {
-        double fraction = (double)i / (double)(half - 1); // linspace(0, 1, half)
-        double period = (double)min_period * pow(ratio, fraction);
-        double scaling = (1.0 / period) * two_pi;
-        double angle = scaling * (double)timestep;
-        output[i] = (float)sin(angle);
+        double fraction  = (double)i / (double)(half - 1); // linspace(0, 1, half)
+        double period    = (double)min_period * pow(ratio, fraction);
+        double scaling   = (1.0 / period) * two_pi;
+        double angle     = scaling * (double)timestep;
+        output[i]        = (float)sin(angle);
         output[i + half] = (float)cos(angle);
     }
 }
@@ -497,8 +497,8 @@ static bool init_time_embedding_runtime(smolvla_action_expert * ctx) {
 
     clear_time_embedding_runtime(ctx);
 
-    const size_t tensor_count = 2;
-    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    const size_t tensor_count      = 2;
+    const size_t ctx_size          = ggml_tensor_overhead() * tensor_count;
     struct ggml_init_params params = {
         /*.mem_size   =*/ctx_size,
         /*.mem_buffer =*/nullptr,
@@ -563,15 +563,15 @@ static bool init_time_embedding_runtime(smolvla_action_expert * ctx) {
 static struct ggml_tensor * build_embed_suffix_op(smolvla_action_expert * ctx, struct ggml_context * ctx0,
                                                   struct ggml_tensor * noisy_actions, struct ggml_tensor * time_emb) {
     struct ggml_tensor * action_emb = ggml_mul_mat(ctx0, ctx->action_in_proj_w, noisy_actions);
-    action_emb = ggml_add(ctx0, action_emb, ctx->action_in_proj_b);
+    action_emb                      = ggml_add(ctx0, action_emb, ctx->action_in_proj_b);
 
     struct ggml_tensor * concat = ggml_concat(ctx0, action_emb, time_emb, 0);
 
     struct ggml_tensor * cur = ggml_mul_mat(ctx0, ctx->time_mlp_in_w, concat);
-    cur = ggml_add(ctx0, cur, ctx->time_mlp_in_b);
-    cur = ggml_silu(ctx0, cur);
-    cur = ggml_mul_mat(ctx0, ctx->time_mlp_out_w, cur);
-    cur = ggml_add(ctx0, cur, ctx->time_mlp_out_b);
+    cur                      = ggml_add(ctx0, cur, ctx->time_mlp_in_b);
+    cur                      = ggml_silu(ctx0, cur);
+    cur                      = ggml_mul_mat(ctx0, ctx->time_mlp_out_w, cur);
+    cur                      = ggml_add(ctx0, cur, ctx->time_mlp_out_b);
     return cur;
 }
 
@@ -591,8 +591,8 @@ static bool init_attention_runtime(smolvla_action_expert * ctx) {
 
     clear_attention_runtime(ctx);
 
-    const size_t tensor_count = 4 + 1;
-    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    const size_t tensor_count      = 4 + 1;
+    const size_t ctx_size          = ggml_tensor_overhead() * tensor_count;
     struct ggml_init_params params = {
         /*.mem_size   =*/ctx_size,
         /*.mem_buffer =*/nullptr,
@@ -626,8 +626,8 @@ static bool create_attention_runtime_tensors(smolvla_action_expert * ctx, int pr
 
     clear_attention_runtime(ctx);
 
-    const size_t tensor_count = 4 + 1;
-    const size_t ctx_size = ggml_tensor_overhead() * tensor_count;
+    const size_t tensor_count      = 4 + 1;
+    const size_t ctx_size          = ggml_tensor_overhead() * tensor_count;
     struct ggml_init_params params = {
         /*.mem_size   =*/ctx_size,
         /*.mem_buffer =*/nullptr,
@@ -671,7 +671,7 @@ static bool create_attention_runtime_tensors(smolvla_action_expert * ctx, int pr
     }
 
     ctx->attention_runtime.prefix_seq_len = prefix_seq_len;
-    ctx->attention_runtime.prepared = false;
+    ctx->attention_runtime.prepared       = false;
     return true;
 }
 
@@ -720,7 +720,7 @@ bool smolvla_action_expert_prepare_attention_cache(smolvla_action_expert * ctx, 
 static struct ggml_tensor * rms_norm_weighted(struct ggml_context * ctx0, struct ggml_tensor * x,
                                               struct ggml_tensor * weight, float eps) {
     struct ggml_tensor * y = ggml_rms_norm(ctx0, x, eps);
-    y = ggml_mul(ctx0, y, weight);
+    y                      = ggml_mul(ctx0, y, weight);
     return y;
 }
 
@@ -728,51 +728,51 @@ static struct ggml_tensor * build_self_attn_layer_op(smolvla_action_expert * ctx
                                                      struct ggml_context * ctx0, struct ggml_tensor * hidden_in,
                                                      struct ggml_tensor * prefix_k_in, struct ggml_tensor * prefix_v_in,
                                                      struct ggml_tensor * pos_in, struct ggml_tensor * mask_in) {
-    const auto & layer = ctx->layers[layer_idx];
-    const int chunk = ctx->chunk_size;
-    const int head_dim = ctx->head_dim;
-    const int q_dim = ctx->n_q_heads * head_dim;
-    const float rms_eps = 1e-5f;
+    const auto & layer     = ctx->layers[layer_idx];
+    const int chunk        = ctx->chunk_size;
+    const int head_dim     = ctx->head_dim;
+    const int q_dim        = ctx->n_q_heads * head_dim;
+    const float rms_eps    = 1e-5f;
     const float attn_scale = 1.0f / sqrtf((float)head_dim);
 
     struct ggml_tensor * norm1 = rms_norm_weighted(ctx0, hidden_in, layer.attn_norm, rms_eps);
 
     struct ggml_tensor * q = ggml_mul_mat(ctx0, layer.attn_q, norm1);
-    q = ggml_reshape_3d(ctx0, q, head_dim, ctx->n_q_heads, chunk);
-    q = ggml_rope(ctx0, q, pos_in, head_dim, 0);
-    q = ggml_permute(ctx0, q, 0, 2, 1, 3);
+    q                      = ggml_reshape_3d(ctx0, q, head_dim, ctx->n_q_heads, chunk);
+    q                      = ggml_rope(ctx0, q, pos_in, head_dim, 0);
+    q                      = ggml_permute(ctx0, q, 0, 2, 1, 3);
 
     struct ggml_tensor * k_suffix = ggml_mul_mat(ctx0, layer.attn_k, norm1);
-    k_suffix = ggml_reshape_3d(ctx0, k_suffix, head_dim, ctx->n_kv_heads, chunk);
-    k_suffix = ggml_rope(ctx0, k_suffix, pos_in, head_dim, 0);
+    k_suffix                      = ggml_reshape_3d(ctx0, k_suffix, head_dim, ctx->n_kv_heads, chunk);
+    k_suffix                      = ggml_rope(ctx0, k_suffix, pos_in, head_dim, 0);
 
     struct ggml_tensor * v_suffix = ggml_mul_mat(ctx0, layer.attn_v, norm1);
-    v_suffix = ggml_reshape_3d(ctx0, v_suffix, head_dim, ctx->n_kv_heads, chunk);
+    v_suffix                      = ggml_reshape_3d(ctx0, v_suffix, head_dim, ctx->n_kv_heads, chunk);
 
     struct ggml_tensor * prefix_k_3d = ggml_reshape_3d(ctx0, prefix_k_in, head_dim, ctx->n_kv_heads, prefix_seq_len);
     struct ggml_tensor * prefix_v_3d = ggml_reshape_3d(ctx0, prefix_v_in, head_dim, ctx->n_kv_heads, prefix_seq_len);
 
     struct ggml_tensor * k_all = ggml_concat(ctx0, prefix_k_3d, k_suffix, 2);
     struct ggml_tensor * v_all = ggml_concat(ctx0, prefix_v_3d, v_suffix, 2);
-    struct ggml_tensor * k = ggml_permute(ctx0, k_all, 0, 2, 1, 3);
-    struct ggml_tensor * v = ggml_cont(ctx0, ggml_permute(ctx0, v_all, 1, 2, 0, 3));
+    struct ggml_tensor * k     = ggml_permute(ctx0, k_all, 0, 2, 1, 3);
+    struct ggml_tensor * v     = ggml_cont(ctx0, ggml_permute(ctx0, v_all, 1, 2, 0, 3));
 
     struct ggml_tensor * kq = ggml_mul_mat(ctx0, k, q);
     ggml_mul_mat_set_prec(kq, GGML_PREC_F32);
-    kq = ggml_soft_max_ext(ctx0, kq, mask_in, attn_scale, 0.0f);
-    struct ggml_tensor * kqv = ggml_mul_mat(ctx0, v, kq);
+    kq                              = ggml_soft_max_ext(ctx0, kq, mask_in, attn_scale, 0.0f);
+    struct ggml_tensor * kqv        = ggml_mul_mat(ctx0, v, kq);
     struct ggml_tensor * kqv_merged = ggml_permute(ctx0, kqv, 0, 2, 1, 3);
-    struct ggml_tensor * attn = ggml_cont_2d(ctx0, kqv_merged, q_dim, chunk);
+    struct ggml_tensor * attn       = ggml_cont_2d(ctx0, kqv_merged, q_dim, chunk);
 
     struct ggml_tensor * attn_proj = ggml_mul_mat(ctx0, layer.attn_output, attn);
     struct ggml_tensor * residual1 = ggml_add(ctx0, attn_proj, hidden_in);
 
-    struct ggml_tensor * norm2 = rms_norm_weighted(ctx0, residual1, layer.ffn_norm, rms_eps);
-    struct ggml_tensor * gate = ggml_mul_mat(ctx0, layer.ffn_gate, norm2);
-    gate = ggml_silu(ctx0, gate);
-    struct ggml_tensor * up = ggml_mul_mat(ctx0, layer.ffn_up, norm2);
+    struct ggml_tensor * norm2  = rms_norm_weighted(ctx0, residual1, layer.ffn_norm, rms_eps);
+    struct ggml_tensor * gate   = ggml_mul_mat(ctx0, layer.ffn_gate, norm2);
+    gate                        = ggml_silu(ctx0, gate);
+    struct ggml_tensor * up     = ggml_mul_mat(ctx0, layer.ffn_up, norm2);
     struct ggml_tensor * swiglu = ggml_mul(ctx0, gate, up);
-    struct ggml_tensor * down = ggml_mul_mat(ctx0, layer.ffn_down, swiglu);
+    struct ggml_tensor * down   = ggml_mul_mat(ctx0, layer.ffn_down, swiglu);
     return ggml_add(ctx0, down, residual1);
 }
 
@@ -781,44 +781,44 @@ static struct ggml_tensor * build_cross_attn_layer_op(smolvla_action_expert * ct
                                                       struct ggml_tensor * prefix_k_in,
                                                       struct ggml_tensor * prefix_v_in, struct ggml_tensor * pos_in,
                                                       struct ggml_tensor * mask_in) {
-    const auto & layer = ctx->layers[layer_idx];
-    const int chunk = ctx->chunk_size;
-    const int head_dim = ctx->head_dim;
-    const int q_dim = ctx->n_q_heads * head_dim;
-    const float rms_eps = 1e-5f;
+    const auto & layer     = ctx->layers[layer_idx];
+    const int chunk        = ctx->chunk_size;
+    const int head_dim     = ctx->head_dim;
+    const int q_dim        = ctx->n_q_heads * head_dim;
+    const float rms_eps    = 1e-5f;
     const float attn_scale = 1.0f / sqrtf((float)head_dim);
 
     struct ggml_tensor * norm1 = rms_norm_weighted(ctx0, hidden_in, layer.attn_norm, rms_eps);
 
     struct ggml_tensor * q = ggml_mul_mat(ctx0, layer.attn_q, norm1);
-    q = ggml_reshape_3d(ctx0, q, head_dim, ctx->n_q_heads, chunk);
-    q = ggml_rope(ctx0, q, pos_in, head_dim, 0);
-    q = ggml_permute(ctx0, q, 0, 2, 1, 3);
+    q                      = ggml_reshape_3d(ctx0, q, head_dim, ctx->n_q_heads, chunk);
+    q                      = ggml_rope(ctx0, q, pos_in, head_dim, 0);
+    q                      = ggml_permute(ctx0, q, 0, 2, 1, 3);
 
     struct ggml_tensor * k = ggml_mul_mat(ctx0, layer.attn_k, prefix_k_in);
-    k = ggml_reshape_3d(ctx0, k, head_dim, ctx->n_kv_heads, prefix_seq_len);
+    k                      = ggml_reshape_3d(ctx0, k, head_dim, ctx->n_kv_heads, prefix_seq_len);
 
-    struct ggml_tensor * v = ggml_mul_mat(ctx0, layer.attn_v, prefix_v_in);
-    v = ggml_reshape_3d(ctx0, v, head_dim, ctx->n_kv_heads, prefix_seq_len);
+    struct ggml_tensor * v      = ggml_mul_mat(ctx0, layer.attn_v, prefix_v_in);
+    v                           = ggml_reshape_3d(ctx0, v, head_dim, ctx->n_kv_heads, prefix_seq_len);
     struct ggml_tensor * k_view = ggml_permute(ctx0, k, 0, 2, 1, 3);
     struct ggml_tensor * v_view = ggml_cont(ctx0, ggml_permute(ctx0, v, 1, 2, 0, 3));
 
     struct ggml_tensor * kq = ggml_mul_mat(ctx0, k_view, q);
     ggml_mul_mat_set_prec(kq, GGML_PREC_F32);
-    kq = ggml_soft_max_ext(ctx0, kq, mask_in, attn_scale, 0.0f);
-    struct ggml_tensor * kqv = ggml_mul_mat(ctx0, v_view, kq);
+    kq                              = ggml_soft_max_ext(ctx0, kq, mask_in, attn_scale, 0.0f);
+    struct ggml_tensor * kqv        = ggml_mul_mat(ctx0, v_view, kq);
     struct ggml_tensor * kqv_merged = ggml_permute(ctx0, kqv, 0, 2, 1, 3);
-    struct ggml_tensor * attn = ggml_cont_2d(ctx0, kqv_merged, q_dim, chunk);
+    struct ggml_tensor * attn       = ggml_cont_2d(ctx0, kqv_merged, q_dim, chunk);
 
     struct ggml_tensor * attn_proj = ggml_mul_mat(ctx0, layer.attn_output, attn);
     struct ggml_tensor * residual1 = ggml_add(ctx0, attn_proj, hidden_in);
 
-    struct ggml_tensor * norm2 = rms_norm_weighted(ctx0, residual1, layer.ffn_norm, rms_eps);
-    struct ggml_tensor * gate = ggml_mul_mat(ctx0, layer.ffn_gate, norm2);
-    gate = ggml_silu(ctx0, gate);
-    struct ggml_tensor * up = ggml_mul_mat(ctx0, layer.ffn_up, norm2);
+    struct ggml_tensor * norm2  = rms_norm_weighted(ctx0, residual1, layer.ffn_norm, rms_eps);
+    struct ggml_tensor * gate   = ggml_mul_mat(ctx0, layer.ffn_gate, norm2);
+    gate                        = ggml_silu(ctx0, gate);
+    struct ggml_tensor * up     = ggml_mul_mat(ctx0, layer.ffn_up, norm2);
     struct ggml_tensor * swiglu = ggml_mul(ctx0, gate, up);
-    struct ggml_tensor * down = ggml_mul_mat(ctx0, layer.ffn_down, swiglu);
+    struct ggml_tensor * down   = ggml_mul_mat(ctx0, layer.ffn_down, swiglu);
     return ggml_add(ctx0, down, residual1);
 }
 
@@ -878,10 +878,10 @@ bool smolvla_action_expert_init_fixed_prefix_runtime(struct smolvla_action_exper
 
 static struct ggml_tensor * build_project_velocity_op(smolvla_action_expert * ctx, struct ggml_context * ctx0,
                                                       struct ggml_tensor * hidden_in) {
-    const float rms_eps = 1e-5f;
+    const float rms_eps       = 1e-5f;
     struct ggml_tensor * norm = rms_norm_weighted(ctx0, hidden_in, ctx->final_norm, rms_eps);
-    struct ggml_tensor * vel = ggml_mul_mat(ctx0, ctx->action_out_proj_w, norm);
-    vel = ggml_add(ctx0, vel, ctx->action_out_proj_b);
+    struct ggml_tensor * vel  = ggml_mul_mat(ctx0, ctx->action_out_proj_w, norm);
+    vel                       = ggml_add(ctx0, vel, ctx->action_out_proj_b);
     return vel;
 }
 
@@ -897,7 +897,7 @@ static int build_self_attn_mask_and_positions(const uint8_t * prefix_valid_mask,
     }
 
     const int total_kv_len = prefix_seq_len + suffix_len;
-    const int q_pad = GGML_PAD(suffix_len, GGML_KQ_MASK_PAD);
+    const int q_pad        = GGML_PAD(suffix_len, GGML_KQ_MASK_PAD);
     attention_mask_f32.assign((size_t)total_kv_len * q_pad, -INFINITY);
 
     std::vector<float> prefix_mask_f32((size_t)prefix_seq_len);
@@ -952,11 +952,11 @@ static bool ensure_denoise_runtime(smolvla_action_expert * ctx, int prefix_seq_l
 
     clear_denoise_runtime(ctx);
 
-    const int chunk = ctx->chunk_size;
-    const int hidden = ctx->hidden_size;
-    const int steps = ctx->num_steps;
-    const float dt = -1.0f / (float)steps;
-    const size_t graph_nodes = (size_t)4096 * (size_t)steps + 128;
+    const int chunk                               = ctx->chunk_size;
+    const int hidden                              = ctx->hidden_size;
+    const int steps                               = ctx->num_steps;
+    const float dt                                = -1.0f / (float)steps;
+    const size_t graph_nodes                      = (size_t)4096 * (size_t)steps + 128;
     smolvla_action_expert::denoise_runtime_t & rt = ctx->denoise_runtime;
 
     rt.meta_buf.resize(smolvla_graph_meta_size(graph_nodes));
@@ -973,7 +973,7 @@ static bool ensure_denoise_runtime(smolvla_action_expert * ctx, int prefix_seq_l
         return false;
     }
 
-    const size_t data_tensor_count = (size_t)steps;
+    const size_t data_tensor_count      = (size_t)steps;
     struct ggml_init_params data_params = {
         /*.mem_size   =*/ggml_tensor_overhead() * data_tensor_count,
         /*.mem_buffer =*/nullptr,
@@ -1049,7 +1049,7 @@ static bool ensure_denoise_runtime(smolvla_action_expert * ctx, int prefix_seq_l
         ggml_format_name(velocity, "denoise_velocity_%d", i);
 
         struct ggml_tensor * delta = ggml_scale(rt.ctx_graph, velocity, dt);
-        cur_actions = ggml_add(rt.ctx_graph, cur_actions, delta);
+        cur_actions                = ggml_add(rt.ctx_graph, cur_actions, delta);
         ggml_format_name(cur_actions, "denoise_actions_%d", i + 1);
     }
 
@@ -1074,7 +1074,7 @@ static bool ensure_denoise_runtime(smolvla_action_expert * ctx, int prefix_seq_l
     }
 
     rt.prefix_seq_len = prefix_seq_len;
-    rt.ready = true;
+    rt.ready          = true;
     return true;
 }
 
@@ -1096,7 +1096,7 @@ bool smolvla_action_expert_eval_denoise_graph(struct smolvla_action_expert * ctx
         return false;
     }
 
-    const int chunk = ctx->chunk_size;
+    const int chunk                               = ctx->chunk_size;
     smolvla_action_expert::denoise_runtime_t & rt = ctx->denoise_runtime;
 
     ggml_backend_tensor_set(rt.inp_actions, noisy_actions, 0, (size_t)ctx->max_action_dim * chunk * sizeof(float));
@@ -1123,8 +1123,8 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(struct smolvla_action_
         return false;
     }
 
-    const auto t_build_start = std::chrono::high_resolution_clock::now();
-    const int graph_nodes = ctx->num_layers * 8 + 16;
+    const auto t_build_start       = std::chrono::high_resolution_clock::now();
+    const int graph_nodes          = ctx->num_layers * 8 + 16;
     struct ggml_init_params params = {
         /*.mem_size   =*/ctx->buf_compute_meta.size(),
         /*.mem_buffer =*/ctx->buf_compute_meta.data(),
@@ -1156,10 +1156,10 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(struct smolvla_action_
             break;
         }
 
-        const int64_t prefix_dim = dst_k->ne[0];
-        const size_t k_row_size = ggml_row_size(src_k->type, prefix_dim);
-        const int64_t src_k_elems = ggml_nelements(src_k);
-        const int64_t src_v_elems = ggml_nelements(src_v);
+        const int64_t prefix_dim    = dst_k->ne[0];
+        const size_t k_row_size     = ggml_row_size(src_k->type, prefix_dim);
+        const int64_t src_k_elems   = ggml_nelements(src_k);
+        const int64_t src_v_elems   = ggml_nelements(src_v);
         const int64_t src_v_kv_size = prefix_dim > 0 ? src_v_elems / prefix_dim : 0;
 
         if (src_k_elems < prefix_dim * (int64_t)prefix_seq_len) {
@@ -1180,7 +1180,7 @@ bool smolvla_action_expert_prepare_prefix_kv_from_backend(struct smolvla_action_
             }
             struct ggml_tensor * v_view = ggml_view_2d(ctx0, src_v, prefix_seq_len, prefix_dim,
                                                        (size_t)src_v_kv_size * ggml_element_size(src_v), 0);
-            v_src = ggml_transpose(ctx0, v_view);
+            v_src                       = ggml_transpose(ctx0, v_view);
         } else {
             if (src_v_elems < prefix_dim * (int64_t)prefix_seq_len) {
                 LOG_ERR("%s: incompatible V layout for layer %d\n", __func__, layer_idx);
