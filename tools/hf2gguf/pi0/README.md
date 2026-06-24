@@ -28,6 +28,8 @@ bash /path/to/vlacpp/tools/hf2gguf/pi0/convert_pi0_all.sh
 
 `convert_pi0_all.sh` puts `${VLA_CPP_ROOT}/third_party/llama.cpp/gguf-py` on
 `PYTHONPATH`, so conversion uses the repository-paired GGUF Python package.
+`DTYPE` controls non-fp32 tensor conversion; source fp32 tensors are kept as
+fp32, matching the SmolVLA converter's fp32-preservation behavior.
 
 The Python converter can also be run directly:
 
