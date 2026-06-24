@@ -1,189 +1,79 @@
-"""Model-server policy helpers for simulated environment clients."""
-
 from __future__ import annotations
 
-import math
-import os
-import statistics
-import subprocess
-import time
+import numpy as np
 from abc import ABC, abstractmethod
 from collections import deque
-from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-
-try:
-    from .base_policy import BasePolicy
-except ImportError:  # Supports legacy imports with robot_client on sys.path.
-    from base_policy.base_policy import BasePolicy
+from model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes
+from eval.base_platform import BasePlatform
 
 
-@dataclass
-class ServerTiming:
-    roundtrip_ms: float
-    timings: dict[str, float]
-
-
-class SimPolicy(BasePolicy, ABC):
-    """Base class for simulated environment model-server policies.
-
-    Subclasses adapt simulator-specific observations into the model-server
-    request schema. This class owns common request dispatch, action chunk
-    buffering, reset, health, and timing collection.
-    """
-
-    def __init__(
-        self,
-        *,
-        action_dim: int,
-        host: str = "127.0.0.1",
-        port: int = 5555,
-        timeout: float | None = 120.0,
-    ):
-        self.action_dim = action_dim
+class BasePolicy(ABC):
+    def __init__(self, client: ModelClient):
+        self.client = client
         self.action_queue: deque[list[float]] = deque()
-        self.predict_calls = 0
-        self.timing_records: list[ServerTiming] = []
-        super().__init__(host=host, port=port, timeout=timeout)
+        self.action_dim: int = 0
+
+    def health(self) -> str:
+        return self.client.health()
+
+    def reset(self) -> None:
+        self.action_queue.clear()
+        self.client.reset()
 
     @abstractmethod
-    def build_request(self, observation: Any, task: str) -> dict[str, Any]:
-        """Convert an environment observation and task into a model-server request."""
+    def build_observation(self, observation: dict[str, Any], *, platform: BasePlatform, task: str) -> dict[str, Any]:
+        """Build from platform feedback into a standard model_client observation."""
 
-    def reset(self, *, reset_server: bool = True) -> None:
-        self.action_queue.clear()
-        super().reset(reset_server=reset_server)
+    def predict_action_chunk(self, platform_obs: dict[str, Any], *, platform: BasePlatform, task: str) -> ModelResponse:
+        request = self.build_observation(platform_obs, platform=platform, task=task)
+        return self.client.predict(request)
 
-    def predict_action_chunk(self, observation: Any, task: str) -> np.ndarray:
-        request = self.build_request(observation, task)
-        start = time.perf_counter()
-        response = self.client.predict(request)
-        roundtrip_ms = (time.perf_counter() - start) * 1000.0
-        self.predict_calls += 1
-        self.timing_records.append(ServerTiming(roundtrip_ms=roundtrip_ms, timings=response.timings))
-        return np.asarray(response.actions, dtype=np.float32)[:, : self.action_dim]
+    def _action_dim(self, platform: BasePlatform, response: ModelResponse, row: list[float] | None = None) -> int:
+        if self.action_dim > 0:
+            return self.action_dim
+        if platform.action_keys:
+            return len(platform.action_keys)
+        if response.action_dim > 0:
+            return response.action_dim
+        if row is not None:
+            return len(row)
+        raise RuntimeError("action_dim is unknown; set policy.action_dim or connect the platform first")
 
-    def select_action(self, observation: Any, task: str) -> np.ndarray:
+    def select_action(self, platform_obs: dict[str, Any], *, platform: BasePlatform, task: str) -> np.ndarray:
         if not self.action_queue:
-            self.action_queue.extend(self.predict_action_chunk(observation, task).tolist())
-        return np.asarray(self.action_queue.popleft()[: self.action_dim], dtype=np.float32)
+            response = self.predict_action_chunk(platform_obs, platform=platform, task=task)
+            action_dim = self._action_dim(platform, response, response.actions[0] if response.actions else None)
+            for row in response.actions:
+                self.action_queue.append([float(value) for value in row[:action_dim]])
+        row = self.action_queue.popleft()
+        action_dim = self.action_dim or len(platform.action_keys) or len(row)
+        return np.asarray(row[:action_dim], dtype=np.float32)
 
 
-def wait_for_server(policy: BasePolicy, timeout_s: float) -> None:
-    deadline = time.time() + timeout_s
-    last_error: Exception | None = None
-    while time.time() < deadline:
-        try:
-            policy.health()
-            return
-        except Exception as exc:
-            last_error = exc
-            time.sleep(0.25)
-    raise RuntimeError(f"model-server did not become healthy within {timeout_s:.1f}s: {last_error}")
+class RobotPolicy(BasePolicy):
+    """Default policy for platforms that expose camera_key, model_image_name, and action_keys."""
 
+    def build_observation(self, observation: dict[str, Any], *, platform: BasePlatform, task: str) -> dict[str, Any]:
+        camera_key = platform.camera_key
+        if not camera_key:
+            raise ValueError("platform.camera_key is required")
+        if camera_key not in observation:
+            raise KeyError(f"camera key {camera_key!r} missing in platform observation")
 
-def parse_server_env(values: list[str] | None) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for value in values or []:
-        key, sep, env_value = value.partition("=")
-        if not sep or not key:
-            raise ValueError(f"--server-env must be KEY=VALUE, got {value!r}")
-        out[key] = env_value
-    return out
-
-
-def server_command(args: Any) -> list[str]:
-    cmd = list(args.server_command or [])
-    if cmd and cmd[0] == "--":
-        cmd = cmd[1:]
-    if not cmd:
-        raise ValueError("--server-command is required with --launch-server")
-    return cmd
-
-
-def maybe_launch_server(args: Any, policy: BasePolicy) -> subprocess.Popen[str] | None:
-    if not args.launch_server:
-        wait_for_server(policy, args.server_wait_s)
-        return None
-    try:
-        policy.health()
-        print(f"Using existing model-server at {args.host}:{args.port}")
-        return None
-    except Exception:
-        pass
-
-    cmd = server_command(args)
-    env = os.environ.copy()
-    env.update(parse_server_env(args.server_env))
-    print("Launching model-server:")
-    print(" ".join(cmd))
-    proc = subprocess.Popen(cmd, env=env, text=True)
-    wait_for_server(policy, args.server_wait_s)
-    return proc
-
-
-def stop_server(proc: subprocess.Popen[str] | None, policy: BasePolicy) -> None:
-    if proc is None:
-        return
-    try:
-        policy.client.shutdown()
-    except Exception:
-        pass
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        proc.terminate()
-        proc.wait(timeout=10)
-
-
-def average_timing(records: list[ServerTiming]) -> dict[str, float]:
-    if not records:
-        return {}
-    out = {"roundtrip_ms": statistics.fmean(record.roundtrip_ms for record in records)}
-    keys = sorted({key for record in records for key in record.timings})
-    for key in keys:
-        values = [record.timings[key] for record in records if key in record.timings]
-        if values:
-            out[key] = statistics.fmean(values)
-    return out
-
-
-def summarize_values(values: list[float]) -> dict[str, float | int]:
-    ordered = sorted(float(value) for value in values)
-    if not ordered:
-        return {}
-
-    def percentile(q: float) -> float:
-        if len(ordered) == 1:
-            return ordered[0]
-        pos = (len(ordered) - 1) * q
-        low = int(math.floor(pos))
-        high = int(math.ceil(pos))
-        if low == high:
-            return ordered[low]
-        weight = pos - low
-        return ordered[low] * (1.0 - weight) + ordered[high] * weight
-
-    return {
-        "count": len(ordered),
-        "avg": statistics.fmean(ordered),
-        "min": ordered[0],
-        "p50": percentile(0.50),
-        "p90": percentile(0.90),
-        "p99": percentile(0.99),
-        "max": ordered[-1],
-    }
-
-
-def timing_summary(records: list[ServerTiming]) -> dict[str, dict[str, float | int]]:
-    if not records:
-        return {}
-    values_by_name: dict[str, list[float]] = {
-        "roundtrip_ms": [record.roundtrip_ms for record in records],
-    }
-    for record in records:
-        for key, value in record.timings.items():
-            values_by_name.setdefault(key, []).append(value)
-    return {key: summarize_values(values) for key, values in sorted(values_by_name.items())}
+        rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(observation[camera_key])
+        state = [float(observation[key]) for key in platform.action_keys if key in observation]
+        return {
+            "images": [
+                {
+                    "name": platform.model_image_name,
+                    "rgb_hwc_u8": rgb,
+                    "width": width,
+                    "height": height,
+                    "stride_bytes": stride,
+                }
+            ],
+            "state": state,
+            "prompt": task,
+        }

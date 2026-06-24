@@ -1,78 +1,86 @@
-"""Abstract robot client: policy predict + platform-specific hardware hooks."""
+"""Base control layer for robot platforms (hardware or sim adapters)."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+import importlib
+import os
+from types import ModuleType
 from typing import Any
 
-from model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes, state_to_list
+import numpy as np
 
 
-class BasePolicy(ABC):
-    """Base class for robot policy clients."""
+PLATFORM_MODULES = {
+    "so101": "eval.lerobot_so101.so101_client",
+    "lerobot_so101": "eval.lerobot_so101.so101_client",
+}
 
-    def __init__(self, policy: ModelClient):
-        self._policy = policy
 
-    @property
-    def policy(self) -> ModelClient:
-        return self._policy
+class BasePlatform:
+    """Platform-side observe / act hooks. Override only what the deployment uses."""
 
-    def predict(self, image: Any, state: Any, prompt: str, *, image_name: str = "camera1") -> ModelResponse:
-        """Synchronous policy inference."""
-        rgb, width, height, stride = image_to_rgb_hwc_u8_bytes(image)
-        observation = {
-            "images": [
-                {
-                    "name": image_name,
-                    "rgb_hwc_u8": rgb,
-                    "width": width,
-                    "height": height,
-                    "stride_bytes": stride,
-                }
-            ],
-            "state": state_to_list(state),
-            "prompt": prompt,
-        }
-        return self._policy.predict(observation)
-
-    def health(self) -> str:
-        return self._policy.health()
-
-    def reset_policy(self) -> str:
-        return self._policy.reset()
-
-    @abstractmethod
     def connect(self) -> None:
-        """Connect robot hardware and capture platform-specific state."""
+        """Open platform resources (serial, cameras, sim env, etc.)."""
 
-    @abstractmethod
     def disconnect(self) -> None:
-        """Disconnect robot hardware."""
+        """Release platform resources."""
 
-    @abstractmethod
+    def __enter__(self) -> BasePlatform:
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.disconnect()
+
     def get_observation(self) -> dict[str, Any]:
-        """Return the latest robot observation dict."""
+        raise NotImplementedError(f"{type(self).__name__} must implement get_observation()")
 
-    @abstractmethod
-    def send_action(self, action: dict[str, float]) -> None:
-        """Send one control step to the robot."""
+    def send_action(self, action: Any) -> None:
+        if isinstance(action, dict):
+            payload = action
+        else:
+            keys = self.action_keys
+            if not keys:
+                raise RuntimeError("platform.action_keys is empty; connect the robot first")
+            values = np.asarray(action, dtype=np.float32).reshape(-1)
+            payload = {key: float(values[index]) for index, key in enumerate(keys)}
+        self._send_action(payload)
 
-    @abstractmethod
+    def _send_action(self, action: dict[str, float]) -> None:
+        raise NotImplementedError(f"{type(self).__name__} must implement _send_action()")
+
     def reset_home(self) -> None:
-        """Move robot back to the platform home pose and reset policy state."""
+        """Optional platform homing motion."""
+        self.on_reset_home()
+
+    def on_reset_home(self) -> None:
+        """Override for platform-specific homing."""
 
     @property
-    @abstractmethod
-    def camera_key(self) -> str:
-        """Primary camera key inside ``get_observation()``."""
+    def camera_key(self) -> str | None:
+        return None
 
     @property
     def model_image_name(self) -> str:
-        """Image key sent to the model server (defaults to ``camera_key``)."""
-        return self.camera_key
+        key = self.camera_key
+        return key if key is not None else "image"
 
     @property
-    @abstractmethod
     def action_keys(self) -> list[str]:
-        """Ordered action feature keys for this robot."""
+        return []
+
+
+def load_platform_module(name: str | None = None) -> ModuleType:
+    platform_name = name or os.environ.get("ROBOT_PLATFORM") or os.environ.get("PLATFORM") or "so101"
+    module_name = PLATFORM_MODULES.get(platform_name)
+    if module_name is None:
+        supported = ", ".join(sorted(PLATFORM_MODULES))
+        raise SystemExit(f"Unknown platform {platform_name!r}. Supported: {supported}")
+    return importlib.import_module(module_name)
+
+
+def create_platform(cfg: Any = None) -> BasePlatform:
+    module = load_platform_module()
+    if cfg is None:
+        cfg = module.config_from_env()
+    return module.create_platform(cfg)

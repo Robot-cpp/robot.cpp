@@ -1,4 +1,4 @@
-"""LeRobot SO101 implementation of ``BasePolicy``."""
+"""LeRobot SO101 platform adapter."""
 
 from __future__ import annotations
 
@@ -10,8 +10,7 @@ from dataclasses import dataclass
 from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
-from model_client import ModelClient
-from base_policy.base import BasePolicy
+from eval.base_platform import BasePlatform
 from utils.robot import build_camera_config, extract_home_action
 
 DEFAULT_FPS = 25
@@ -55,24 +54,14 @@ def config_from_env() -> SO101ClientConfig:
     )
 
 
-class SO101RobotClient(BasePolicy):
-
-    def __init__(self, policy: ModelClient, cfg: SO101ClientConfig | None = None):
-        super().__init__(policy)
+class SO101Platform(BasePlatform):
+    def __init__(self, cfg: SO101ClientConfig | None = None):
         self.cfg = cfg or config_from_env()
         self._robot: SOFollower | None = None
         self._home_action: dict[str, float] = {}
         self._dt = 1.0 / max(1, self.cfg.fps)
 
     def connect(self) -> None:
-        health = self._policy.health()
-        logging.info(
-            "Connected to robot server at %s:%s (%s)",
-            self._policy.host,
-            self._policy.port,
-            health,
-        )
-
         cams = build_camera_config(self.cfg.robot_cameras)
         robot_cfg = SOFollowerRobotConfig(
             port=self.cfg.robot_port,
@@ -101,17 +90,16 @@ class SO101RobotClient(BasePolicy):
             raise RuntimeError("SO101 robot is not connected")
         return self._robot.get_observation()
 
-    def send_action(self, action: dict[str, float]) -> None:
+    def _send_action(self, action: dict[str, float]) -> None:
         if self._robot is None:
             raise RuntimeError("SO101 robot is not connected")
         self._robot.send_action(action)
 
-    def reset_home(self) -> None:
+    def on_reset_home(self) -> None:
         if self._robot is None:
             raise RuntimeError("SO101 robot is not connected")
-        self.reset_policy()
         for _ in range(max(6, int(self.cfg.fps * 0.8))):
-            self._robot.send_action(dict(self._home_action))
+            self._send_action(dict(self._home_action))
             time.sleep(max(0.01, self._dt))
 
     @property
@@ -128,5 +116,6 @@ class SO101RobotClient(BasePolicy):
             return []
         return list(self._robot.action_features.keys())
 
-def create_robot_client(policy: ModelClient, cfg: SO101ClientConfig | None = None) -> SO101RobotClient:
-    return SO101RobotClient(policy, cfg)
+
+def create_platform(cfg: SO101ClientConfig | None = None) -> SO101Platform:
+    return SO101Platform(cfg or config_from_env())

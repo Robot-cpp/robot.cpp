@@ -3,11 +3,11 @@
 # Edit the values below for your machine (serial ports, camera index, dataset hub id, etc.).
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VLA_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
+ROBOT_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
 
 export CONDA_ENV="${CONDA_ENV:-lerobot-demo}"
 
-export PYTHONPATH="${ROOT}:${ROOT}/lerobot_camera_opencv_crop:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_client"
+export PYTHONPATH="${ROOT}:${ROOT}/lerobot_camera_opencv_crop:${ROBOT_CPP_ROOT}/robot_client/python:${ROBOT_CPP_ROOT}/robot_client"
 
 # --- Robot serial ports ---
 export ROBOT_PORT="/dev/tty.usbmodem5B3E1195731"

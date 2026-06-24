@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from robot_client.base_policy.sim_policy import (
+from robot_client.policy.sim_policy import (
     average_timing,
     maybe_launch_server,
     parse_server_env,
@@ -18,6 +18,7 @@ from robot_client.base_policy.sim_policy import (
     stop_server,
     timing_summary,
 )
+from eval.base_platform import BasePlatform
 from eval.libero.client import DEFAULT_IMAGE_KEYS, LiberoClient
 from eval.libero.utils import (
     DEFAULT_RESULTS_DIR,
@@ -39,6 +40,9 @@ from eval.libero.env import (
 )
 
 
+_LIBERO_PLATFORM = BasePlatform()
+
+
 def run_episode(env: Any, policy: LiberoClient, seed: int | None, episode_index: int) -> dict[str, Any]:
     observation, _info = vector_reset(env, seed)
     policy.reset(reset_server=True)
@@ -53,7 +57,7 @@ def run_episode(env: Any, policy: LiberoClient, seed: int | None, episode_index:
     steps = 0
 
     for step in range(max_steps):
-        action = policy.select_action(observation, task)
+        action = policy.select_action(observation, platform=_LIBERO_PLATFORM, task=task)
         observation, reward, terminated, truncated, info = env.step(action.reshape(1, -1))
         rewards.append(float(np.asarray(reward).reshape(-1)[0]))
         success = success or success_from_info(info)
