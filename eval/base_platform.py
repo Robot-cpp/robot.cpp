@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes, state_to_list
+from robot_client.python.model_client import ModelClient, ModelResponse, image_to_rgb_hwc_u8_bytes, state_to_list
 
 
 class BasePolicy(ABC):

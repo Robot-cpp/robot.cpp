@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from robot_client.base_policy.sim_policy import (
+from robot_client.policy.base_policy import (
     average_timing,
     maybe_launch_server,
     parse_server_env,

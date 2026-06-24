@@ -6,9 +6,9 @@ server 启动后，robot 侧只需要把当前 observation 传给 client，clien
 
 ```text
 robot_client/python/model_client.py                    # 底层 TCP 客户端
-robot_client/base_policy/                              # BasePolicy + sync loop + run_sync
+eval/base_platform.py                                  # 真机 BasePolicy
+eval/lerobot_so101/                                    # SO101 sync loop + run_sync
 robot_client/examples/python/minimal_example.py        # 最小 smoke test
-eval/lerobot_so101/                                  # SO101 真机实现
 ```
 
 启动 server 后运行（记得先填写相关环境变量）：

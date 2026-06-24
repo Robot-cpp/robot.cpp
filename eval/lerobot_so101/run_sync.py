@@ -10,25 +10,16 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-_BASE_POLICY_DIR = Path(__file__).resolve().parent
-_ROBOT_CLIENT_DIR = _BASE_POLICY_DIR.parent
-_VLA_CPP_ROOT = _ROBOT_CLIENT_DIR.parent
-_MODEL_CLIENT_PYTHON = _ROBOT_CLIENT_DIR / "python"
-_LEROBOT_SO101 = _VLA_CPP_ROOT / "eval" / "lerobot_so101"
+_VLA_CPP_ROOT = Path(__file__).resolve().parents[2]
+if str(_VLA_CPP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_VLA_CPP_ROOT))
 
-if str(_ROBOT_CLIENT_DIR) not in sys.path:
-    sys.path.insert(0, str(_ROBOT_CLIENT_DIR))
-if str(_MODEL_CLIENT_PYTHON) not in sys.path:
-    sys.path.insert(0, str(_MODEL_CLIENT_PYTHON))
-if str(_LEROBOT_SO101) not in sys.path:
-    sys.path.insert(0, str(_LEROBOT_SO101))
-
-from model_client import ModelClient
-from base_policy.sync_loop import SyncControlLoop, SyncLoopConfig
+from eval.lerobot_so101.sync_loop import SyncControlLoop, SyncLoopConfig
+from robot_client.python.model_client import ModelClient
 
 DEFAULT_PLATFORM = "lerobot_so101"
 PLATFORM_MODULES = {
-    "lerobot_so101": "so101_client",
+    "lerobot_so101": "eval.lerobot_so101.so101_client",
 }
 
 

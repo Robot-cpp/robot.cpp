@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from robot_client.base_policy.sim_policy import SimPolicy
+from robot_client.policy.base_policy import BasePolicy
 from eval.libero.env import DEFAULT_LIBERO_CAMERA_KEYS
 
 
@@ -75,7 +75,7 @@ def build_libero_request(
     }
 
 
-class LiberoClient(SimPolicy):
+class LiberoClient(BasePolicy):
     """LIBERO-specific model-server policy client."""
 
     def __init__(

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from base_policy.base import BasePolicy
-from utils.stdin import StdinCBreak
+from eval.base_platform import BasePolicy
+from eval.lerobot_so101.utils.stdin import StdinCBreak
 
 
 def parse_chunk_actions(

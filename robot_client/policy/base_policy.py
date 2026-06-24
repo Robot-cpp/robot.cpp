@@ -14,10 +14,7 @@ from typing import Any
 
 import numpy as np
 
-try:
-    from .base_policy import BasePolicy
-except ImportError:  # Supports legacy imports with robot_client on sys.path.
-    from base_policy.base_policy import BasePolicy
+from ..python.model_client import ModelClient
 
 
 @dataclass
@@ -26,11 +23,11 @@ class ServerTiming:
     timings: dict[str, float]
 
 
-class SimPolicy(BasePolicy, ABC):
-    """Base class for simulated environment model-server policies.
+class BasePolicy(ABC):
+    """Base class for model-server backed evaluation policies.
 
     Subclasses adapt simulator-specific observations into the model-server
-    request schema. This class owns common request dispatch, action chunk
+    request schema. The base owns common request dispatch, action chunk
     buffering, reset, health, and timing collection.
     """
 
@@ -41,20 +38,28 @@ class SimPolicy(BasePolicy, ABC):
         host: str = "127.0.0.1",
         port: int = 5555,
         timeout: float | None = 120.0,
+        client: ModelClient | None = None,
     ):
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+        self.client = client or ModelClient(host=host, port=port, timeout=timeout)
         self.action_dim = action_dim
         self.action_queue: deque[list[float]] = deque()
         self.predict_calls = 0
         self.timing_records: list[ServerTiming] = []
-        super().__init__(host=host, port=port, timeout=timeout)
 
     @abstractmethod
     def build_request(self, observation: Any, task: str) -> dict[str, Any]:
         """Convert an environment observation and task into a model-server request."""
 
+    def health(self) -> str:
+        return self.client.health()
+
     def reset(self, *, reset_server: bool = True) -> None:
         self.action_queue.clear()
-        super().reset(reset_server=reset_server)
+        if reset_server:
+            self.client.reset()
 
     def predict_action_chunk(self, observation: Any, task: str) -> np.ndarray:
         request = self.build_request(observation, task)

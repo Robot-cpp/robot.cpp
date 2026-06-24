@@ -11,7 +11,7 @@ import numpy as np
 
 from eval.libero.client import DEFAULT_IMAGE_KEYS, LiberoClient
 from eval.libero.utils import DEFAULT_RESULTS_DIR, timestamp, write_json
-from robot_client.base_policy.sim_policy import (
+from robot_client.policy.base_policy import (
     maybe_launch_server,
     parse_server_env,
     server_command,

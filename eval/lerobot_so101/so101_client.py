@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 from lerobot.robots.so_follower.so_follower import SOFollower
 
-from model_client import ModelClient
-from base_policy.base import BasePolicy
-from utils.robot import build_camera_config, extract_home_action
+from eval.base_platform import BasePolicy
+from eval.lerobot_so101.utils.robot import build_camera_config, extract_home_action
+from robot_client.python.model_client import ModelClient
 
 DEFAULT_FPS = 25
 

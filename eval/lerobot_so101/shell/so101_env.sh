@@ -7,7 +7,7 @@ VLA_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
 
 export CONDA_ENV="${CONDA_ENV:-lerobot-demo}"
 
-export PYTHONPATH="${ROOT}:${ROOT}/lerobot_camera_opencv_crop:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_client"
+export PYTHONPATH="${VLA_CPP_ROOT}:${ROOT}:${ROOT}/lerobot_camera_opencv_crop:${VLA_CPP_ROOT}/robot_client/python:${VLA_CPP_ROOT}/robot_client${PYTHONPATH:+:${PYTHONPATH}}"
 
 # --- Robot serial ports ---
 export ROBOT_PORT="/dev/tty.usbmodem5B3E1195731"
@@ -36,7 +36,7 @@ EOF
 fi
 export ROBOT_CAMERAS="${ROBOT_CAMERAS//$'\n'/}"
 
-# --- Inference client (python -m base_policy) ---
+# --- Inference client (python -m eval.lerobot_so101.run_sync) ---
 export ROBOT_PLATFORM="lerobot_so101"
 export SERVER="${SERVER:-127.0.0.1:5555}"
 export TASK="${TASK:-grab the block.}"
