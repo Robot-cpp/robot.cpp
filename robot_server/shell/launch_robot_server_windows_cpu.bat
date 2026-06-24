@@ -5,7 +5,7 @@ rem Configure + build + launch model-server on Windows (MinGW, CPU only).
 rem Run from PowerShell/CMD, or MSYS2 UCRT64 with gcc/cmake/mingw32-make on PATH.
 rem
 rem Usage:
-rem   set VLA_CPP_ROOT=C:\path\to\robot.cpp
+rem   set ROBOT_CPP_ROOT=C:\path\to\robot.cpp
 rem   set GGUF_DIR=C:\path\to\robot.cpp\ckpts\smolvla_grab_block_50_20k_f16
 rem   set DTYPE=f16
 rem   robot_server\shell\launch_robot_server_windows_cpu.bat
@@ -17,15 +17,15 @@ rem
 rem MSYS2 packages (UCRT64 shell):
 rem   pacman -S --needed mingw-w64-ucrt-x86_64-toolchain
 
-if not defined VLA_CPP_ROOT (
+if not defined ROBOT_CPP_ROOT (
     set "SCRIPT_DIR=%~dp0"
-    set "VLA_CPP_ROOT=!SCRIPT_DIR!..\.."
-    for %%I in ("!VLA_CPP_ROOT!") do set "VLA_CPP_ROOT=%%~fI"
+    set "ROBOT_CPP_ROOT=!SCRIPT_DIR!..\.."
+    for %%I in ("!ROBOT_CPP_ROOT!") do set "ROBOT_CPP_ROOT=%%~fI"
 )
 
 if not defined MODEL_TYPE set "MODEL_TYPE=smolvla"
 if not defined DTYPE set "DTYPE=f16"
-if not defined BUILD_DIR set "BUILD_DIR=!VLA_CPP_ROOT!\build-win-cpu-mingw"
+if not defined BUILD_DIR set "BUILD_DIR=!ROBOT_CPP_ROOT!\build-win-cpu-mingw"
 
 if not defined HOST set "HOST=127.0.0.1"
 if not defined PORT set "PORT=5555"
@@ -71,9 +71,9 @@ if errorlevel 1 (
 
 if not defined GGUF_DIR (
     if /I "!MODEL_TYPE!"=="smolvla" (
-        set "GGUF_DIR=!VLA_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
     ) else if /I "!MODEL_TYPE!"=="pi0" (
-        set "GGUF_DIR=!VLA_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\vlacpp-split"
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\robotcpp-split"
     ) else (
         echo unsupported MODEL_TYPE=!MODEL_TYPE! >&2
         exit /b 1
@@ -90,7 +90,7 @@ if not "!SKIP_BUILD!"=="1" (
 
     if defined CMAKE_MAKE_PROGRAM (
         if defined GGML_BLAS_VENDOR (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER=!CC! ^
                 -DCMAKE_CXX_COMPILER=!CXX! ^
@@ -101,9 +101,9 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DBUILD_ROBOT_SERVER=ON
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         ) else (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER=!CC! ^
                 -DCMAKE_CXX_COMPILER=!CXX! ^
@@ -113,11 +113,11 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DBUILD_ROBOT_SERVER=ON
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         )
     ) else (
         if defined GGML_BLAS_VENDOR (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER=!CC! ^
                 -DCMAKE_CXX_COMPILER=!CXX! ^
@@ -127,9 +127,9 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DBUILD_ROBOT_SERVER=ON
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         ) else (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER=!CC! ^
                 -DCMAKE_CXX_COMPILER=!CXX! ^
@@ -138,7 +138,7 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DBUILD_ROBOT_SERVER=ON
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         )
     )
     if errorlevel 1 exit /b 1
@@ -194,7 +194,7 @@ if /I "!MODEL_TYPE!"=="smolvla" (
 
 if /I "!MODEL_TYPE!"=="pi0" (
     if not defined ROBOTCPP_BACKEND set "ROBOTCPP_BACKEND=cpu"
-    if not defined MODEL_BASENAME set "MODEL_BASENAME=vlacpp-pi0-libero-finetuned-v044"
+    if not defined MODEL_BASENAME set "MODEL_BASENAME=robotcpp-pi0-libero-finetuned-v044"
     if not defined VIT_GGUF set "VIT_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.vit.gguf"
     if not defined MMPROJ_GGUF set "MMPROJ_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.mmproj.gguf"
     if not defined LLM_GGUF set "LLM_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.llm.gguf"

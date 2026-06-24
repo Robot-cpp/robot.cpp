@@ -11,7 +11,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any
 
-from model_client import ModelClient, ModelResponse
+from robot_client.python.model_client import ModelClient, ModelResponse
 
 try:
     from .base_policy import BasePolicy

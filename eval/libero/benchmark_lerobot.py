@@ -14,8 +14,8 @@ from typing import Any
 import numpy as np
 import torch
 
-from eval.libero.run_lerobot_baseline import prepare_policy_path
-from eval.libero.utils import DEFAULT_RESULTS_DIR, timestamp, write_json
+from eval.libero.run_lerobot import prepare_policy_path
+from eval.libero.common import DEFAULT_RESULTS_DIR, timestamp, write_json
 
 
 DEFAULT_PROMPT = "pick up the alphabet soup and place it in the basket"

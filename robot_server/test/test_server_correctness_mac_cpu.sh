@@ -2,10 +2,10 @@
 set -e
 
 # ====== change these if needed ======
-VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 IMAGE_PATH="${IMAGE_PATH:?IMAGE_PATH must be set}"
-BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
+BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_cpu}"
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
@@ -15,7 +15,7 @@ STATE="${STATE:-0.5479121208190918,-0.12224312126636505,0.7171958684921265,0.394
 
 PYTHON="${PYTHON:-python3}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
-ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_correctness}"
+ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_correctness}"
 DTYPE="${DTYPE:-f32}"
 # ====================================
 
@@ -25,10 +25,10 @@ STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf
 ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
 
 RAW_PREDICT_BIN="${BUILD_DIR}/bin/smolvla-raw-predict"
-LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
-CLIENT_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/predict_test_image.py"
-RAW_CONVERT_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/smolvla_image_to_raw_rgb.py"
-COMPARE_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/compare_smolvla_m7_actions.py"
+LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
+CLIENT_SCRIPT="${ROBOT_CPP_ROOT}/robot_server/test/predict_test_image.py"
+RAW_CONVERT_SCRIPT="${ROBOT_CPP_ROOT}/robot_server/test/smolvla_image_to_raw_rgb.py"
+COMPARE_SCRIPT="${ROBOT_CPP_ROOT}/robot_server/test/compare_smolvla_m7_actions.py"
 
 RAW_DUMP_DIR="${ARTIFACT_DIR}/raw"
 SERVER_DUMP_DIR="${ARTIFACT_DIR}/server"
@@ -48,14 +48,14 @@ trap cleanup EXIT
 
 
 echo "== configure =="
-"${CMAKE_BIN}" -S "${VLA_CPP_ROOT}" -B "${BUILD_DIR}" \
+"${CMAKE_BIN}" -S "${ROBOT_CPP_ROOT}" -B "${BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DGGML_NATIVE=OFF \
     -DGGML_BLAS=ON \
     -DGGML_BLAS_VENDOR=Apple \
     -DGGML_OPENMP=OFF \
     -DGGML_METAL=OFF \
-    -DBUILD_ROBOT_SERVER=ON
+    -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 
 echo "== build =="
 "${CMAKE_BIN}" --build "${BUILD_DIR}" \
@@ -95,7 +95,7 @@ echo "== run raw reference =="
     --verbosity 0
 
 echo "== launch server =="
-VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT}" \
 BUILD_DIR="${BUILD_DIR}" \
 GGUF_DIR="${GGUF_DIR}" \
 DTYPE="${DTYPE}" \

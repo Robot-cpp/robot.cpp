@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ====== change these if needed ======
-VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"                    # vla.cpp root
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"                    # robot.cpp root
 CHECKPOINT_DIR="${CHECKPOINT_DIR:?CHECKPOINT_DIR must be set}"              # pi0 checkpoint dir or safetensors
 OUTPUT_PREFIX="${OUTPUT_PREFIX:?OUTPUT_PREFIX must be set}"                 # output prefix, without .vit.gguf suffix
 
@@ -11,9 +11,9 @@ DTYPE="${DTYPE:-preserve}"                                                  # pr
 FORCE="${FORCE:-0}"                                                         # 1 allows overwriting GGUF outputs
 # ====================================
 
-LLAMA_CPP_ROOT="${LLAMA_CPP_ROOT:-${VLA_CPP_ROOT}/third_party/llama.cpp}"
+LLAMA_CPP_ROOT="${LLAMA_CPP_ROOT:-${ROBOT_CPP_ROOT}/third_party/llama.cpp}"
 GGUF_PY_DIR="${LLAMA_CPP_ROOT}/gguf-py"
-PI0_CONVERTER_DIR="${VLA_CPP_ROOT}/tools/hf2gguf/pi0"
+PI0_CONVERTER_DIR="${ROBOT_CPP_ROOT}/tools/hf2gguf/pi0"
 CHECKPOINT_DIR="$("${PYTHON_BIN}" -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).expanduser().resolve(strict=False))' "${CHECKPOINT_DIR}")"
 OUTPUT_PREFIX="$("${PYTHON_BIN}" -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).expanduser().resolve(strict=False))' "${OUTPUT_PREFIX}")"
 
@@ -36,7 +36,7 @@ done
 
 echo
 echo "== config =="
-echo "root:       ${VLA_CPP_ROOT}"
+echo "root:       ${ROBOT_CPP_ROOT}"
 echo "checkpoint: ${CHECKPOINT_DIR}"
 echo "output:     ${OUTPUT_PREFIX}.*.gguf"
 echo "dtype:      ${DTYPE}"

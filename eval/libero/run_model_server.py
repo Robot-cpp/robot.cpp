@@ -10,24 +10,16 @@ from typing import Any
 
 import numpy as np
 
-from robot_client.policy.sim_policy import (
-    average_timing,
-    maybe_launch_server,
-    parse_server_env,
-    server_command,
-    stop_server,
-    timing_summary,
-)
 from eval.base_platform import BasePlatform
-from eval.libero.client import DEFAULT_IMAGE_KEYS, LiberoClient
-from eval.libero.utils import (
+from eval.libero.model_server_policy import DEFAULT_IMAGE_KEYS, LiberoModelServerPolicy
+from eval.libero.common import (
     DEFAULT_RESULTS_DIR,
     aggregate_episodes,
     parse_task_ids,
     timestamp,
     write_json,
 )
-from eval.libero.env import (
+from eval.libero.environment import (
     DEFAULT_LIBERO_CONFIG_PATH,
     apply_runtime_env,
     ensure_libero_config,
@@ -38,12 +30,20 @@ from eval.libero.env import (
     task_description,
     vector_reset,
 )
+from robot_client.policy.sim_policy import (
+    average_timing,
+    maybe_launch_server,
+    parse_server_env,
+    server_command,
+    stop_server,
+    timing_summary,
+)
 
 
 _LIBERO_PLATFORM = BasePlatform()
 
 
-def run_episode(env: Any, policy: LiberoClient, seed: int | None, episode_index: int) -> dict[str, Any]:
+def run_episode(env: Any, policy: LiberoModelServerPolicy, seed: int | None, episode_index: int) -> dict[str, Any]:
     observation, _info = vector_reset(env, seed)
     policy.reset(reset_server=True)
     task = task_description(env)
@@ -115,7 +115,7 @@ def main() -> int:
     args = parse_args()
     output = args.output or DEFAULT_RESULTS_DIR / f"server-libero-{timestamp()}.json"
     image_keys = tuple(args.image_key or DEFAULT_IMAGE_KEYS)
-    policy = LiberoClient(
+    policy = LiberoModelServerPolicy(
         state_dim=args.state_dim,
         action_dim=args.env_action_dim,
         image_keys=image_keys,

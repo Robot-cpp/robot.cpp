@@ -40,7 +40,7 @@ fi
 if [[ -z "${GGML_BASE_LIB}" || ! -f "${GGML_BASE_LIB}" || "${FORCE_GGML_BASE_BUILD:-0}" == "1" ]]; then
   "${CMAKE_BIN}" -S "${REPO_ROOT}" -B "${QUANT_BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_ROBOT_SERVER=OFF
+    -DROBOT_CPP_BUILD_ROBOT_SERVER=OFF
   "${CMAKE_BIN}" --build "${QUANT_BUILD_DIR}" --target ggml-base --config Release --parallel "$(sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
   GGML_BASE_LIB="$(find_ggml_base_lib)"
 fi

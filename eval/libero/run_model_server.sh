@@ -5,20 +5,21 @@ usage() {
     cat <<'EOF'
 Run LIBERO eval against a freshly built model-server.
 
-Common overrides:
-  CONDA_ENV=vlacpp-libero   optional conda env for the Python eval runner
-  ROBOTCPP_BACKEND=cuda     model-server backend: cuda or cpu
-  BUILD_DIR=build-cuda      CMake build directory; defaults to build for cpu
-  GGUF_DIR=...              split GGUF checkpoint directory
-  MODEL=...                 split GGUF filename prefix
-  SUITE=libero_object       LIBERO suite
-  TASK_IDS=0                comma list of task ids
-  N_EPISODES=1              episodes per task
-  CMAKE_CUDA_ARCHITECTURES=80
+Wrapper configuration:
+  CONDA_ENV=robotcpp-libero       optional conda env for the Python eval runner
+  ROBOTCPP_BACKEND=cuda           model-server backend: cuda or cpu
+  BUILD_DIR=build-cuda            CMake build directory; defaults to build for cuda
+  GGUF_DIR=...                    split GGUF checkpoint directory
+  MODEL=...                       split GGUF filename prefix
+  HOST=127.0.0.1 PORT=5555        shared client/server endpoint
+  SUITE=libero_object             LIBERO suite
+  TASK_IDS=0 N_EPISODES=1         rollout selection
+  OUTPUT=...                      optional result JSON path
+  CMAKE_CUDA_ARCHITECTURES=80     optional CUDA architecture override
 
-Extra arguments are passed to eval.libero.run_model_server_eval before the
-model-server command. Configure host/port through HOST and PORT so the eval
-client and launched server stay in sync.
+Arguments after this script are passed to eval.libero.run_model_server before
+the generated --server-command block. Use HOST and PORT env vars instead of
+extra --host/--port flags so the eval client and launched server stay in sync.
 EOF
 }
 
@@ -33,7 +34,7 @@ cd "${REPO_ROOT}"
 
 MODEL_TYPE="${MODEL_TYPE:-pi0}"
 if [[ "${MODEL_TYPE}" != "pi0" ]]; then
-    echo "run_model_server_eval.sh currently supports MODEL_TYPE=pi0 only" >&2
+    echo "run_model_server.sh currently supports MODEL_TYPE=pi0 only" >&2
     exit 2
 fi
 
@@ -51,8 +52,8 @@ BUILD_JOBS="${BUILD_JOBS:-}"
 SKIP_CONFIGURE="${SKIP_CONFIGURE:-0}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 
-GGUF_DIR="${GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/vlacpp-split}"
-MODEL="${MODEL:-vlacpp-pi0-libero-finetuned-v044}"
+GGUF_DIR="${GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/robotcpp-split}"
+MODEL="${MODEL:-robotcpp-pi0-libero-finetuned-v044}"
 SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
 
 HOST="${HOST:-127.0.0.1}"
@@ -70,7 +71,7 @@ MUJOCO_GL="${MUJOCO_GL:-osmesa}"
 if [[ -z "${PYOPENGL_PLATFORM:-}" && "${MUJOCO_GL}" == "osmesa" ]]; then
     PYOPENGL_PLATFORM="osmesa"
 fi
-VLACPP_EVAL_CACHE_DIR="${VLACPP_EVAL_CACHE_DIR:-${TMPDIR:-/tmp}/vlacpp-eval-cache}"
+ROBOTCPP_EVAL_CACHE_DIR="${ROBOTCPP_EVAL_CACHE_DIR:-${TMPDIR:-/tmp}/robotcpp-eval-cache}"
 
 required_files=(
     "${GGUF_DIR}/${MODEL}.vit.gguf"
@@ -98,7 +99,7 @@ if [[ "${SKIP_BUILD}" != "1" ]]; then
     cmake_args=(
         -S "${REPO_ROOT}"
         -B "${BUILD_DIR}"
-        -DBUILD_ROBOT_SERVER=ON
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     )
     if [[ "${BACKEND}" == "cuda" ]]; then
@@ -130,9 +131,9 @@ if [[ ! -x "${SERVER_BIN}" ]]; then
 fi
 
 mkdir -p \
-    "${VLACPP_EVAL_CACHE_DIR}/numba" \
-    "${VLACPP_EVAL_CACHE_DIR}/torchinductor" \
-    "${VLACPP_EVAL_CACHE_DIR}/triton"
+    "${ROBOTCPP_EVAL_CACHE_DIR}/numba" \
+    "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor" \
+    "${ROBOTCPP_EVAL_CACHE_DIR}/triton"
 
 PYTHON_BIN="${PYTHON:-python3}"
 if [[ -n "${CONDA_ENV:-}" && -z "${PYTHON:-}" ]]; then
@@ -146,7 +147,7 @@ fi
 
 eval_cmd=(
     "${python_cmd[@]}"
-    -m eval.libero.run_model_server_eval
+    -m eval.libero.run_model_server
     --launch-server
     --host "${HOST}"
     --port "${PORT}"
@@ -157,9 +158,9 @@ eval_cmd=(
     --n-episodes "${N_EPISODES}"
     --seed "${SEED}"
     --mujoco-gl "${MUJOCO_GL}"
-    --numba-cache-dir "${VLACPP_EVAL_CACHE_DIR}/numba"
-    --torchinductor-cache-dir "${VLACPP_EVAL_CACHE_DIR}/torchinductor"
-    --triton-cache-dir "${VLACPP_EVAL_CACHE_DIR}/triton"
+    --numba-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/numba"
+    --torchinductor-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor"
+    --triton-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/triton"
 )
 if [[ -n "${PYOPENGL_PLATFORM:-}" ]]; then
     eval_cmd+=(--pyopengl-platform "${PYOPENGL_PLATFORM}")

@@ -271,7 +271,7 @@ def ensure_ggml_base_loaded() -> Any:
     if detail:
         detail = "\nLoad errors:\n" + detail
     raise SystemExit(
-        "K-quant output requires libggml-base from a local llama.cpp/vla.cpp build. "
+        "K-quant output requires libggml-base from a local llama.cpp/robot.cpp build. "
         "Run tools/quant/shell/quant.sh to build it automatically, or set "
         "GGML_BASE_LIB=/path/to/libggml-base runtime library." + detail
     )
@@ -550,7 +550,7 @@ def apply_component(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     arch_field = reader.get_field("general.architecture")
-    arch = str(arch_field.contents()) if arch_field is not None else "vlacpp"
+    arch = str(arch_field.contents()) if arch_field is not None else "robotcpp"
     writer = gguf.GGUFWriter(output_path, arch=arch, use_temp_file=True)
     copy_metadata(reader, writer)
     for tensor in reader.tensors:

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ====== change these if needed ======
-VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"                    # vla.cpp root
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"                    # robot.cpp root
 CHECKPOINT_DIR="${CHECKPOINT_DIR:?CHECKPOINT_DIR must be set}"              # SmolVLA safetensors checkpoint
 OUTPUT_DIR="${OUTPUT_DIR:?OUTPUT_DIR must be set}"                          # candidate GGUF output dir
 SURGERY_DIR="${SURGERY_DIR:-${OUTPUT_DIR}/surgery}"                         # intermediate .pt dir
@@ -14,11 +14,11 @@ FORCE="${FORCE:-0}"                                                         # 1 
 SKIP_SURGERY="${SKIP_SURGERY:-0}"                                           # 1 reuses existing surgery outputs
 # ====================================
 
-# The tracked entrypoint is rooted by VLA_CPP_ROOT, matching the robot_server
+# The tracked entrypoint is rooted by ROBOT_CPP_ROOT, matching the robot_server
 # shell style. Local absolute paths should live in debug/artifacts wrappers.
-LLAMA_CPP_ROOT="${LLAMA_CPP_ROOT:-${VLA_CPP_ROOT}/third_party/llama.cpp}"   
+LLAMA_CPP_ROOT="${LLAMA_CPP_ROOT:-${ROBOT_CPP_ROOT}/third_party/llama.cpp}"
 GGUF_PY_DIR="${LLAMA_CPP_ROOT}/gguf-py"
-SMOLVLA_CONVERTER_DIR="${VLA_CPP_ROOT}/tools/hf2gguf/smolvla"
+SMOLVLA_CONVERTER_DIR="${ROBOT_CPP_ROOT}/tools/hf2gguf/smolvla"
 
 # Put llama.cpp's gguf-py and converter code first so imports use the
 # repo-paired GGUF writer and tokenizer pre-tokenizer detection.
@@ -42,7 +42,7 @@ done
 
 echo
 echo "== config =="
-echo "root:       ${VLA_CPP_ROOT}"
+echo "root:       ${ROBOT_CPP_ROOT}"
 echo "checkpoint: ${CHECKPOINT_DIR}"
 echo "output:     ${OUTPUT_DIR}"
 echo "surgery:    ${SURGERY_DIR}"

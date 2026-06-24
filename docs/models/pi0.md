@@ -11,7 +11,7 @@ The LeRobot reference checkpoint is available on Hugging Face as
 converted components in one directory, for example:
 
 ```sh
-ckpts/pi0-libero-finetuned-v044/vlacpp-split
+ckpts/pi0-libero-finetuned-v044/robotcpp-split
 ```
 
 The converted split GGUF files are available on Hugging Face as
@@ -20,18 +20,18 @@ The converted split GGUF files are available on Hugging Face as
 ```sh
 hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
   --include "*.gguf" \
-  --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
+  --local-dir ckpts/pi0-libero-finetuned-v044/robotcpp-split
 ```
 
 Expected files:
 
 ```text
-vlacpp-pi0-libero-finetuned-v044.vit.gguf
-vlacpp-pi0-libero-finetuned-v044.mmproj.gguf
-vlacpp-pi0-libero-finetuned-v044.llm.gguf
-vlacpp-pi0-libero-finetuned-v044.tokenizer.gguf
-vlacpp-pi0-libero-finetuned-v044.state.gguf
-vlacpp-pi0-libero-finetuned-v044.action_decoder.gguf
+robotcpp-pi0-libero-finetuned-v044.vit.gguf
+robotcpp-pi0-libero-finetuned-v044.mmproj.gguf
+robotcpp-pi0-libero-finetuned-v044.llm.gguf
+robotcpp-pi0-libero-finetuned-v044.tokenizer.gguf
+robotcpp-pi0-libero-finetuned-v044.state.gguf
+robotcpp-pi0-libero-finetuned-v044.action_decoder.gguf
 ```
 
 ## Build
@@ -39,7 +39,7 @@ vlacpp-pi0-libero-finetuned-v044.action_decoder.gguf
 CPU build:
 
 ```sh
-cmake -S . -B build -DVLACPP_BUILD_ROBOT_SERVER=ON
+cmake -S . -B build -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build --target model-cli model-server -j
 ```
 
@@ -47,7 +47,7 @@ CUDA build:
 
 ```sh
 cmake -S . -B build-cuda \
-  -DVLACPP_BUILD_ROBOT_SERVER=ON \
+  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
   -DGGML_CUDA=ON \
   -DCMAKE_CUDA_ARCHITECTURES=80
 cmake --build build-cuda --target model-cli model-server -j
@@ -74,8 +74,8 @@ components are `vit`, `mmproj`, `llm`, `state`, and `action_decoder`.
 Example with a split GGUF checkpoint and CUDA build:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 IMAGE0=agentview.png
 IMAGE1=eye_in_hand.png
 STATE="$(python3 - <<'PY'
@@ -120,8 +120,8 @@ strings "${GGUF_DIR}/${MODEL}.tokenizer.gguf" | rg "pi0\\.image_keys|observation
 Start the CUDA server:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 
 ROBOTCPP_BACKEND=cuda ./build-cuda/bin/model-server \
   --model-type pi0 \
@@ -154,10 +154,10 @@ The pi0-specific pieces are only the server launch command and optional backend
 environment override:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 
-python -m eval.libero.run_model_server_eval \
+python -m eval.libero.run_model_server \
   --launch-server \
   --host 127.0.0.1 \
   --port 5555 \

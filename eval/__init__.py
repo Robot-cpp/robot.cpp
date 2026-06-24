@@ -1,1 +1,1 @@
-"""Evaluation helpers for vla.cpp model-server policies."""
+"""Evaluation helpers for robot.cpp model-server policies."""

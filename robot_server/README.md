@@ -10,7 +10,7 @@ through the shared `robotcpp::Model` interface.
 ## Build
 
 ```sh
-cmake -S . -B build -DVLACPP_BUILD_ROBOT_SERVER=ON
+cmake -S . -B build -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build --target model-server
 ```
 
@@ -38,8 +38,8 @@ SmolVLA:
 pi0:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 
 ROBOTCPP_BACKEND=cuda ./build-cuda/bin/model-server \
   --model-type pi0 \

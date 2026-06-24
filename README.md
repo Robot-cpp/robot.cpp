@@ -1,6 +1,6 @@
-# vla.cpp
+# robot.cpp
 
-`vla.cpp` currently builds a robot model frontend around two engine-style
+`robot.cpp` currently builds a robot model frontend around two engine-style
 runtimes:
 
 - `src/models/smolvla`: SmolVLA runtime with `smolvla_engine.h`.
@@ -18,12 +18,12 @@ out of git under `build*/`, `ckpts/`, `artifacts/`, and `data/`.
 
 ```sh
 git submodule update --init --recursive
-cmake -S . -B build -DVLACPP_BUILD_ROBOT_SERVER=ON
+cmake -S . -B build -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build --target model-cli model-server
 ```
 
-`VLACPP_BUILD_ROBOT_SERVER` is the only project-level build option. The build no
-longer registers CTest targets or the old `vlacpp` shared C ABI.
+`ROBOT_CPP_BUILD_ROBOT_SERVER` is the only project-level build option. The build
+no longer registers CTest targets or the old public shared C ABI.
 
 ## Checks
 
@@ -62,8 +62,8 @@ launchers when switching models.
 Converted pi0 checkpoints are expected as split GGUF components:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 
 ./build/bin/model-server \
   --model-type pi0 \
@@ -86,8 +86,8 @@ server predictions share one runtime path. For pi0, pass image names that match
 the checkpoint metadata. The LIBERO v044 checkpoint expects two image views:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 IMAGE0=agentview.png
 IMAGE1=eye_in_hand.png
 
@@ -115,7 +115,7 @@ multiple image views. Values are paired by order.
 LIBERO evaluation docs live in `eval/libero/README.md`.
 
 - One-command model-server LIBERO eval:
-  `bash eval/libero/run_model_server_eval.sh`
-- LeRobot baseline: `python -m eval.libero.run_lerobot_baseline`
-- LeRobot policy latency: `python -m eval.libero.benchmark_lerobot_policy`
-- model-server rollout: `python -m eval.libero.run_model_server_eval`
+  `bash eval/libero/run_model_server.sh`
+- LeRobot baseline: `python -m eval.libero.run_lerobot`
+- LeRobot policy latency: `python -m eval.libero.benchmark_lerobot`
+- model-server rollout: `python -m eval.libero.run_model_server`

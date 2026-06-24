@@ -2,7 +2,7 @@
 set -e
 
 # ====== change these if needed ======
-VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 BACKEND="${BACKEND:-mac-metal}"
 case "${1:-}" in
@@ -15,24 +15,24 @@ MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 
 case "${BACKEND}" in
     mac-cpu)
-        BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_cpu}"
-        ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency}"
-        LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_cpu}"
+        ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency}"
+        LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
         ;;
     mac-metal)
-        BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_metal}"
-        ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency_metal}"
-        LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_metal.sh"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_metal}"
+        ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_metal}"
+        LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_metal.sh"
         ;;
     linux-cpu)
-        BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build-linux-cpu}"
-        ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cpu}"
-        LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cpu.sh"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-linux-cpu}"
+        ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cpu}"
+        LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cpu.sh"
         ;;
     linux-cuda)
-        BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build-cuda}"
-        ARTIFACT_DIR="${ARTIFACT_DIR:-${VLA_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cuda}"
-        LAUNCH_SHELL="${VLA_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cuda.sh"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-cuda}"
+        ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cuda}"
+        LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cuda.sh"
         ;;
     *)
         echo "unsupported BACKEND=${BACKEND}" >&2
@@ -74,7 +74,7 @@ DTYPE="${DTYPE:-f32}"
 PYTHON="${PYTHON:-python3}"
 # ====================================
 
-BENCHMARK_SCRIPT="${VLA_CPP_ROOT}/robot_server/test/benchmark_latency.py"
+BENCHMARK_SCRIPT="${ROBOT_CPP_ROOT}/robot_server/test/benchmark_latency.py"
 
 RESULT_TSV="${ARTIFACT_DIR}/benchmark_server.tsv"
 BENCHMARK_IMAGE_ARGS=()
@@ -102,7 +102,7 @@ run_latency_case() {
     cleanup
 
     echo "== launch server (threads=${threads}) =="
-    VLA_CPP_ROOT="${VLA_CPP_ROOT}" \
+    ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT}" \
     BUILD_DIR="${BUILD_DIR}" \
     MODEL_TYPE="${MODEL_TYPE}" \
     GGUF_DIR="${GGUF_DIR}" \

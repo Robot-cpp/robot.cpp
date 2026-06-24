@@ -2,10 +2,10 @@
 set -e
 
 # ====== change these if needed ======
-VLA_CPP_ROOT="${VLA_CPP_ROOT:?VLA_CPP_ROOT must be set}"
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
-BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build_smolvla_mac_metal}"
+BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_metal}"
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
@@ -25,14 +25,14 @@ SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     echo "== configure =="
-    "${CMAKE_BIN}" -S "${VLA_CPP_ROOT}" -B "${BUILD_DIR}" \
+    "${CMAKE_BIN}" -S "${ROBOT_CPP_ROOT}" -B "${BUILD_DIR}" \
         -DCMAKE_BUILD_TYPE=Release \
         -DGGML_NATIVE=OFF \
         -DGGML_BLAS=ON \
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=ON \
-        -DBUILD_ROBOT_SERVER=ON
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
@@ -56,7 +56,7 @@ case "${MODEL_TYPE}" in
         ;;
     pi0)
         export ROBOTCPP_BACKEND="${ROBOTCPP_BACKEND:-metal}"
-        MODEL_BASENAME="${MODEL_BASENAME:-vlacpp-pi0-libero-finetuned-v044}"
+        MODEL_BASENAME="${MODEL_BASENAME:-robotcpp-pi0-libero-finetuned-v044}"
         VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
         MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"
         LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"

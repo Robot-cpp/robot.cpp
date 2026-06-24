@@ -18,11 +18,11 @@ live in `tools`, and third-party dependencies belong under `third_party`.
 Configure and build the active targets:
 
 ```sh
-cmake -S . -B build -DVLACPP_BUILD_ROBOT_SERVER=ON
+cmake -S . -B build -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build --target model-cli model-server
 ```
 
-`VLACPP_BUILD_ROBOT_SERVER` is the only project-level build option. Do not add
+`ROBOT_CPP_BUILD_ROBOT_SERVER` is the only project-level build option. Do not add
 CTest or old C ABI targets back unless the architecture is explicitly changed.
 
 ## Coding Style & Naming Conventions
@@ -35,7 +35,7 @@ variables. Keep comments sparse and focused on non-obvious behavior.
 
 ## Architecture Notes
 
-Do not route `model-cli` or `model-server` through a generic public `vlacpp_*`
+Do not route `model-cli` or `model-server` through a generic public `robotcpp_*`
 C ABI. pi0 should load split GGUF components through `pi0_engine`, and
 SmolVLA should continue to use `smolvla_engine`. Preserve clean boundaries for
 raw observation input, preprocessing, backbone/prefix work, action head,

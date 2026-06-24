@@ -24,17 +24,17 @@ conda activate gguf_converter
 在set好对应的环境变量之后，直接通过该脚本可以一键完成smolvla的转换
 
 ```
-export VLA_CPP_ROOT="/pth/to/vla.cpp"
+export ROBOT_CPP_ROOT="/pth/to/robot.cpp"
 export CHECKPOINT_DIR="/pth/to/pretrained_model"
 export OUTPUT_DIR="/pth/to/output_dir"
 export PYTHON_BIN="$(which python)"
 export DTYPE="f32"
-bash /path/to/vla.cpp/tools/hf2gguf/smolvla/convert_smolvla_all.sh
+bash /path/to/robot.cpp/tools/hf2gguf/smolvla/convert_smolvla_all.sh
 ```
 
 ## 环境变量说明
 
-* `VLA_CPP_ROOT`：vla.cpp repo 根目录。
+* `ROBOT_CPP_ROOT`：robot.cpp repo 根目录。
 * `CHECKPOINT_DIR`：指向 SmolVLA 的 `pretrained_model` 目录
 * `OUTPUT_DIR`：candidate GGUF 输出目录
 * `SURGERY_DIR`：surgery 中间文件目录；默认是 `OUTPUT_DIR/surgery`。

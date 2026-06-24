@@ -92,11 +92,14 @@ def torch_tensor_dtype_name(dtype: Any) -> str:
 
 
 def concrete_tensor_dtype(component_dtypes: dict[str, str], component: str | None, source_dtype: str) -> str:
+    source = canonical_dtype(source_dtype, allow_preserve=False)
+    if source == "fp32":
+        return "fp32"
     if component is None:
-        return canonical_dtype(source_dtype, allow_preserve=False)
+        return source
     policy = component_dtypes.get(component, "preserve")
     if policy == "preserve":
-        return canonical_dtype(source_dtype, allow_preserve=False)
+        return source
     return canonical_dtype(policy, allow_preserve=False)
 
 
@@ -884,7 +887,7 @@ def main() -> None:
         type=parse_dtype_arg,
         choices=DTYPE_CHOICES,
         default="preserve",
-        help="default output tensor dtype for weight components: preserve, fp32, f16, or bf16",
+        help="default output tensor dtype for weight components; original fp32 tensors stay fp32",
     )
     parser.add_argument("--vit-dtype", type=parse_dtype_arg, choices=DTYPE_CHOICES, help="override ViT output tensor dtype")
     parser.add_argument(
