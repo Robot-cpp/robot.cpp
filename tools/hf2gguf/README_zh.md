@@ -28,7 +28,7 @@ PYTHON_BIN="$(which python)"
 SmolVLA:
 
 ```sh
-VLA_CPP_ROOT=/path/to/vla.cpp \
+ROBOT_CPP_ROOT=/path/to/robot.cpp \
 CHECKPOINT_DIR=/path/to/smolvla/pretrained_model \
 OUTPUT_DIR=/path/to/output \
 PYTHON_BIN="$(which python)" \
@@ -40,9 +40,9 @@ bash tools/hf2gguf/smolvla/convert_smolvla_all.sh
 pi0:
 
 ```sh
-VLA_CPP_ROOT=/path/to/vla.cpp \
+ROBOT_CPP_ROOT=/path/to/robot.cpp \
 CHECKPOINT_DIR=/path/to/pi0-checkpoint \
-OUTPUT_PREFIX=/path/to/output/vlacpp-pi0 \
+OUTPUT_PREFIX=/path/to/output/robotcpp-pi0 \
 PYTHON_BIN="$(which python)" \
 DTYPE=fp32 \
 FORCE=1 \

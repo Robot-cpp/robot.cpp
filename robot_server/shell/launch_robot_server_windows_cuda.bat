@@ -16,15 +16,15 @@ rem   set SKIP_BUILD=1
 rem   set CMAKE_GENERATOR=Visual Studio 17 2022
 rem   set VSROOT=C:\Program Files\Microsoft Visual Studio\2022\Community
 
-if not defined VLA_CPP_ROOT (
+if not defined ROBOT_CPP_ROOT (
     set "SCRIPT_DIR=%~dp0"
-    set "VLA_CPP_ROOT=!SCRIPT_DIR!..\.."
-    for %%I in ("!VLA_CPP_ROOT!") do set "VLA_CPP_ROOT=%%~fI"
+    set "ROBOT_CPP_ROOT=!SCRIPT_DIR!..\.."
+    for %%I in ("!ROBOT_CPP_ROOT!") do set "ROBOT_CPP_ROOT=%%~fI"
 )
 
 if not defined MODEL_TYPE set "MODEL_TYPE=smolvla"
 if not defined DTYPE set "DTYPE=f16"
-if not defined BUILD_DIR set "BUILD_DIR=!VLA_CPP_ROOT!\build-win-cuda-msvc"
+if not defined BUILD_DIR set "BUILD_DIR=!ROBOT_CPP_ROOT!\build-win-cuda-msvc"
 if not defined CMAKE_CONFIG set "CMAKE_CONFIG=Release"
 
 if not defined HOST set "HOST=127.0.0.1"
@@ -110,9 +110,9 @@ if /I "!CMAKE_GENERATOR!"=="Visual Studio 17 2022" (
 
 if not defined GGUF_DIR (
     if /I "!MODEL_TYPE!"=="smolvla" (
-        set "GGUF_DIR=!VLA_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
     ) else if /I "!MODEL_TYPE!"=="pi0" (
-        set "GGUF_DIR=!VLA_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\vlacpp-split"
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\robotcpp-split"
     ) else (
         echo unsupported MODEL_TYPE=!MODEL_TYPE! >&2
         exit /b 1
@@ -133,7 +133,7 @@ if not "!SKIP_BUILD!"=="1" (
     if /I "!CMAKE_GENERATOR!"=="Ninja" (
         echo build_type: !CMAKE_BUILD_TYPE!
         if defined CMAKE_MAKE_PROGRAM (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G Ninja ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G Ninja ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER="!MSVC_CL!" ^
                 -DCMAKE_CXX_COMPILER="!MSVC_CL!" ^
@@ -145,10 +145,10 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DBUILD_ROBOT_SERVER=ON ^
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON ^
                 !COMMON_CUDA_ARCH!
         ) else (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G Ninja ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G Ninja ^
                 -DCMAKE_BUILD_TYPE=!CMAKE_BUILD_TYPE! ^
                 -DCMAKE_C_COMPILER="!MSVC_CL!" ^
                 -DCMAKE_CXX_COMPILER="!MSVC_CL!" ^
@@ -159,30 +159,30 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DBUILD_ROBOT_SERVER=ON ^
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON ^
                 !COMMON_CUDA_ARCH!
         )
     ) else (
         echo platform: !CMAKE_PLATFORM!
         if defined CMAKE_CUDA_ARCHITECTURES (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" -A "!CMAKE_PLATFORM!" ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" -A "!CMAKE_PLATFORM!" ^
                 -T cuda="!CUDA_PATH!" ^
                 -DGGML_NATIVE=!GGML_NATIVE! ^
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DBUILD_ROBOT_SERVER=ON ^
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON ^
                 -DCMAKE_CUDA_ARCHITECTURES=!CMAKE_CUDA_ARCHITECTURES!
         ) else (
-            "%CMAKE_BIN%" -S "!VLA_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" -A "!CMAKE_PLATFORM!" ^
+            "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" -A "!CMAKE_PLATFORM!" ^
                 -T cuda="!CUDA_PATH!" ^
                 -DGGML_NATIVE=!GGML_NATIVE! ^
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DBUILD_ROBOT_SERVER=ON
+                -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         )
     )
     if errorlevel 1 exit /b 1
@@ -243,7 +243,7 @@ if /I "!MODEL_TYPE!"=="smolvla" (
 
 if /I "!MODEL_TYPE!"=="pi0" (
     if not defined ROBOTCPP_BACKEND set "ROBOTCPP_BACKEND=cuda"
-    if not defined MODEL_BASENAME set "MODEL_BASENAME=vlacpp-pi0-libero-finetuned-v044"
+    if not defined MODEL_BASENAME set "MODEL_BASENAME=robotcpp-pi0-libero-finetuned-v044"
     if not defined VIT_GGUF set "VIT_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.vit.gguf"
     if not defined MMPROJ_GGUF set "MMPROJ_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.mmproj.gguf"
     if not defined LLM_GGUF set "LLM_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.llm.gguf"

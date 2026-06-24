@@ -1,9 +1,9 @@
-# vla.cpp LeRobot SO101 Client
+# robot.cpp LeRobot SO101 Client
 
-最小同步 client：SO101 硬件 → vla.cpp SmolVLA TCP server（`127.0.0.1:5555`）。**不修改** `third_party/lerobot` 源码。
+最小同步 client：SO101 硬件 → robot.cpp SmolVLA TCP server（`127.0.0.1:5555`）。**不修改** `third_party/lerobot` 源码。
 
 - LeRobot 上游：`third_party/lerobot`（submodule，只读）
-- 推理：vla.cpp `robot_server` TCP
+- 推理：robot.cpp `robot_server` TCP
 - 相机：LeRobot CLI 使用 `type: opencv_crop`
 
 ## 目录结构
@@ -25,7 +25,7 @@ eval/base_platform.py           # BasePolicy
 
 ## 安装
 
-在 vla.cpp 仓库根目录：
+在 robot.cpp 仓库根目录：
 
 ```bash
 conda create -n lerobot-demo python=3.12 -y
@@ -51,7 +51,7 @@ pip install -e "eval/lerobot_so101/lerobot_camera_opencv_crop"
 | `CAMERA_`*                    | 分辨率、backend、resize、warmup 等                              |
 | `ROBOT_USE_DEGREES`           | follower 关节单位（默认 degrees）                                |
 | `ROBOT_PLATFORM`              | 平台选择（默认 `lerobot_so101` → `eval.lerobot_so101.so101_client`） |
-| `SERVER` / `TASK` / `FPS`     | vla.cpp TCP 推理                                           |
+| `SERVER` / `TASK` / `FPS`     | robot.cpp TCP 推理                                           |
 | `DATASET_REPO_ID` 等           | 录制数据集                                                    |
 
 

@@ -1,4 +1,4 @@
-name: vlacpp-libero
+name: robotcpp-libero
 channels:
   - conda-forge
 dependencies:

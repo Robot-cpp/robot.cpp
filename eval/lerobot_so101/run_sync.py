@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch a platform robot client against a running vla.cpp model server."""
+"""Launch a platform robot client against a running robot.cpp model server."""
 
 from __future__ import annotations
 

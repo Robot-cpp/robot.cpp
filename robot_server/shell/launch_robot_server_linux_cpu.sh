@@ -2,11 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VLA_CPP_ROOT="${VLA_CPP_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 
 MODEL_TYPE="${MODEL_TYPE:-smolvla}"
 DTYPE="${DTYPE:-f16}"
-BUILD_DIR="${BUILD_DIR:-${VLA_CPP_ROOT}/build-linux-cpu}"
+BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-linux-cpu}"
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
@@ -27,10 +27,10 @@ GGML_OPENMP="${GGML_OPENMP:-OFF}"
 if [ -z "${GGUF_DIR:-}" ]; then
     case "${MODEL_TYPE}" in
         smolvla)
-            GGUF_DIR="${VLA_CPP_ROOT}/ckpts/smolvla/gguf-${DTYPE}"
+            GGUF_DIR="${ROBOT_CPP_ROOT}/ckpts/smolvla/gguf-${DTYPE}"
             ;;
         pi0)
-            GGUF_DIR="${VLA_CPP_ROOT}/ckpts/pi0-libero-finetuned-v044/vlacpp-split"
+            GGUF_DIR="${ROBOT_CPP_ROOT}/ckpts/pi0-libero-finetuned-v044/robotcpp-split"
             ;;
         *)
             echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
@@ -43,7 +43,7 @@ SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     CMAKE_FLAGS=(
-        -S "${VLA_CPP_ROOT}"
+        -S "${ROBOT_CPP_ROOT}"
         -B "${BUILD_DIR}"
         -DCMAKE_BUILD_TYPE=Release
         -DGGML_NATIVE="${GGML_NATIVE}"
@@ -51,7 +51,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_OPENMP="${GGML_OPENMP}"
         -DGGML_CUDA=OFF
         -DGGML_METAL=OFF
-        -DBUILD_ROBOT_SERVER=ON
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
     )
     if [ -n "${GGML_BLAS_VENDOR:-}" ]; then
         CMAKE_FLAGS+=(-DGGML_BLAS_VENDOR="${GGML_BLAS_VENDOR}")
@@ -79,7 +79,7 @@ case "${MODEL_TYPE}" in
         )
         ;;
     pi0)
-        MODEL_BASENAME="${MODEL_BASENAME:-vlacpp-pi0-libero-finetuned-v044}"
+        MODEL_BASENAME="${MODEL_BASENAME:-robotcpp-pi0-libero-finetuned-v044}"
         VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
         MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"
         LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"

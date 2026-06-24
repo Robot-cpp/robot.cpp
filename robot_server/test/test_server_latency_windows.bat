@@ -5,7 +5,7 @@ rem Launch model-server and run benchmark_latency.py on Windows.
 rem Mirrors robot_server/test/test_server_latency.sh.
 rem
 rem Usage:
-rem   set VLA_CPP_ROOT=C:\path\to\robot.cpp
+rem   set ROBOT_CPP_ROOT=C:\path\to\robot.cpp
 rem   set GGUF_DIR=C:\path\to\robot.cpp\ckpts\...
 rem   robot_server\test\test_server_latency_windows.bat windows-cuda pi0
 rem
@@ -14,9 +14,9 @@ rem   set THREADS_SWEEP=1
 rem   robot_server\test\test_server_latency_windows.bat windows-cuda pi0
 
 set "SCRIPT_DIR=%~dp0"
-if not defined VLA_CPP_ROOT (
-    set "VLA_CPP_ROOT=!SCRIPT_DIR!..\.."
-    for %%I in ("!VLA_CPP_ROOT!") do set "VLA_CPP_ROOT=%%~fI"
+if not defined ROBOT_CPP_ROOT (
+    set "ROBOT_CPP_ROOT=!SCRIPT_DIR!..\.."
+    for %%I in ("!ROBOT_CPP_ROOT!") do set "ROBOT_CPP_ROOT=%%~fI"
 )
 
 if not defined GGUF_DIR (
@@ -43,13 +43,13 @@ if not "!ARG1!"=="" (
 )
 
 if /I "!BACKEND!"=="windows-cuda" (
-    if not defined BUILD_DIR set "BUILD_DIR=!VLA_CPP_ROOT!\build-win-cuda"
-    if not defined ARTIFACT_DIR set "ARTIFACT_DIR=!VLA_CPP_ROOT!\debug\artifacts\robot_server_latency_windows_cuda"
-    set "LAUNCH_BAT=!VLA_CPP_ROOT!\robot_server\shell\launch_robot_server_windows_cuda.bat"
+    if not defined BUILD_DIR set "BUILD_DIR=!ROBOT_CPP_ROOT!\build-win-cuda"
+    if not defined ARTIFACT_DIR set "ARTIFACT_DIR=!ROBOT_CPP_ROOT!\debug\artifacts\robot_server_latency_windows_cuda"
+    set "LAUNCH_BAT=!ROBOT_CPP_ROOT!\robot_server\shell\launch_robot_server_windows_cuda.bat"
 ) else if /I "!BACKEND!"=="windows-cpu" (
-    if not defined BUILD_DIR set "BUILD_DIR=!VLA_CPP_ROOT!\build-win-cpu-mingw"
-    if not defined ARTIFACT_DIR set "ARTIFACT_DIR=!VLA_CPP_ROOT!\debug\artifacts\robot_server_latency_windows_cpu"
-    set "LAUNCH_BAT=!VLA_CPP_ROOT!\robot_server\shell\launch_robot_server_windows_cpu.bat"
+    if not defined BUILD_DIR set "BUILD_DIR=!ROBOT_CPP_ROOT!\build-win-cpu-mingw"
+    if not defined ARTIFACT_DIR set "ARTIFACT_DIR=!ROBOT_CPP_ROOT!\debug\artifacts\robot_server_latency_windows_cpu"
+    set "LAUNCH_BAT=!ROBOT_CPP_ROOT!\robot_server\shell\launch_robot_server_windows_cpu.bat"
 ) else (
     echo error: unsupported BACKEND=!BACKEND! >&2
     exit /b 1
@@ -91,7 +91,7 @@ if not defined DTYPE set "DTYPE=f32"
 if not defined PYTHON set "PYTHON=python"
 rem ====================================
 
-set "BENCHMARK_SCRIPT=!VLA_CPP_ROOT!\robot_server\test\benchmark_latency.py"
+set "BENCHMARK_SCRIPT=!ROBOT_CPP_ROOT!\robot_server\test\benchmark_latency.py"
 set "RESULT_TSV=!ARTIFACT_DIR!\benchmark_server.tsv"
 
 if not exist "!LAUNCH_BAT!" (

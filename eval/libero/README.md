@@ -1,7 +1,7 @@
 # LIBERO Eval
 
 This directory contains LIBERO rollout and latency runners for two paths:
-LeRobot Python policies and vla.cpp `model-server`.
+LeRobot Python policies and robot.cpp `model-server`.
 
 ## Files
 
@@ -27,7 +27,7 @@ Create the optional conda environment:
 
 ```sh
 conda env create -f eval/libero/environment.yaml
-conda activate vlacpp-libero
+conda activate robotcpp-libero
 ```
 
 Or install the key dependencies in an existing environment:
@@ -47,7 +47,7 @@ default cache directories:
 ```sh
 export MUJOCO_GL=osmesa
 export PYOPENGL_PLATFORM=osmesa
-export VLACPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/vlacpp-eval-cache"
+export ROBOTCPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/robotcpp-eval-cache"
 ```
 
 ## LeRobot Baseline
@@ -62,9 +62,9 @@ python -m eval.libero.run_lerobot \
   --n-episodes 1 \
   --mujoco-gl osmesa \
   --pyopengl-platform osmesa \
-  --numba-cache-dir "${VLACPP_EVAL_CACHE_DIR}/numba" \
-  --torchinductor-cache-dir "${VLACPP_EVAL_CACHE_DIR}/torchinductor" \
-  --triton-cache-dir "${VLACPP_EVAL_CACHE_DIR}/triton" \
+  --numba-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/numba" \
+  --torchinductor-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor" \
+  --triton-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/triton" \
   --extra-arg=--policy.compile_model=false
 ```
 
@@ -101,8 +101,8 @@ The benchmark reports `processor_ms`, `policy_ms`, and `total_ms` after warmup.
 Measure model-server action chunk latency with synthetic LIBERO-style inputs:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split
-MODEL=vlacpp-pi0-libero-finetuned-v044
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
 
 python -m eval.libero.benchmark_model_server \
   --launch-server \
@@ -137,16 +137,16 @@ Download the pi0 v044 split GGUF files:
 ```sh
 hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
   --include "*.gguf" \
-  --local-dir ckpts/pi0-libero-finetuned-v044/vlacpp-split
+  --local-dir ckpts/pi0-libero-finetuned-v044/robotcpp-split
 ```
 
 The convenience wrapper configures/builds `model-server`, launches it, and runs
 the rollout:
 
 ```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/vlacpp-split \
-MODEL=vlacpp-pi0-libero-finetuned-v044 \
-CONDA_ENV=vlacpp-libero \
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split \
+MODEL=robotcpp-pi0-libero-finetuned-v044 \
+CONDA_ENV=robotcpp-libero \
 CMAKE_CUDA_ARCHITECTURES=80 \
 bash eval/libero/run_model_server.sh
 ```

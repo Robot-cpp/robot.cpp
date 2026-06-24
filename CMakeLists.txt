@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-project(vlacpp VERSION 0.1.0 LANGUAGES C CXX)
+project(robotcpp VERSION 0.1.0 LANGUAGES C CXX)
 
-option(BUILD_ROBOT_SERVER "Build model-cli, model-server, and robot client targets" ON)
+option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-cli, model-server, and robot client targets" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,7 +19,7 @@ if(NOT TARGET ggml OR NOT TARGET llama)
     message(FATAL_ERROR "llama.cpp must provide ggml and llama targets")
 endif()
 
-set(VLACPP_LLAMA_INCLUDE_DIRS
+set(ROBOTCPP_LLAMA_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/src
@@ -49,7 +49,7 @@ target_include_directories(smolvla_runtime
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${SMOLVLA_DIR}
-        ${VLACPP_LLAMA_INCLUDE_DIRS}
+        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
 )
 target_link_libraries(smolvla_runtime PUBLIC ggml llama)
 target_compile_features(smolvla_runtime PUBLIC cxx_std_17)
@@ -83,7 +83,7 @@ add_library(pi0_engine STATIC
 target_include_directories(pi0_engine
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${VLACPP_LLAMA_INCLUDE_DIRS}
+        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
 )
 target_link_libraries(pi0_engine PUBLIC ggml llama)
 target_compile_features(pi0_engine PUBLIC cxx_std_17)
@@ -107,7 +107,7 @@ target_include_directories(robotcpp
 target_link_libraries(robotcpp PUBLIC smolvla_runtime pi0_engine)
 target_compile_features(robotcpp PUBLIC cxx_std_17)
 
-if(BUILD_ROBOT_SERVER)
+if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     add_library(robot_server_common STATIC
         ${ROBOT_SERVER_DIR}/protocol.cpp
         ${ROBOT_SERVER_DIR}/protocol.h
@@ -149,7 +149,7 @@ if(BUILD_ROBOT_SERVER)
     set_target_properties(model-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_include_directories(model-cli PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${VLACPP_LLAMA_INCLUDE_DIRS}
+        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
     )
     target_link_libraries(model-cli PRIVATE robotcpp)
     target_compile_features(model-cli PRIVATE cxx_std_17)
