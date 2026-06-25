@@ -15,23 +15,33 @@ MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 BACKEND="${2:-${BACKEND:-mac-metal}}"
 
 # ====== model GGUF overrides ======
-# SmolVLA defaults are resolved by robot_server/shell/launch_robot_server_*.sh:
-#   ${GGUF_DIR}/smolvla-llm-f32.gguf
-#   ${GGUF_DIR}/mmproj-smolvla-f32.gguf
-#   ${GGUF_DIR}/state-proj-smolvla-f32.gguf
-#   ${GGUF_DIR}/action-expert-smolvla-f32.gguf
-LLM_GGUF="${LLM_GGUF:-}"
-VISION_GGUF="${VISION_GGUF:-}"
-STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-}"
-ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-}"
-
-# pi0 defaults are resolved from MODEL_BASENAME by launch scripts.
-MODEL_BASENAME="${MODEL_BASENAME:-}"
-VIT_GGUF="${VIT_GGUF:-}"
-MMPROJ_GGUF="${MMPROJ_GGUF:-}"
-TOKENIZER_GGUF="${TOKENIZER_GGUF:-}"
-STATE_GGUF="${STATE_GGUF:-}"
-ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-}"
+case "${MODEL_TYPE}" in
+    smolvla)
+        # SmolVLA defaults are resolved by robot_server/shell/launch_robot_server_*.sh:
+        #   ${GGUF_DIR}/smolvla-llm-f32.gguf
+        #   ${GGUF_DIR}/mmproj-smolvla-f32.gguf
+        #   ${GGUF_DIR}/state-proj-smolvla-f32.gguf
+        #   ${GGUF_DIR}/action-expert-smolvla-f32.gguf
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-f32.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-f32.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
+        ;;
+    pi0)
+        # pi0 defaults are resolved from MODEL_BASENAME by launch scripts.
+        MODEL_BASENAME="${MODEL_BASENAME:-pi0}"
+        VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"
+        TOKENIZER_GGUF="${TOKENIZER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.tokenizer.gguf}"
+        STATE_GGUF="${STATE_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.state.gguf}"
+        ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf}"
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"
+        ;;
+    *)
+        echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
+        exit 1
+        ;;
+esac
 
 case "${BACKEND}" in
     mac-cpu)
