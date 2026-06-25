@@ -23,7 +23,7 @@ def make_observation() -> dict:
     return {
         "images": [
             {
-                "name": "image",
+                "name": "observation.images.front",
                 "image": np.random.randint(0, 256, (IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=np.uint8),
             }
         ],

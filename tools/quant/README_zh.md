@@ -48,15 +48,15 @@ components:
 
 我们已经写好了一个shell来使用quant工具，quant/shell/quant.sh。如果要使用，我们首先需要对其做一些基本配置上的更改，可以设置的主要变量有：
 
-| 变量                   | 说明                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `REPO_ROOT`          | 仓库根目录                                                                                                    |
-| `SRC_GGUF_DIR`       | 源 GGUF 文件目录，供 YAML 中的 `${SRC_GGUF_DIR}` 引用                                                       |
-| `QUANT_OUTPUT_DIR`   | 量化后 GGUF 的输出目录，供 YAML 中的 `${QUANT_OUTPUT_DIR}` 引用                                             |
-| `MODEL_QUANT_PYTHON` | quant conda 环境中的 Python 路径，可以通过 `which python` 找到 conda 环境的 bin                             |
-| `PLAN_PATH`          | quant plan YAML 路径                                                                                          |
-| `QUANT_BUILD_DIR`*   | 脚本只会在这个目录下查找 `libggml-base` / `ggml-base.dll`，如果没有，则会在该文件夹自动构建 `ggml-base` |
-| `GGML_BASE_LIB`*     | 已有 `libggml-base` / `ggml-base.dll` 路径；不设置时脚本会尝试自动构建和查找                              |
+| 变量                   | 说明                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ROBOT_CPP_ROOT`     | 仓库根目录                                                                                                   |
+| `SRC_GGUF_DIR`       | 源 GGUF 文件目录，供 YAML 中的`${SRC_GGUF_DIR}` 引用                                                       |
+| `QUANT_OUTPUT_DIR`   | 量化后 GGUF 的输出目录，供 YAML 中的`${QUANT_OUTPUT_DIR}` 引用                                             |
+| `MODEL_QUANT_PYTHON` | quant conda 环境中的 Python 路径，可以通过`which python` 找到 conda 环境的 bin                             |
+| `PLAN_PATH`          | quant plan YAML 路径                                                                                         |
+| `QUANT_BUILD_DIR`*   | 脚本只会在这个目录下查找`libggml-base` / `ggml-base.dll`，如果没有，则会在该文件夹自动构建 `ggml-base` |
+| `GGML_BASE_LIB`*     | 已有`libggml-base` / `ggml-base.dll` 路径；不设置时脚本会尝试自动构建和查找                              |
 
 > *我们需要使用ggml的runtime库来进行量化，因此其需要ggml-base这个库，不同平台下，该库的名字也有变化，因此如果要填写 `GGML_BASE_LIB`，需要参考不同平台：
 >
