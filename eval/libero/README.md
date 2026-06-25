@@ -1,62 +1,63 @@
 # LIBERO Eval
 
-这个目录提供 LIBERO 仿真评测与测速脚本，主要覆盖两类 policy：
+[中文文档](README_zh.md)
 
-* robot.cpp C++ Policy：通过 `model-server` 加载 GGUF，跑 rollout 和延迟测试。
-* LeRobot Policy：使用原始 Python policy，作为 baseline 对比。
+This directory contains LIBERO rollout and latency helpers for two policy paths:
 
-## 文件结构
+* robot.cpp C++ Policy: loads split GGUF checkpoints through `model-server`.
+* LeRobot Policy: runs the original Python policy as a baseline.
+
+## Layout
 
 ```text
 eval/libero/
 ├── policy/
 │   └── model_server.py        # LIBERO observation -> C++ policy request adapter
 ├── runners/
-│   ├── run_model_server.py    # C++ policy LIBERO rollout runner
+│   ├── run_model_server.py    # C++ Policy LIBERO rollout runner
 │   ├── run_lerobot.py         # LeRobot Policy rollout wrapper
-│   └── latency_lerobot.py     # LeRobot policy latency runner
+│   └── latency_lerobot.py     # LeRobot Policy latency runner
 ├── scripts/
-│   └── run_model_server.sh    # launch/eval 便捷脚本
+│   └── run_model_server.sh    # launch/eval convenience wrapper
 ├── utils/
-│   ├── common.py              # 结果路径、JSON 写入、episode 汇总
-│   └── environment.py         # LIBERO 配置、运行时环境、reset/success helper
-└── environment.yaml           # 可选 conda 环境
+│   ├── common.py              # result paths, JSON writing, episode summaries
+│   └── environment.py         # LIBERO config, runtime env, reset/success helpers
+└── environment.yaml           # optional conda environment
 ```
 
-通用 action chunk 缓存在 `robot_client/policy/base_policy.py`。
-LIBERO C++ Policy 的启动、关闭和 timing 统计 helper 在
-`eval/libero/policy/model_server.py`。
+Shared action chunk buffering lives in `robot_client/policy/base_policy.py`.
+LIBERO-specific C++ Policy launch, shutdown, and timing helpers live in
+`eval/libero/policy/model_server.py`.
 
-## 使用说明
+## Usage
 
-### step0：环境配置
+### step0: Environment
 
-建议使用独立 conda 环境：
+Create the optional conda environment:
 
 ```bash
 conda env create -f eval/libero/environment.yaml
 conda activate robotcpp-libero
 ```
 
-如果复用已有环境，至少需要安装：
+Or install the minimum dependencies in an existing environment:
 
 ```bash
 pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
 ```
 
-如果当前机器没有可用 EGL device，可以切到 OSMesa：
+If EGL is unavailable on the machine, use OSMesa:
 
 ```bash
 export MUJOCO_GL=osmesa
 export PYOPENGL_PLATFORM=osmesa
 ```
 
-### step1：准备 C++ Policy GGUF
+### step1: Prepare C++ Policy GGUF
 
-Pi0 GGUF checkpoint 可以参考
-[`rrobottt/pi-libero-bf16`](https://huggingface.co/rrobottt/pi-libero-bf16)。
-C++ Policy 使用转换后的 split GGUF 文件：
+For Pi0, use the split GGUF checkpoint from
+[`rrobottt/pi-libero-bf16`](https://huggingface.co/rrobottt/pi-libero-bf16):
 
 ```bash
 hf download rrobottt/pi-libero-bf16 \
@@ -64,66 +65,72 @@ hf download rrobottt/pi-libero-bf16 \
   --local-dir ckpts/pi-libero-bf16
 ```
 
-脚本默认使用：
+The wrapper defaults to:
 
 ```bash
 GGUF_DIR=ckpts/pi-libero-bf16
 MODEL=pi-libero-bf16
 ```
 
-### step2：运行 LIBERO 评测
+### step2: Run LIBERO Eval
 
-最简单的方式是使用 `run_model_server.sh`。它会检查 GGUF 和已有
-`model-server` 二进制，然后启动 C++ Policy 并运行 `eval.libero.runners.run_model_server`：
+The simplest path is `run_model_server.sh`. It checks the GGUF files and an
+existing `model-server` binary, launches the C++ Policy, then runs
+`eval.libero.runners.run_model_server`:
 
 ```bash
 CONDA_ENV=robotcpp-libero \
 bash eval/libero/scripts/run_model_server.sh
 ```
 
-常用变量：
+Common variables:
 
-| 变量 | 说明 |
+| Variable | Purpose |
 | --- | --- |
-| `GGUF_DIR`, `MODEL` | split GGUF 输入，默认使用 step1 的路径和文件名前缀。 |
-| `BACKEND` | C++ Policy server preset，与 `robot_server/test/test_server_latency.sh` 一致，可选 `linux-cuda`、`linux-cpu`、`mac-metal`、`mac-cpu`，默认 `linux-cuda`。 |
-| `SERVER_BIN` | 自定义 `model-server` 路径；默认会由 `BACKEND` 推导对应 build 目录。 |
-| `HOST`, `PORT` | client/server 共享 endpoint，需要保持一致。 |
-| `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH` | LIBERO rollout 配置。 |
-| `MUJOCO_GL`, `PYOPENGL_PLATFORM`, `OUTPUT` | 渲染后端与结果输出。 |
+| `GGUF_DIR`, `MODEL` | Split GGUF directory and filename prefix. |
+| `BACKEND` | C++ Policy server preset, matching `robot_server/test/test_server_latency.sh`: `linux-cuda`, `linux-cpu`, `mac-metal`, or `mac-cpu`. Defaults to `linux-cuda`. |
+| `SERVER_BIN` | Custom `model-server` path. By default it is derived from `BACKEND`. |
+| `HOST`, `PORT` | Shared client/server endpoint. |
+| `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH` | LIBERO rollout selection. |
+| `MUJOCO_GL`, `PYOPENGL_PLATFORM`, `OUTPUT` | Rendering backend and result output. |
 
-如果默认路径下没有 C++ Policy server，先按项目根目录 README 构建，或直接设置
-`SERVER_BIN=/path/to/model-server`。`BUILD_DIR` 只是 `SERVER_BIN` 默认值的中间路径，
-通常不需要手动设置。
+If the default `model-server` binary does not exist, build it from the project
+root README or set `SERVER_BIN=/path/to/model-server`. `BUILD_DIR` is only the
+intermediate path used to derive the default `SERVER_BIN`, and usually does not
+need to be set directly.
 
-`run_model_server.sh` 后面的参数会传给 `python -m eval.libero.runners.run_model_server`，
-并且会放在自动生成的 `--server-command` 之前。例如：
+Extra arguments after `run_model_server.sh` are passed to
+`python -m eval.libero.runners.run_model_server` before the generated
+`--server-command` block:
 
 ```bash
 OUTPUT=eval/results/pi0-libero-object.json \
 bash eval/libero/scripts/run_model_server.sh --episode-length 400
 ```
 
-输出 JSON 会包含每个 episode 的 `server_timing_avg_ms`，以及顶层 `timing_ms`
-汇总，包括 `roundtrip_ms`、`server_predict_ms`、`model_total_ms`、`prefix_ms`、
-`denoise_ms` 等 C++ Policy 返回的指标。
+The output JSON includes per-episode `server_timing_avg_ms` plus top-level
+`timing_ms` summaries such as `roundtrip_ms`, `server_predict_ms`,
+`model_total_ms`, `prefix_ms`, and `denoise_ms`.
 
-如果需要完全手写 server command，可以直接用
-`python -m eval.libero.runners.run_model_server --help`；注意 `--server-command ...`
-必须放在命令最后。
+For a fully manual server command, run:
 
-### step3：LeRobot Policy 延迟测试
+```bash
+python -m eval.libero.runners.run_model_server --help
+```
+
+Keep `--server-command ...` at the end because it consumes the remaining
+arguments.
+
+### step3: LeRobot Policy Latency
 
 ```bash
 python -m eval.libero.runners.latency_lerobot \
   --policy-path lerobot/pi0_libero_finetuned_v044
 ```
 
-C++ Policy 的独立延迟测试统一使用 `robot_server/test/test_server_latency.sh`。
+C++ Policy latency is covered by `robot_server/test/test_server_latency.sh`.
 
-### step4：LeRobot Policy baseline
-
-LeRobot baseline 用来对比原始 Python policy 的 rollout 表现：
+### step4: LeRobot Policy Baseline
 
 ```bash
 python -m eval.libero.runners.run_lerobot \
@@ -133,17 +140,20 @@ python -m eval.libero.runners.run_lerobot \
   --extra-arg=--policy.compile_model=false
 ```
 
-runner 会把 `stdout.log`、`stderr.log`、`baseline_run.json` 和 LeRobot 的
-`eval_info.json` 写到 `eval/results/lerobot-baseline-*` 目录下。
+The runner writes `stdout.log`, `stderr.log`, `baseline_run.json`, and
+LeRobot's `eval_info.json` under `eval/results/lerobot-baseline-*`.
 
-## C++ Policy 请求语义
+## C++ Policy Request Semantics
 
-`LiberoModelServerPolicy` 会按以下规则把 LIBERO observation 送到
-C++ Policy server：
+`LiberoModelServerPolicy` maps LIBERO observations to the C++ Policy server with
+these conventions:
 
-* LIBERO camera `image` 和 `image2` 分别映射为 `observation.images.image`
-  和 `observation.images.image2`。
-* 图片会沿 height 和 width 翻转，以匹配 LeRobot 的 `LiberoProcessorStep`。
-* LIBERO 原始 8D state 会 pad 到配置的 state dimension，pi0 v044 默认是 32。
-* server 返回 action chunk 后，policy 会排队缓存，每个 env step 消费一个 action。
-* 送给 LIBERO environment 的 action 默认只使用前 7 维。
+* LIBERO cameras `image` and `image2` are sent as `observation.images.image`
+  and `observation.images.image2`.
+* Images are flipped along height and width to match LeRobot's
+  `LiberoProcessorStep`.
+* The raw 8D LIBERO state is padded to the configured state dimension. Pi0 v044
+  uses 32 by default.
+* Server action chunks are queued by the policy and consumed one action per env
+  step.
+* The LIBERO environment receives the first 7 action dimensions by default.

@@ -112,7 +112,8 @@ multiple image views. Values are paired by order.
 
 ## Evaluation
 
-LIBERO evaluation docs live in `eval/libero/README.md`.
+LIBERO evaluation docs: [English](eval/libero/README.md) /
+[中文](eval/libero/README_zh.md).
 
 - One-command model-server LIBERO eval:
   `bash eval/libero/scripts/run_model_server.sh`

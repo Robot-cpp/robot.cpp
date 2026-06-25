@@ -102,7 +102,7 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### model-server在仿真平台上的使用（以LIBERO为例）
 
-链接
+详见 [LIBERO 仿真评测说明](eval/libero/README_zh.md)（[English](eval/libero/README.md)）。
 
 ### model-server在真机平台上的使用（以SO-101为例）
 
