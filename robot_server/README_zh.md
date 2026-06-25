@@ -51,7 +51,6 @@ pi0 变量：
 | `TOKENIZER_GGUF`      | pi0 tokenizer GGUF 完整路径      | `${GGUF_DIR}/${MODEL_BASENAME}.tokenizer.gguf`      |
 | `STATE_GGUF`          | pi0 state GGUF 完整路径          | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | pi0 action decoder GGUF 完整路径 | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
-| `ROBOTCPP_BACKEND`    | pi0 runtime backend              | Metal 脚本默认`metal`；CUDA 脚本默认 `cuda`       |
 
 ### 调用方式
 
