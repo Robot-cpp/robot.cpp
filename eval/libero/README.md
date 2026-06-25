@@ -1,223 +1,149 @@
 # LIBERO Eval
 
-This directory contains LIBERO rollout and latency runners for two paths:
-LeRobot Python policies and robot.cpp `model-server`.
+这个目录提供 LIBERO 仿真评测与测速脚本，主要覆盖两类 policy：
 
-## Files
+* robot.cpp C++ Policy：通过 `model-server` 加载 GGUF，跑 rollout 和延迟测试。
+* LeRobot Policy：使用原始 Python policy，作为 baseline 对比。
+
+## 文件结构
 
 ```text
 eval/libero/
-├── common.py                  # result paths, JSON writing, task-id parsing, episode summaries
-├── environment.py             # LIBERO config, runtime env, reset/success helpers
-├── model_server_policy.py     # LIBERO observation -> model-server request adapter
-├── run_lerobot.py             # LeRobot baseline rollout wrapper
-├── benchmark_lerobot.py       # LeRobot policy latency benchmark
-├── run_model_server.py        # model-server LIBERO rollout runner
-├── benchmark_model_server.py  # model-server latency benchmark with synthetic LIBERO inputs
-├── run_model_server.sh        # build/launch/eval convenience wrapper
-└── environment.yaml           # optional conda environment
+├── policy/
+│   └── model_server.py        # LIBERO observation -> C++ policy request adapter
+├── runners/
+│   ├── run_model_server.py    # C++ policy LIBERO rollout runner
+│   ├── run_lerobot.py         # LeRobot Policy rollout wrapper
+│   └── latency_lerobot.py     # LeRobot policy latency runner
+├── scripts/
+│   └── run_model_server.sh    # launch/eval 便捷脚本
+├── utils/
+│   ├── common.py              # 结果路径、JSON 写入、episode 汇总
+│   └── environment.py         # LIBERO 配置、运行时环境、reset/success helper
+└── environment.yaml           # 可选 conda 环境
 ```
 
-Shared model-server buffering, launch, shutdown, and timing helpers live in
-`robot_client/policy/base_policy.py`.
+通用 action chunk 缓存在 `robot_client/policy/base_policy.py`。
+LIBERO C++ Policy 的启动、关闭和 timing 统计 helper 在
+`eval/libero/policy/model_server.py`。
 
-## Environment
+## 使用说明
 
-Create the optional conda environment:
+### step0：环境配置
 
-```sh
+建议使用独立 conda 环境：
+
+```bash
 conda env create -f eval/libero/environment.yaml
 conda activate robotcpp-libero
 ```
 
-Or install the key dependencies in an existing environment:
+如果复用已有环境，至少需要安装：
 
-```sh
+```bash
 pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
 ```
 
-`cmake<4` is needed because `egl_probe` currently uses an older CMake policy.
-The runners create `~/.libero/config.yaml` automatically so `hf-libero` does
-not prompt for a dataset path in non-interactive runs.
+如果当前机器没有可用 EGL device，可以切到 OSMesa：
 
-If EGL devices are unavailable, use OSMesa and keep runtime caches outside the
-default cache directories:
-
-```sh
+```bash
 export MUJOCO_GL=osmesa
 export PYOPENGL_PLATFORM=osmesa
-export ROBOTCPP_EVAL_CACHE_DIR="${TMPDIR:-/tmp}/robotcpp-eval-cache"
 ```
 
-## LeRobot Baseline
+### step1：准备 C++ Policy GGUF
 
-Run one episode for task 0 in `libero_object`:
+Pi0 GGUF checkpoint 可以参考
+[`rrobottt/pi-libero-bf16`](https://huggingface.co/rrobottt/pi-libero-bf16)。
+C++ Policy 使用转换后的 split GGUF 文件：
 
-```sh
-python -m eval.libero.run_lerobot \
+```bash
+hf download rrobottt/pi-libero-bf16 \
+  --include "*.gguf" \
+  --local-dir ckpts/pi-libero-bf16
+```
+
+脚本默认使用：
+
+```bash
+GGUF_DIR=ckpts/pi-libero-bf16
+MODEL=pi-libero-bf16
+```
+
+### step2：运行 LIBERO 评测
+
+最简单的方式是使用 `run_model_server.sh`。它会检查 GGUF 和已有
+`model-server` 二进制，然后启动 C++ Policy 并运行 `eval.libero.runners.run_model_server`：
+
+```bash
+CONDA_ENV=robotcpp-libero \
+bash eval/libero/scripts/run_model_server.sh
+```
+
+常用变量：
+
+| 变量 | 说明 |
+| --- | --- |
+| `GGUF_DIR`, `MODEL` | split GGUF 输入，默认使用 step1 的路径和文件名前缀。 |
+| `BACKEND` | C++ Policy server preset，与 `robot_server/test/test_server_latency.sh` 一致，可选 `linux-cuda`、`linux-cpu`、`mac-metal`、`mac-cpu`，默认 `linux-cuda`。 |
+| `SERVER_BIN` | 自定义 `model-server` 路径；默认会由 `BACKEND` 推导对应 build 目录。 |
+| `HOST`, `PORT` | client/server 共享 endpoint，需要保持一致。 |
+| `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH` | LIBERO rollout 配置。 |
+| `MUJOCO_GL`, `PYOPENGL_PLATFORM`, `OUTPUT` | 渲染后端与结果输出。 |
+
+如果默认路径下没有 C++ Policy server，先按项目根目录 README 构建，或直接设置
+`SERVER_BIN=/path/to/model-server`。`BUILD_DIR` 只是 `SERVER_BIN` 默认值的中间路径，
+通常不需要手动设置。
+
+`run_model_server.sh` 后面的参数会传给 `python -m eval.libero.runners.run_model_server`，
+并且会放在自动生成的 `--server-command` 之前。例如：
+
+```bash
+OUTPUT=eval/results/pi0-libero-object.json \
+bash eval/libero/scripts/run_model_server.sh --episode-length 400
+```
+
+输出 JSON 会包含每个 episode 的 `server_timing_avg_ms`，以及顶层 `timing_ms`
+汇总，包括 `roundtrip_ms`、`server_predict_ms`、`model_total_ms`、`prefix_ms`、
+`denoise_ms` 等 C++ Policy 返回的指标。
+
+如果需要完全手写 server command，可以直接用
+`python -m eval.libero.runners.run_model_server --help`；注意 `--server-command ...`
+必须放在命令最后。
+
+### step3：LeRobot Policy 延迟测试
+
+```bash
+python -m eval.libero.runners.latency_lerobot \
+  --policy-path lerobot/pi0_libero_finetuned_v044
+```
+
+C++ Policy 的独立延迟测试统一使用 `robot_server/test/test_server_latency.sh`。
+
+### step4：LeRobot Policy baseline
+
+LeRobot baseline 用来对比原始 Python policy 的 rollout 表现：
+
+```bash
+python -m eval.libero.runners.run_lerobot \
   --policy-path lerobot/pi0_libero_finetuned_v044 \
-  --suite libero_object \
-  --task-ids 0 \
-  --n-episodes 1 \
   --mujoco-gl osmesa \
   --pyopengl-platform osmesa \
-  --numba-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/numba" \
-  --torchinductor-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor" \
-  --triton-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/triton" \
   --extra-arg=--policy.compile_model=false
 ```
 
-The wrapper stores `stdout.log`, `stderr.log`, `baseline_run.json`, and
-LeRobot's `eval_info.json` under `eval/results/lerobot-baseline-*`.
+runner 会把 `stdout.log`、`stderr.log`、`baseline_run.json` 和 LeRobot 的
+`eval_info.json` 写到 `eval/results/lerobot-baseline-*` 目录下。
 
-## LeRobot Latency
+## C++ Policy 请求语义
 
-Measure LeRobot policy latency without launching LIBERO:
+`LiberoModelServerPolicy` 会按以下规则把 LIBERO observation 送到
+C++ Policy server：
 
-```sh
-python -m eval.libero.benchmark_lerobot \
-  --policy-path lerobot/pi0_libero_finetuned_v044 \
-  --warmup 5 \
-  --loops 20
-```
-
-For a local SmolVLA checkpoint, point the benchmark at local SmolVLM2 assets:
-
-```sh
-python -m eval.libero.benchmark_lerobot \
-  --policy-path ckpts/smolvla \
-  --smolvla-vlm-path /path/to/SmolVLM2-500M-Video-Instruct-assets \
-  --device cuda \
-  --no-compile-model \
-  --warmup 5 \
-  --loops 30
-```
-
-The benchmark reports `processor_ms`, `policy_ms`, and `total_ms` after warmup.
-
-## model-server Latency
-
-Measure model-server action chunk latency with synthetic LIBERO-style inputs:
-
-```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
-MODEL=robotcpp-pi0-libero-finetuned-v044
-
-python -m eval.libero.benchmark_model_server \
-  --launch-server \
-  --host 127.0.0.1 \
-  --port 5555 \
-  --server-env ROBOTCPP_BACKEND=cuda \
-  --warmup 5 \
-  --loops 20 \
-  --server-command \
-  build-cuda/bin/model-server \
-  --model-type pi0 \
-  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
-  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
-  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
-  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
-  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
-  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
-  --host 127.0.0.1 \
-  --port 5555 \
-  --threads 8 \
-  --noise-seed 1000 \
-  --verbosity 0
-```
-
-The result JSON reports `roundtrip_ms` plus server/model metrics returned by
-`model-server`.
-
-## model-server Rollout
-
-Download the pi0 v044 split GGUF files:
-
-```sh
-hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 \
-  --include "*.gguf" \
-  --local-dir ckpts/pi0-libero-finetuned-v044/robotcpp-split
-```
-
-The convenience wrapper configures/builds `model-server`, launches it, and runs
-the rollout:
-
-```sh
-GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split \
-MODEL=robotcpp-pi0-libero-finetuned-v044 \
-CONDA_ENV=robotcpp-libero \
-CMAKE_CUDA_ARCHITECTURES=80 \
-bash eval/libero/run_model_server.sh
-```
-
-Configure the wrapper with environment variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `BUILD_DIR`, `ROBOTCPP_BACKEND`, `CMAKE_CUDA_ARCHITECTURES` | Build and backend selection. |
-| `GGUF_DIR`, `MODEL`, `SERVER_BIN` | Split GGUF inputs and `model-server` binary. |
-| `HOST`, `PORT` | Shared client/server endpoint. Set these here so both sides match. |
-| `SUITE`, `TASK_IDS`, `N_EPISODES`, `SEED`, `EPISODE_LENGTH` | LIBERO rollout selection. |
-| `MUJOCO_GL`, `PYOPENGL_PLATFORM`, `OUTPUT` | Rendering and result output. |
-
-Arguments after `run_model_server.sh` are passed to
-`python -m eval.libero.run_model_server` before the generated
-`--server-command` block. Use them for runner-only flags:
-
-```sh
-OUTPUT=eval/results/pi0-libero-object.json \
-bash eval/libero/run_model_server.sh --episode-length 400
-```
-
-Run the Python rollout runner directly when the server command should be fully
-explicit:
-
-```sh
-python -m eval.libero.run_model_server \
-  --launch-server \
-  --host 127.0.0.1 \
-  --port 5555 \
-  --server-env ROBOTCPP_BACKEND=cuda \
-  --suite libero_object \
-  --task-ids 0 \
-  --n-episodes 1 \
-  --seed 1000 \
-  --mujoco-gl osmesa \
-  --pyopengl-platform osmesa \
-  --server-command \
-  build-cuda/bin/model-server \
-  --model-type pi0 \
-  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
-  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
-  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
-  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
-  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
-  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
-  --host 127.0.0.1 \
-  --port 5555 \
-  --threads 8 \
-  --noise-seed 1000 \
-  --verbosity 0
-```
-
-The `--server-command ...` block must stay last because it consumes the rest of
-the command line.
-
-## Request Semantics
-
-`LiberoModelServerPolicy` sends LIBERO observations to `model-server` with these
-conventions:
-
-- LIBERO cameras `image` and `image2` are sent as `observation.images.image`
-  and `observation.images.image2`.
-- Images are flipped by height and width to match LeRobot's
-  `LiberoProcessorStep`.
-- The 8D LIBERO state is padded to the configured state dimension, 32 by
-  default for pi0 v044.
-- Server action chunks are queued and consumed one action per environment step.
-- Only the first 7 action dimensions are sent to the LIBERO environment.
-
-Rollout JSON includes per-episode `server_timing_avg_ms` and a top-level
-`timing_ms` summary for `roundtrip_ms` plus server/model metrics such as
-`server_predict_ms`, `model_total_ms`, `prefix_ms`, and `denoise_ms`.
+* LIBERO camera `image` 和 `image2` 分别映射为 `observation.images.image`
+  和 `observation.images.image2`。
+* 图片会沿 height 和 width 翻转，以匹配 LeRobot 的 `LiberoProcessorStep`。
+* LIBERO 原始 8D state 会 pad 到配置的 state dimension，pi0 v044 默认是 32。
+* server 返回 action chunk 后，policy 会排队缓存，每个 env step 消费一个 action。
+* 送给 LIBERO environment 的 action 默认只使用前 7 维。
