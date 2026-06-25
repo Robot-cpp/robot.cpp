@@ -52,7 +52,7 @@ int main(int argc, char ** argv) {
 
     client::ModelObservation obs;
     client::ModelImage camera;
-    camera.name         = "image";
+    camera.name         = "observation.images.front";
     camera.rgb_hwc_u8   = image.data();
     camera.width        = width;
     camera.height       = height;

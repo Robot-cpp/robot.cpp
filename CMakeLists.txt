@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(robotcpp VERSION 0.1.0 LANGUAGES C CXX)
 
-option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-cli, model-server, and robot client targets" ON)
+option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-cli and model-server targets" ON)
+option(ROBOT_CPP_BUILD_ROBOT_CLIENT "Build C++ robot client targets" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -107,7 +108,7 @@ target_include_directories(robotcpp
 target_link_libraries(robotcpp PUBLIC smolvla_runtime pi0_engine)
 target_compile_features(robotcpp PUBLIC cxx_std_17)
 
-if(ROBOT_CPP_BUILD_ROBOT_SERVER)
+if(ROBOT_CPP_BUILD_ROBOT_SERVER OR ROBOT_CPP_BUILD_ROBOT_CLIENT)
     add_library(robot_server_common STATIC
         ${ROBOT_SERVER_DIR}/protocol.cpp
         ${ROBOT_SERVER_DIR}/protocol.h
@@ -119,7 +120,27 @@ if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     if(WIN32)
         target_link_libraries(robot_server_common PUBLIC ws2_32)
     endif()
+endif()
 
+if(ROBOT_CPP_BUILD_ROBOT_CLIENT)
+    add_library(model_client_cpp STATIC
+        ${ROBOT_CLIENT_DIR}/cpp/model_client.cpp
+        ${ROBOT_CLIENT_DIR}/cpp/model_client.h
+    )
+    target_include_directories(model_client_cpp PUBLIC
+        ${ROBOT_CLIENT_DIR}
+        ${ROBOT_SERVER_DIR}
+    )
+    target_link_libraries(model_client_cpp PUBLIC robot_server_common)
+    target_compile_features(model_client_cpp PUBLIC cxx_std_17)
+
+    add_executable(model-cpp-client-example ${ROBOT_CLIENT_DIR}/examples/cpp/minimal_example.cpp)
+    set_target_properties(model-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_link_libraries(model-cpp-client-example PRIVATE model_client_cpp)
+    target_compile_features(model-cpp-client-example PRIVATE cxx_std_17)
+endif()
+
+if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     add_library(robot_server_core STATIC
         ${ROBOT_SERVER_DIR}/session.cpp
         ${ROBOT_SERVER_DIR}/session.h
@@ -133,17 +154,6 @@ if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     )
     target_link_libraries(robot_server_core PUBLIC robot_server_common robotcpp)
     target_compile_features(robot_server_core PUBLIC cxx_std_17)
-
-    add_library(model_client_cpp STATIC
-        ${ROBOT_CLIENT_DIR}/cpp/model_client.cpp
-        ${ROBOT_CLIENT_DIR}/cpp/model_client.h
-    )
-    target_include_directories(model_client_cpp PUBLIC
-        ${ROBOT_CLIENT_DIR}
-        ${ROBOT_SERVER_DIR}
-    )
-    target_link_libraries(model_client_cpp PUBLIC robot_server_common)
-    target_compile_features(model_client_cpp PUBLIC cxx_std_17)
 
     add_executable(model-cli src/model-cli.cpp)
     set_target_properties(model-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -163,11 +173,6 @@ if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     )
     target_link_libraries(model-server PRIVATE robot_server_core robotcpp)
     target_compile_features(model-server PRIVATE cxx_std_17)
-
-    add_executable(model-cpp-client-example ${ROBOT_CLIENT_DIR}/examples/cpp/minimal_example.cpp)
-    set_target_properties(model-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_link_libraries(model-cpp-client-example PRIVATE model_client_cpp)
-    target_compile_features(model-cpp-client-example PRIVATE cxx_std_17)
 
     add_executable(smolvla-raw-predict ${ROBOT_SERVER_DIR}/test/smolvla_raw_predict.cpp)
     set_target_properties(smolvla-raw-predict PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
