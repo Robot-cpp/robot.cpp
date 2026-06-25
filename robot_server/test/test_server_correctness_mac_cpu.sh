@@ -5,7 +5,7 @@ set -e
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 IMAGE_PATH="${IMAGE_PATH:?IMAGE_PATH must be set}"
-BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_cpu}"
+BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_cpu}"
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"

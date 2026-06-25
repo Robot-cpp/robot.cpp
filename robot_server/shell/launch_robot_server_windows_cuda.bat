@@ -7,9 +7,10 @@ rem Default generator is Ninja (recommended). Visual Studio generator needs CUDA
 rem Run from "Developer PowerShell for VS 2022" or "x64 Native Tools Command Prompt".
 rem
 rem Usage:
+rem   set ROBOT_CPP_ROOT=C:\path\to\robot.cpp
 rem   set GGUF_DIR=C:\path\to\robot.cpp\ckpts\smolvla_grab_block_50_20k_f16
 rem   set CMAKE_CUDA_ARCHITECTURES=86
-rem   robot_server\shell\launch_robot_server_windows_cuda_msvc.bat
+rem   robot_server\shell\launch_robot_server_windows_cuda.bat
 rem
 rem Optional:
 rem   set SKIP_BUILD=1
@@ -17,9 +18,8 @@ rem   set CMAKE_GENERATOR=Visual Studio 17 2022
 rem   set VSROOT=C:\Program Files\Microsoft Visual Studio\2022\Community
 
 if not defined ROBOT_CPP_ROOT (
-    set "SCRIPT_DIR=%~dp0"
-    set "ROBOT_CPP_ROOT=!SCRIPT_DIR!..\.."
-    for %%I in ("!ROBOT_CPP_ROOT!") do set "ROBOT_CPP_ROOT=%%~fI"
+    echo error: ROBOT_CPP_ROOT must be set. >&2
+    exit /b 1
 )
 
 if not defined MODEL_TYPE set "MODEL_TYPE=smolvla"
@@ -214,19 +214,13 @@ echo server_bin: !SERVER_BIN!
 
 if /I "!MODEL_TYPE!"=="smolvla" (
     if not defined LLM_GGUF set "LLM_GGUF=!GGUF_DIR!\smolvla-llm-!DTYPE!.gguf"
-    if not defined MMPROJ_GGUF (
-        if defined VISION_GGUF (
-            set "MMPROJ_GGUF=!VISION_GGUF!"
-        ) else (
-            set "MMPROJ_GGUF=!GGUF_DIR!\mmproj-smolvla-!DTYPE!.gguf"
-        )
-    )
+    if not defined VISION_GGUF set "VISION_GGUF=!GGUF_DIR!\mmproj-smolvla-!DTYPE!.gguf"
     if not defined STATE_PROJ_GGUF set "STATE_PROJ_GGUF=!GGUF_DIR!\state-proj-smolvla-!DTYPE!.gguf"
     if not defined ACTION_EXPERT_GGUF set "ACTION_EXPERT_GGUF=!GGUF_DIR!\action-expert-smolvla-!DTYPE!.gguf"
     "!SERVER_BIN!" ^
         --model-type smolvla ^
         --llm "!LLM_GGUF!" ^
-        --mmproj "!MMPROJ_GGUF!" ^
+        --mmproj "!VISION_GGUF!" ^
         --state-proj "!STATE_PROJ_GGUF!" ^
         --action-expert "!ACTION_EXPERT_GGUF!" ^
         --task "!TASK!" ^

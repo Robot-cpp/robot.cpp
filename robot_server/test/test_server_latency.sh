@@ -15,22 +15,22 @@ MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 
 case "${BACKEND}" in
     mac-cpu)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_cpu}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_cpu}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
         ;;
     mac-metal)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_metal}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_metal}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_metal}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_metal.sh"
         ;;
     linux-cpu)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-linux-cpu}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cpu}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cpu}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cpu.sh"
         ;;
     linux-cuda)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-cuda}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cuda}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cuda}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cuda.sh"
         ;;

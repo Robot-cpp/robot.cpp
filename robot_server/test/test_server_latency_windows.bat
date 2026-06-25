@@ -13,10 +13,9 @@ rem Thread sweep (4, 8, 12, 16 by default):
 rem   set THREADS_SWEEP=1
 rem   robot_server\test\test_server_latency_windows.bat windows-cuda pi0
 
-set "SCRIPT_DIR=%~dp0"
 if not defined ROBOT_CPP_ROOT (
-    set "ROBOT_CPP_ROOT=!SCRIPT_DIR!..\.."
-    for %%I in ("!ROBOT_CPP_ROOT!") do set "ROBOT_CPP_ROOT=%%~fI"
+    echo error: ROBOT_CPP_ROOT must be set >&2
+    exit /b 1
 )
 
 if not defined GGUF_DIR (

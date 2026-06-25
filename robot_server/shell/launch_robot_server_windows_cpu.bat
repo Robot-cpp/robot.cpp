@@ -18,9 +18,8 @@ rem MSYS2 packages (UCRT64 shell):
 rem   pacman -S --needed mingw-w64-ucrt-x86_64-toolchain
 
 if not defined ROBOT_CPP_ROOT (
-    set "SCRIPT_DIR=%~dp0"
-    set "ROBOT_CPP_ROOT=!SCRIPT_DIR!..\.."
-    for %%I in ("!ROBOT_CPP_ROOT!") do set "ROBOT_CPP_ROOT=%%~fI"
+    echo error: ROBOT_CPP_ROOT must be set. >&2
+    exit /b 1
 )
 
 if not defined MODEL_TYPE set "MODEL_TYPE=smolvla"
@@ -165,19 +164,13 @@ echo server_bin: !SERVER_BIN!
 
 if /I "!MODEL_TYPE!"=="smolvla" (
     if not defined LLM_GGUF set "LLM_GGUF=!GGUF_DIR!\smolvla-llm-!DTYPE!.gguf"
-    if not defined MMPROJ_GGUF (
-        if defined VISION_GGUF (
-            set "MMPROJ_GGUF=!VISION_GGUF!"
-        ) else (
-            set "MMPROJ_GGUF=!GGUF_DIR!\mmproj-smolvla-!DTYPE!.gguf"
-        )
-    )
+    if not defined VISION_GGUF set "VISION_GGUF=!GGUF_DIR!\mmproj-smolvla-!DTYPE!.gguf"
     if not defined STATE_PROJ_GGUF set "STATE_PROJ_GGUF=!GGUF_DIR!\state-proj-smolvla-!DTYPE!.gguf"
     if not defined ACTION_EXPERT_GGUF set "ACTION_EXPERT_GGUF=!GGUF_DIR!\action-expert-smolvla-!DTYPE!.gguf"
     "!SERVER_BIN!" ^
         --model-type smolvla ^
         --llm "!LLM_GGUF!" ^
-        --mmproj "!MMPROJ_GGUF!" ^
+        --mmproj "!VISION_GGUF!" ^
         --state-proj "!STATE_PROJ_GGUF!" ^
         --action-expert "!ACTION_EXPERT_GGUF!" ^
         --task "!TASK!" ^

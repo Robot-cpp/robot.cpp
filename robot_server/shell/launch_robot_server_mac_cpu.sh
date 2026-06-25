@@ -5,7 +5,7 @@ set -e
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
-BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_cpu}"
+BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_cpu}"
 
 
 HOST="${HOST:-127.0.0.1}"
@@ -17,7 +17,6 @@ NOISE_SEED="${NOISE_SEED:--1}"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
-DTYPE="${DTYPE:-f32}"
 # ====================================
 
 SERVER_BIN="${BUILD_DIR}/bin/model-server"
@@ -41,10 +40,10 @@ fi
 
 case "${MODEL_TYPE}" in
     smolvla)
-        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
-        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}"
-        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
-        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-f32.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-f32.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
         MODEL_ARGS=(
             --model-type smolvla
             --llm "${LLM_GGUF}"
