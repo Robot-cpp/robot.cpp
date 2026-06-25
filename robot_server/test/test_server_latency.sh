@@ -1,17 +1,37 @@
 #!/usr/bin/env bash
 set -e
 
-# ====== change these if needed ======
+# ====== required env / positional args ======
+# Usage:
+#   ROBOT_CPP_ROOT=/path/to/vla.cpp GGUF_DIR=/path/to/gguf \
+#       bash robot_server/test/test_server_latency.sh <model-type> <backend>
+#
+# Positional args:
+#   $1: model-type, e.g. smolvla / pi0
+#   $2: backend, e.g. mac-cpu / mac-metal / linux-cpu / linux-cuda
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
-BACKEND="${BACKEND:-mac-metal}"
-case "${1:-}" in
-    mac-cpu|mac-metal|linux-cpu|linux-cuda)
-        BACKEND="$1"
-        shift
-        ;;
-esac
 MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
+BACKEND="${2:-${BACKEND:-mac-metal}}"
+
+# ====== model GGUF overrides ======
+# SmolVLA defaults are resolved by robot_server/shell/launch_robot_server_*.sh:
+#   ${GGUF_DIR}/smolvla-llm-f32.gguf
+#   ${GGUF_DIR}/mmproj-smolvla-f32.gguf
+#   ${GGUF_DIR}/state-proj-smolvla-f32.gguf
+#   ${GGUF_DIR}/action-expert-smolvla-f32.gguf
+LLM_GGUF="${LLM_GGUF:-}"
+VISION_GGUF="${VISION_GGUF:-}"
+STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-}"
+ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-}"
+
+# pi0 defaults are resolved from MODEL_BASENAME by launch scripts.
+MODEL_BASENAME="${MODEL_BASENAME:-}"
+VIT_GGUF="${VIT_GGUF:-}"
+MMPROJ_GGUF="${MMPROJ_GGUF:-}"
+TOKENIZER_GGUF="${TOKENIZER_GGUF:-}"
+STATE_GGUF="${STATE_GGUF:-}"
+ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-}"
 
 case "${BACKEND}" in
     mac-cpu)
@@ -156,6 +176,7 @@ else
 fi
 
 echo "== done =="
+echo "model_type: ${MODEL_TYPE}"
 echo "backend: ${BACKEND}"
 echo "result tsv: ${RESULT_TSV}"
 if [[ "${THREADS_SWEEP}" == "1" ]]; then
