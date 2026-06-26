@@ -4,15 +4,17 @@ set -e
 # ====== required env / positional args ======
 # Usage:
 #   ROBOT_CPP_ROOT=/path/to/vla.cpp GGUF_DIR=/path/to/gguf \
-#       bash robot_server/test/test_server_latency.sh <model-type> <backend>
+#       bash robot_server/test/test_server_latency.sh <model-type> <backend> <test-suite>
 #
 # Positional args:
 #   $1: model-type, e.g. smolvla / pi0
 #   $2: backend, e.g. mac-cpu / mac-metal / linux-cpu / linux-cuda
+#   $3: test-suite, e.g. smolvla-libero / smolvla-so101 / pi0-libero
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 BACKEND="${2:-${BACKEND:-mac-metal}}"
+TEST_SUITE="${3:-${TEST_SUITE:-smolvla-so101}}"
 
 # ====== model GGUF overrides ======
 case "${MODEL_TYPE}" in
@@ -78,23 +80,33 @@ THREADS_MIN="${THREADS_MIN:-4}"
 THREADS_MAX="${THREADS_MAX:-16}"
 THREADS_STEP="${THREADS_STEP:-4}"
 PROMPT="${PROMPT:-grab the block.}"
-case "${MODEL_TYPE}" in
-    smolvla)
+case "${TEST_SUITE}" in
+    smolvla-libero)
+        DEFAULT_IMAGE_NAMES="observation.images.image,observation.images.image2"
+        DEFAULT_IMAGE_WIDTH="256"
+        DEFAULT_IMAGE_HEIGHT="256"
+        DEFAULT_STATE_DIM="8"
+        ;;
+    smolvla-so101)
         DEFAULT_IMAGE_NAMES="observation.images.front"
+        DEFAULT_IMAGE_WIDTH="224"
+        DEFAULT_IMAGE_HEIGHT="224"
         DEFAULT_STATE_DIM="6"
         ;;
-    pi0)
+    pi0-libero)
         DEFAULT_IMAGE_NAMES="observation.images.image,observation.images.image2"
+        DEFAULT_IMAGE_WIDTH="256"
+        DEFAULT_IMAGE_HEIGHT="256"
         DEFAULT_STATE_DIM="32"
         ;;
     *)
-        DEFAULT_IMAGE_NAMES="image"
-        DEFAULT_STATE_DIM="6"
+        echo "unsupported TEST_SUITE=${TEST_SUITE}" >&2
+        exit 1
         ;;
 esac
 IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-${DEFAULT_IMAGE_NAMES}}}"
-IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
-IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
+IMAGE_WIDTH="${IMAGE_WIDTH:-${DEFAULT_IMAGE_WIDTH}}"
+IMAGE_HEIGHT="${IMAGE_HEIGHT:-${DEFAULT_IMAGE_HEIGHT}}"
 STATE_DIM="${STATE_DIM:-${DEFAULT_STATE_DIM}}"
 WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-100}"
@@ -188,6 +200,10 @@ fi
 echo "== done =="
 echo "model_type: ${MODEL_TYPE}"
 echo "backend: ${BACKEND}"
+echo "test_suite: ${TEST_SUITE}"
+echo "image_names: ${IMAGE_NAMES}"
+echo "image_size: ${IMAGE_WIDTH}x${IMAGE_HEIGHT}"
+echo "state_dim: ${STATE_DIM}"
 echo "result tsv: ${RESULT_TSV}"
 if [[ "${THREADS_SWEEP}" == "1" ]]; then
     echo "server logs: ${ARTIFACT_DIR}/server_t*.log"
