@@ -19,6 +19,12 @@ Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cp
 
 ## 快速使用
 
+```bash
+git clone https://github.com/Robot-cpp/robot.cpp
+cd robot.cpp
+git submodule update --init --recursive
+```
+
 我们介绍三类使用案例来帮助你快速了解本仓库：
 
 * model-server的启动，其与最小dummy model-client通信的案例
@@ -106,7 +112,7 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### model-server在真机平台上的使用（以SO-101为例）
 
-链接
+详见link，亦可参考视频教程（bilibili link）
 
 ## 性能
 
@@ -123,12 +129,12 @@ bash robot_client/shell/cpp_client_example.sh
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 
-## Repository Structure
+## 仓库架构
 
 关键目录如下：
 
 ```text
-vla.cpp/
+robot.cpp/
 ├── src/
 │   ├── model-cli.cpp              # 直接从命令行调用 Model 层的调试 / smoke 入口
 │   └── models/
@@ -153,10 +159,9 @@ vla.cpp/
 │   └── shell/                     # client 编译与运行脚本
 ├── tools/
 │   ├── hf2gguf/                   # Hugging Face checkpoint -> GGUF 转换工具
-│   │   ├── smolvla/
-│   │   └── pi0/
 │   └── quant/                     # 基于 YAML plan 的 GGUF tensor 选择性量化工具
 ├── eval/
+│   ├── base_platform.py           # 真机 platform 的统一基类
 │   ├── libero/                    # LIBERO 仿真评测
 │   └── lerobot_so101/             # SO-101 真机相关脚本与示例
 └── third_party/
@@ -164,12 +169,26 @@ vla.cpp/
     └── lerobot/                   # LeRobot 相关依赖或参考代码
 ```
 
-## Contributing
+## 扩展与贡献
 
-如何新增一个新的model
+robot.cpp 欢迎社区贡献新的模型 runtime、平台适配、评测流程、模型转换工具与性能优化。我们希望保持核心推理框架轻量、跨平台、易于复现，同时让不同机器人模型和平台能够以统一接口接入。
 
-新增模型时，优先在 `src/models/<model_name>` 下实现 runtime，并在 `model_factory.cpp` 接入
+如果你希望扩展本项目，可以先阅读以下文档：
+
+* [如何新增一个新的模型](src/readme_zh.md)：在 `src/models/<model_name>` 下实现 runtime，并在 `model_factory.cpp` 中接入 `--model-type`。
+* [如何接入一个新的平台](eval/readme_zh.md)：基于 `eval/base_platform.py` 实现平台侧 observation 采集、action 下发与可选的 reset/home 流程。
+
+欢迎通过 issue 讨论设计，也欢迎提交 PR。对于较大的模型结构、协议变更或平台抽象调整，建议先开 issue 对齐接口边界。
 
 ## License
 
+
 ## Acknowledgements
+
+robot.cpp 的设计与实现受益于多个优秀的开源项目：
+
+* [llama.cpp](https://github.com/ggerganov/llama.cpp)：提供了轻量化本地推理、GGML/GGUF 生态与跨平台后端基础，本项目在其工程哲学和底层能力上继续构建机器人模型推理框架。
+* [LeRobot](https://github.com/huggingface/lerobot)：提供了机器人数据、策略训练与真实机器人接入的参考实现，本项目的 SO-101 真机示例与部分评测流程参考了 LeRobot 生态。
+* [OpenPI](https://github.com/Physical-Intelligence/openpi)：提供了通用机器人策略模型与相关开源实现，本项目的 pi0 相关 runtime、转换与评测工作参考了 OpenPI 的模型设计。
+
+感谢这些项目和社区为机器人学习与端侧推理生态做出的贡献。

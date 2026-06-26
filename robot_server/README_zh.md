@@ -64,3 +64,42 @@ bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
 Windows 的 `.bat` 脚本：
+
+## 方法2：直接下载预编译发布
+
+从release page下载之后，运行以下命令
+
+### 启动 SmolVLA
+
+```bash
+./model-server \
+  --model-type smolvla \
+  --llm /path/to/smolvla-llm.gguf \
+  --mmproj /path/to/mmproj-smolvla.gguf \
+  --state-proj /path/to/state-proj-smolvla.gguf \
+  --action-expert /path/to/action-expert-smolvla.gguf \
+  --host 127.0.0.1 \
+  --port 5555
+```
+
+### 启动 pi0
+
+```bash
+GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
+MODEL=robotcpp-pi0-libero-finetuned-v044
+
+./model-server \
+  --model-type pi0 \
+  --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
+  --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
+  --llm "${GGUF_DIR}/${MODEL}.llm.gguf" \
+  --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf" \
+  --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf" \
+  --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf" \
+  --host 127.0.0.1 \
+  --port 5555
+```
+
+其中 `/path/to/...`、`GGUF_DIR` 和 `MODEL` 需要替换为本地实际的 GGUF 模型文件路径。`model-server` 当前仅监听 `127.0.0.1`。
+
+## 方法3：docker

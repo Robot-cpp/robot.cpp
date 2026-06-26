@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(robotcpp VERSION 0.1.0 LANGUAGES C CXX)
 
-option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-cli and model-server targets" ON)
+option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-server target" ON)
+option(ROBOT_CPP_BUILD_MODEL_CLI "Build model-cli target" OFF)
 option(ROBOT_CPP_BUILD_ROBOT_CLIENT "Build C++ robot client targets" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -155,15 +156,6 @@ if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     target_link_libraries(robot_server_core PUBLIC robot_server_common robotcpp)
     target_compile_features(robot_server_core PUBLIC cxx_std_17)
 
-    add_executable(model-cli src/model-cli.cpp)
-    set_target_properties(model-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_include_directories(model-cli PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
-    )
-    target_link_libraries(model-cli PRIVATE robotcpp)
-    target_compile_features(model-cli PRIVATE cxx_std_17)
-
     add_executable(model-server ${ROBOT_SERVER_DIR}/model-server.cpp)
     set_target_properties(model-server PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_include_directories(model-server PRIVATE
@@ -179,4 +171,15 @@ if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     target_include_directories(smolvla-raw-predict PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMOLVLA_DIR})
     target_link_libraries(smolvla-raw-predict PRIVATE smolvla_runtime)
     target_compile_features(smolvla-raw-predict PRIVATE cxx_std_17)
+endif()
+
+if(ROBOT_CPP_BUILD_MODEL_CLI)
+    add_executable(model-cli src/model-cli.cpp)
+    set_target_properties(model-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    target_include_directories(model-cli PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
+    )
+    target_link_libraries(model-cli PRIVATE robotcpp)
+    target_compile_features(model-cli PRIVATE cxx_std_17)
 endif()
