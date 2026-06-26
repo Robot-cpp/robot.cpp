@@ -82,32 +82,28 @@ THREADS_STEP="${THREADS_STEP:-4}"
 PROMPT="${PROMPT:-grab the block.}"
 case "${TEST_SUITE}" in
     smolvla-libero)
-        DEFAULT_IMAGE_NAMES="observation.images.image,observation.images.image2"
-        DEFAULT_IMAGE_WIDTH="256"
-        DEFAULT_IMAGE_HEIGHT="256"
-        DEFAULT_STATE_DIM="8"
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.image,observation.images.image2}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-256}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
+        STATE_DIM="${STATE_DIM:-8}"
         ;;
     smolvla-so101)
-        DEFAULT_IMAGE_NAMES="observation.images.front"
-        DEFAULT_IMAGE_WIDTH="224"
-        DEFAULT_IMAGE_HEIGHT="224"
-        DEFAULT_STATE_DIM="6"
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.front}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
+        STATE_DIM="${STATE_DIM:-6}"
         ;;
     pi0-libero)
-        DEFAULT_IMAGE_NAMES="observation.images.image,observation.images.image2"
-        DEFAULT_IMAGE_WIDTH="256"
-        DEFAULT_IMAGE_HEIGHT="256"
-        DEFAULT_STATE_DIM="32"
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.image,observation.images.image2}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-256}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
+        STATE_DIM="${STATE_DIM:-32}"
         ;;
     *)
         echo "unsupported TEST_SUITE=${TEST_SUITE}" >&2
         exit 1
         ;;
 esac
-IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-${DEFAULT_IMAGE_NAMES}}}"
-IMAGE_WIDTH="${IMAGE_WIDTH:-${DEFAULT_IMAGE_WIDTH}}"
-IMAGE_HEIGHT="${IMAGE_HEIGHT:-${DEFAULT_IMAGE_HEIGHT}}"
-STATE_DIM="${STATE_DIM:-${DEFAULT_STATE_DIM}}"
 WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-100}"
 SERVER_WAIT_S="${SERVER_WAIT_S:-120}"
