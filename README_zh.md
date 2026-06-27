@@ -4,7 +4,7 @@
 
 Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cpp的基础上进行开发，继承了其零依赖、轻量化的哲学，无需python相关的依赖配置，即可完成机器人模型推理，这使得其在跨平台尤其是环境配置复杂的边缘设备上具有优势。
 
-具体而言，robot.cpp最核心的概念是 `model-server`，其为最主要的统一模型接口。在实际工作，仅需要启动 `model-server`，其会监听机器人发送的推理请求，即接受机器人传来的observation，在下层model进行forward计算，返回model生成的action。整体通信设计上为了轻量化零依赖采用手写TCP协议的方式。
+具体而言，robot.cpp最核心的概念是 [`model-server`](robot_server/README_zh.md)，其为最主要的统一模型接口。在实际工作，仅需要启动 `model-server`，其会监听机器人发送的推理请求，即接受机器人传来的observation，在下层model进行forward计算，返回model生成的action。整体通信设计上为了轻量化零依赖采用手写TCP协议的方式。
 
 对于如何在机器人上使用，我们亦都提供了一些示例，分别提供了libero和低成本的SO-101的示例作为仿真与真机的使用模板。具体而言，我们采用以下概念组织：
 
@@ -121,12 +121,12 @@ bash robot_client/shell/cpp_client_example.sh
 
 | Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 | RTX 3060 | A100 |
 | ---------------------- | ---------------- | ------------------ | -------- | -------- | ---- |
-| smolvla@libero (bf16*) |                  | 215                |          |          | 52   |
-| smolvla@libero (f32)   |                  | 233                |          |          | 50   |
-| smolvla@so-101 (bf16*) | 339              | 145                |          |          | 35   |
-| smolvla@so-101 (f32)   | 396              | 158                |          |          | 33   |
-| pi0@libero (f32)       |                  | 720                |          |          | 78   |
-| pi0@libero (bf16*)     |                  | 643                |          |          | 69   |
+| smolvla@libero (bf16*) | 555              | 216                | 28       |          | 52   |
+| smolvla@libero (f32)   | 577              | 236                | 32       |          | 50   |
+| smolvla@so-101 (bf16*) | 339              | 145                | 23       |          | 35   |
+| smolvla@so-101 (f32)   | 396              | 158                | 24       |          | 33   |
+| pi0@libero (f32)       |                  |                    |          |          | 78   |
+| pi0@libero (bf16*)     |                  |                    |          |          | 69   |
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 
