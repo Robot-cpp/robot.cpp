@@ -10,23 +10,24 @@ export CONDA_ENV="${CONDA_ENV:-lerobot-demo}"
 export PYTHONPATH="${ROOT}:${ROOT}/lerobot_camera_opencv_crop:${ROBOT_CPP_ROOT}/robot_client/python:${ROBOT_CPP_ROOT}/robot_client"
 
 # --- Robot serial ports ---
-export ROBOT_PORT="/dev/tty.usbmodem5B3E1195731"
-export TELEOP_PORT="/dev/tty.usbmodem5B3E1198201"
-export ROBOT_TYPE="${ROBOT_TYPE:-so101_follower}"
-export TELEOP_TYPE="${TELEOP_TYPE:-so101_leader}"
-export ROBOT_USE_DEGREES="${ROBOT_USE_DEGREES:-true}"
+export ROBOT_PORT="${ROBOT_PORT:-?ROBOT_PORT must be set}"
+export TELEOP_PORT="${TELEOP_PORT:-?ROBOT_PORT must be set}"
+
+export ROBOT_TYPE="so101_follower"
+export TELEOP_TYPE="so101_leader"
+export ROBOT_USE_DEGREES="true"
 
 # --- Camera ---
-export CAMERA_KEY="${CAMERA_KEY:-camera1}"
-export MODEL_IMAGE_NAME="${MODEL_IMAGE_NAME:-observation.images.camera1}"
+export CAMERA_KEY="camera1"
+export MODEL_IMAGE_NAME="observation.images.camera1"
 export CAMERA_INDEX="${CAMERA_INDEX:-0}"
-CAMERA_WIDTH="${CAMERA_WIDTH:-1280}"
-CAMERA_HEIGHT="${CAMERA_HEIGHT:-720}"
-CAMERA_FPS="${CAMERA_FPS:-30}"
-CAMERA_BACKEND="${CAMERA_BACKEND:-AVFOUNDATION}"
-CAMERA_RESIZE_WIDTH="${CAMERA_RESIZE_WIDTH:-224}"
-CAMERA_RESIZE_HEIGHT="${CAMERA_RESIZE_HEIGHT:-224}"
-CAMERA_WARMUP_S="${CAMERA_WARMUP_S:-5}"
+CAMERA_WIDTH="1280"
+CAMERA_HEIGHT="720"
+CAMERA_FPS="30"
+CAMERA_BACKEND="AVFOUNDATION"
+CAMERA_RESIZE_WIDTH="224"
+CAMERA_RESIZE_HEIGHT="224"
+CAMERA_WARMUP_S="5"
 
 if [[ -z "${ROBOT_CAMERAS:-}" ]]; then
   ROBOT_CAMERAS="$(cat <<EOF
@@ -40,7 +41,7 @@ export ROBOT_CAMERAS="${ROBOT_CAMERAS//$'\n'/}"
 export ROBOT_PLATFORM="lerobot_so101"
 export SERVER="${SERVER:-127.0.0.1:5555}"
 export TASK="${TASK:-grab the block.}"
-export FPS="${FPS:-25}"
+export FPS="25"
 
 
 require_teleop_port() {
