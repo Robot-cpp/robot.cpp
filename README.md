@@ -112,10 +112,11 @@ multiple image views. Values are paired by order.
 
 ## Evaluation
 
-LIBERO evaluation docs live in `eval/libero/README.md`.
+LIBERO evaluation docs: [English](eval/libero/README.md) /
+[中文](eval/libero/README_zh.md).
 
 - One-command model-server LIBERO eval:
-  `bash eval/libero/run_model_server.sh`
-- LeRobot baseline: `python -m eval.libero.run_lerobot`
-- LeRobot policy latency: `python -m eval.libero.benchmark_lerobot`
-- model-server rollout: `python -m eval.libero.run_model_server`
+  `bash eval/libero/scripts/run_model_server.sh`
+- LeRobot baseline: `python -m eval.libero.runners.run_lerobot`
+- LeRobot policy latency: `python -m eval.libero.runners.latency_lerobot`
+- model-server rollout: `python -m eval.libero.runners.run_model_server`

@@ -3,21 +3,24 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Run LIBERO eval against a freshly built model-server.
+Run LIBERO eval against an existing model-server binary.
 
 Wrapper configuration:
   CONDA_ENV=robotcpp-libero       optional conda env for the Python eval runner
-  ROBOTCPP_BACKEND=cuda           model-server backend: cuda or cpu
-  BUILD_DIR=build-cuda            CMake build directory; defaults to build for cuda
+  BACKEND=linux-cuda              selects linux-cuda / linux-cpu / mac-metal / mac-cpu
+  SERVER_BIN=...                  model-server binary; defaults to ${BUILD_DIR}/bin/model-server
   GGUF_DIR=...                    split GGUF checkpoint directory
   MODEL=...                       split GGUF filename prefix
   HOST=127.0.0.1 PORT=5555        shared client/server endpoint
   SUITE=libero_object             LIBERO suite
   TASK_IDS=0 N_EPISODES=1         rollout selection
   OUTPUT=...                      optional result JSON path
-  CMAKE_CUDA_ARCHITECTURES=80     optional CUDA architecture override
 
-Arguments after this script are passed to eval.libero.run_model_server before
+Advanced overrides:
+  BUILD_DIR=...                   build directory derived from BACKEND by default
+  ROBOTCPP_BACKEND=...            runtime backend value passed to model-server
+
+Arguments after this script are passed to eval.libero.runners.run_model_server before
 the generated --server-command block. Use HOST and PORT env vars instead of
 extra --host/--port flags so the eval client and launched server stay in sync.
 EOF
@@ -29,7 +32,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." >/dev/null 2>&1 && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." >/dev/null 2>&1 && pwd)"
 cd "${REPO_ROOT}"
 
 MODEL_TYPE="${MODEL_TYPE:-pi0}"
@@ -38,35 +41,34 @@ if [[ "${MODEL_TYPE}" != "pi0" ]]; then
     exit 2
 fi
 
-BACKEND="${BACKEND:-${ROBOTCPP_BACKEND:-cuda}}"
-ROBOTCPP_BACKEND="${ROBOTCPP_BACKEND:-${BACKEND}}"
-if [[ -z "${BUILD_DIR:-}" ]]; then
-    if [[ "${BACKEND}" == "cuda" ]]; then
-        BUILD_DIR="build-cuda"
-    else
-        BUILD_DIR="build"
-    fi
-fi
-CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
-BUILD_JOBS="${BUILD_JOBS:-}"
-SKIP_CONFIGURE="${SKIP_CONFIGURE:-0}"
-SKIP_BUILD="${SKIP_BUILD:-0}"
-
-GGUF_DIR="${GGUF_DIR:-ckpts/pi0-libero-finetuned-v044/robotcpp-split}"
-MODEL="${MODEL:-robotcpp-pi0-libero-finetuned-v044}"
+GGUF_DIR="${GGUF_DIR:-ckpts/pi-libero-bf16}"
+MODEL="${MODEL:-pi-libero-bf16}"
+BACKEND="${BACKEND:-linux-cuda}"
+case "${BACKEND}" in
+    linux-cuda)
+        BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_linux_cuda}"
+        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-cuda}"
+        ;;
+    linux-cpu)
+        BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_linux_cpu}"
+        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-cpu}"
+        ;;
+    mac-metal)
+        BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_mac_metal}"
+        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-metal}"
+        ;;
+    mac-cpu)
+        BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_mac_cpu}"
+        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-cpu}"
+        ;;
+    *)
+        echo "unsupported BACKEND=${BACKEND}" >&2
+        exit 2
+        ;;
+esac
 SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
 
-HOST="${HOST:-127.0.0.1}"
-PORT="${PORT:-5555}"
-THREADS="${THREADS:-8}"
 NOISE_SEED="${NOISE_SEED:-${SEED:-1000}}"
-VERBOSITY="${VERBOSITY:-0}"
-SERVER_WAIT_S="${SERVER_WAIT_S:-120}"
-
-SUITE="${SUITE:-libero_object}"
-TASK_IDS="${TASK_IDS:-0}"
-N_EPISODES="${N_EPISODES:-1}"
-SEED="${SEED:-1000}"
 MUJOCO_GL="${MUJOCO_GL:-osmesa}"
 if [[ -z "${PYOPENGL_PLATFORM:-}" && "${MUJOCO_GL}" == "osmesa" ]]; then
     PYOPENGL_PLATFORM="osmesa"
@@ -91,42 +93,13 @@ if (( ${#missing_files[@]} )); then
     echo "missing split GGUF files:" >&2
     printf '  %s\n' "${missing_files[@]}" >&2
     echo "download them first, for example:" >&2
-    echo "  hf download JJJYmmm/robotcpp-pi0-libero-finetuned-v044 --include '*.gguf' --local-dir ${GGUF_DIR}" >&2
+    echo "  hf download rrobottt/pi-libero-bf16 --include '*.gguf' --local-dir ${GGUF_DIR}" >&2
     exit 2
-fi
-
-if [[ "${SKIP_BUILD}" != "1" ]]; then
-    cmake_args=(
-        -S "${REPO_ROOT}"
-        -B "${BUILD_DIR}"
-        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
-        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-    )
-    if [[ "${BACKEND}" == "cuda" ]]; then
-        cmake_args+=(-DGGML_CUDA=ON)
-        if [[ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]]; then
-            cmake_args+=("-DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}")
-        fi
-    fi
-
-    if [[ "${SKIP_CONFIGURE}" != "1" ]]; then
-        echo "Configuring ${BUILD_DIR}"
-        cmake "${cmake_args[@]}"
-    fi
-
-    if [[ -z "${BUILD_JOBS}" ]] && command -v nproc >/dev/null 2>&1; then
-        BUILD_JOBS="$(nproc)"
-    fi
-    build_cmd=(cmake --build "${BUILD_DIR}" --target model-server)
-    if [[ -n "${BUILD_JOBS}" ]]; then
-        build_cmd+=(-j "${BUILD_JOBS}")
-    fi
-    echo "Building model-server"
-    "${build_cmd[@]}"
 fi
 
 if [[ ! -x "${SERVER_BIN}" ]]; then
     echo "model-server was not found or is not executable: ${SERVER_BIN}" >&2
+    echo "build it first or set SERVER_BIN=/path/to/model-server" >&2
     exit 2
 fi
 
@@ -147,21 +120,38 @@ fi
 
 eval_cmd=(
     "${python_cmd[@]}"
-    -m eval.libero.run_model_server
+    -m eval.libero.runners.run_model_server
     --launch-server
-    --host "${HOST}"
-    --port "${PORT}"
-    --server-env "ROBOTCPP_BACKEND=${ROBOTCPP_BACKEND}"
-    --server-wait-s "${SERVER_WAIT_S}"
-    --suite "${SUITE}"
-    --task-ids "${TASK_IDS}"
-    --n-episodes "${N_EPISODES}"
-    --seed "${SEED}"
+    --server-env "ROBOTCPP_BACKEND=${ROBOTCPP_BACKEND_VALUE}"
     --mujoco-gl "${MUJOCO_GL}"
     --numba-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/numba"
     --torchinductor-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor"
     --triton-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/triton"
 )
+server_endpoint_args=()
+if [[ -n "${HOST:-}" ]]; then
+    eval_cmd+=(--host "${HOST}")
+    server_endpoint_args+=(--host "${HOST}")
+fi
+if [[ -n "${PORT:-}" ]]; then
+    eval_cmd+=(--port "${PORT}")
+    server_endpoint_args+=(--port "${PORT}")
+fi
+if [[ -n "${SERVER_WAIT_S:-}" ]]; then
+    eval_cmd+=(--server-wait-s "${SERVER_WAIT_S}")
+fi
+if [[ -n "${SUITE:-}" ]]; then
+    eval_cmd+=(--suite "${SUITE}")
+fi
+if [[ -n "${TASK_IDS:-}" ]]; then
+    eval_cmd+=(--task-ids "${TASK_IDS}")
+fi
+if [[ -n "${N_EPISODES:-}" ]]; then
+    eval_cmd+=(--n-episodes "${N_EPISODES}")
+fi
+if [[ -n "${SEED:-}" ]]; then
+    eval_cmd+=(--seed "${SEED}")
+fi
 if [[ -n "${PYOPENGL_PLATFORM:-}" ]]; then
     eval_cmd+=(--pyopengl-platform "${PYOPENGL_PLATFORM}")
 fi
@@ -186,11 +176,8 @@ eval_cmd+=(
     --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf"
     --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf"
     --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf"
-    --host "${HOST}"
-    --port "${PORT}"
-    --threads "${THREADS}"
+    "${server_endpoint_args[@]}"
     --noise-seed "${NOISE_SEED}"
-    --verbosity "${VERBOSITY}"
 )
 
 printf 'Running LIBERO model-server eval:\n  '

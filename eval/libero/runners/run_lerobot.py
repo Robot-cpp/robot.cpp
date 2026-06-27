@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from eval.libero.common import (
+from eval.libero.utils.common import (
     DEFAULT_RESULTS_DIR,
     REPO_ROOT,
     parse_task_ids,
@@ -17,7 +17,7 @@ from eval.libero.common import (
     timestamp,
     write_json,
 )
-from eval.libero.environment import DEFAULT_LIBERO_CONFIG_PATH, apply_runtime_env, ensure_libero_config
+from eval.libero.utils.environment import DEFAULT_LIBERO_CONFIG_PATH, apply_runtime_env, ensure_libero_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -126,7 +126,7 @@ def prepare_libero_config(args: argparse.Namespace, env: dict[str, str]) -> None
             "import sys; "
             f"sys.path.insert(0, {str(REPO_ROOT)!r}); "
             "from pathlib import Path; "
-            "from eval.libero.environment import ensure_libero_config; "
+            "from eval.libero.utils.environment import ensure_libero_config; "
             "import os; "
             "ensure_libero_config(Path(os.environ['LIBERO_CONFIG_PATH']))"
         )

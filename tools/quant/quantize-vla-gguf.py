@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 
-VLA_ROOT = Path(__file__).resolve().parents[2]
-GGUF_PY = VLA_ROOT / "third_party" / "llama.cpp" / "gguf-py"
+ROOT = Path(__file__).resolve().parents[2]
+GGUF_PY = ROOT / "third_party" / "llama.cpp" / "gguf-py"
 if not GGUF_PY.exists():
     raise SystemExit("third_party/llama.cpp/gguf-py is required; initialize the llama.cpp submodule")
 
@@ -190,7 +190,7 @@ def expand_path(value: Any) -> Path:
     text = re.sub(r"\$\{([^}]+)\}", expand_var_expr, str(value))
     path = Path(os.path.expanduser(text))
     if not path.is_absolute():
-        path = VLA_ROOT / path
+        path = ROOT / path
     return path
 
 
@@ -235,7 +235,7 @@ def ggml_base_candidates() -> list[Path]:
         "ggml-base*.dll",
         "libggml-base*.dll",
     )
-    for build_dir in sorted(VLA_ROOT.glob("build*")):
+    for build_dir in sorted(ROOT.glob("build*")):
         for path in build_dir.rglob("*"):
             if any(fnmatch.fnmatchcase(path.name, pattern) for pattern in patterns):
                 candidates.append(path)

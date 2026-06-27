@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:?must be set}" # The root directory of the repository
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?must be set}" # The root directory of the repository
 export SRC_GGUF_DIR="${SRC_GGUF_DIR:?SRC_GGUF_DIR must be set}" # source GGUF directories
 export QUANT_OUTPUT_DIR="${QUANT_OUTPUT_DIR:?QUANT_OUTPUT_DIR must be set}" # output directory for quantized models
 MODEL_QUANT_PYTHON="${MODEL_QUANT_PYTHON:?MODEL_QUANT_PYTHON must be set}" # Python interpreter path
-PLAN_PATH="${PLAN_PATH:-${REPO_ROOT}/tools/quant/config/smolvla_origin.yaml}" # plan yaml path
+PLAN_PATH="${PLAN_PATH:-${ROBOT_CPP_ROOT}/tools/quant/config/smolvla_origin.yaml}" # plan yaml path
 
 
 PYTHON_BIN="${PYTHON_BIN:-${MODEL_QUANT_PYTHON}}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
-QUANT_BUILD_DIR="${QUANT_BUILD_DIR:-${REPO_ROOT}/build_model_quant}"
+QUANT_BUILD_DIR="${QUANT_BUILD_DIR:-${ROBOT_CPP_ROOT}/build_model_quant}"
 GGML_BASE_LIB="${GGML_BASE_LIB:-}" # path to the ggml-base runtime library (libggml-base)
 
 find_ggml_base_lib() {
@@ -38,7 +38,7 @@ if [[ -z "${GGML_BASE_LIB}" ]]; then
 fi
 
 if [[ -z "${GGML_BASE_LIB}" || ! -f "${GGML_BASE_LIB}" || "${FORCE_GGML_BASE_BUILD:-0}" == "1" ]]; then
-  "${CMAKE_BIN}" -S "${REPO_ROOT}" -B "${QUANT_BUILD_DIR}" \
+  "${CMAKE_BIN}" -S "${ROBOT_CPP_ROOT}" -B "${QUANT_BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DROBOT_CPP_BUILD_ROBOT_SERVER=OFF
   "${CMAKE_BIN}" --build "${QUANT_BUILD_DIR}" --target ggml-base --config Release --parallel "$(sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
@@ -52,10 +52,10 @@ fi
 export GGML_BASE_LIB
 
 "${PYTHON_BIN}" \
-  "${REPO_ROOT}/tools/quant/quantize-vla-gguf.py" \
+  "${ROBOT_CPP_ROOT}/tools/quant/quantize-vla-gguf.py" \
   "${PLAN_PATH}" \
   --dry-run
 
 "${PYTHON_BIN}" \
-  "${REPO_ROOT}/tools/quant/quantize-vla-gguf.py" \
+  "${ROBOT_CPP_ROOT}/tools/quant/quantize-vla-gguf.py" \
   "${PLAN_PATH}"

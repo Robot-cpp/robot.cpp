@@ -1,36 +1,68 @@
 #!/usr/bin/env bash
 set -e
 
-# ====== change these if needed ======
+# ====== required env / positional args ======
+# Usage:
+#   ROBOT_CPP_ROOT=/path/to/vla.cpp GGUF_DIR=/path/to/gguf \
+#       bash robot_server/test/test_server_latency.sh <model-type> <backend> <test-suite>
+#
+# Positional args:
+#   $1: model-type, e.g. smolvla / pi0
+#   $2: backend, e.g. mac-cpu / mac-metal / linux-cpu / linux-cuda
+#   $3: test-suite, e.g. smolvla-libero / smolvla-so101 / pi0-libero
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
-BACKEND="${BACKEND:-mac-metal}"
-case "${1:-}" in
-    mac-cpu|mac-metal|linux-cpu|linux-cuda)
-        BACKEND="$1"
-        shift
+MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
+BACKEND="${2:-${BACKEND:-mac-metal}}"
+TEST_SUITE="${3:-${TEST_SUITE:-smolvla-so101}}"
+
+# ====== model GGUF overrides ======
+case "${MODEL_TYPE}" in
+    smolvla)
+        # SmolVLA defaults are resolved by robot_server/shell/launch_robot_server_*.sh:
+        #   ${GGUF_DIR}/smolvla-llm-f32.gguf
+        #   ${GGUF_DIR}/mmproj-smolvla-f32.gguf
+        #   ${GGUF_DIR}/state-proj-smolvla-f32.gguf
+        #   ${GGUF_DIR}/action-expert-smolvla-f32.gguf
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-f32.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-f32.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
+        ;;
+    pi0)
+        # pi0 defaults are resolved from MODEL_BASENAME by launch scripts.
+        MODEL_BASENAME="${MODEL_BASENAME:-pi0}"
+        VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"
+        TOKENIZER_GGUF="${TOKENIZER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.tokenizer.gguf}"
+        STATE_GGUF="${STATE_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.state.gguf}"
+        ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf}"
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"
+        ;;
+    *)
+        echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
+        exit 1
         ;;
 esac
-MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 
 case "${BACKEND}" in
     mac-cpu)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_cpu}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_cpu}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_cpu.sh"
         ;;
     mac-metal)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_smolvla_mac_metal}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_metal}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_metal}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_mac_metal.sh"
         ;;
     linux-cpu)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-linux-cpu}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cpu}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cpu}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cpu.sh"
         ;;
     linux-cuda)
-        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-cuda}"
+        BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cuda}"
         ARTIFACT_DIR="${ARTIFACT_DIR:-${ROBOT_CPP_ROOT}/debug/artifacts/robot_server_latency_linux_cuda}"
         LAUNCH_SHELL="${ROBOT_CPP_ROOT}/robot_server/shell/launch_robot_server_linux_cuda.sh"
         ;;
@@ -48,24 +80,30 @@ THREADS_MIN="${THREADS_MIN:-4}"
 THREADS_MAX="${THREADS_MAX:-16}"
 THREADS_STEP="${THREADS_STEP:-4}"
 PROMPT="${PROMPT:-grab the block.}"
-case "${MODEL_TYPE}" in
-    smolvla)
-        DEFAULT_IMAGE_NAMES="observation.images.front"
-        DEFAULT_STATE_DIM="6"
+case "${TEST_SUITE}" in
+    smolvla-libero)
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.image,observation.images.image2}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-256}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
+        STATE_DIM="${STATE_DIM:-8}"
         ;;
-    pi0)
-        DEFAULT_IMAGE_NAMES="observation.images.image,observation.images.image2"
-        DEFAULT_STATE_DIM="32"
+    smolvla-so101)
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.front}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
+        STATE_DIM="${STATE_DIM:-6}"
+        ;;
+    pi0-libero)
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.image,observation.images.image2}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-256}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
+        STATE_DIM="${STATE_DIM:-32}"
         ;;
     *)
-        DEFAULT_IMAGE_NAMES="image"
-        DEFAULT_STATE_DIM="6"
+        echo "unsupported TEST_SUITE=${TEST_SUITE}" >&2
+        exit 1
         ;;
 esac
-IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-${DEFAULT_IMAGE_NAMES}}}"
-IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
-IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
-STATE_DIM="${STATE_DIM:-${DEFAULT_STATE_DIM}}"
 WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-100}"
 SERVER_WAIT_S="${SERVER_WAIT_S:-120}"
@@ -156,7 +194,12 @@ else
 fi
 
 echo "== done =="
+echo "model_type: ${MODEL_TYPE}"
 echo "backend: ${BACKEND}"
+echo "test_suite: ${TEST_SUITE}"
+echo "image_names: ${IMAGE_NAMES}"
+echo "image_size: ${IMAGE_WIDTH}x${IMAGE_HEIGHT}"
+echo "state_dim: ${STATE_DIM}"
 echo "result tsv: ${RESULT_TSV}"
 if [[ "${THREADS_SWEEP}" == "1" ]]; then
     echo "server logs: ${ARTIFACT_DIR}/server_t*.log"

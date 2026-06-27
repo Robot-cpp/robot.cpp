@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
+GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 
 MODEL_TYPE="${MODEL_TYPE:-smolvla}"
-DTYPE="${DTYPE:-f16}"
-BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build-cuda}"
+BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cuda}"
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
@@ -22,21 +21,6 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 GGML_NATIVE="${GGML_NATIVE:-OFF}"
 GGML_OPENMP="${GGML_OPENMP:-OFF}"
-
-if [ -z "${GGUF_DIR:-}" ]; then
-    case "${MODEL_TYPE}" in
-        smolvla)
-            GGUF_DIR="${ROBOT_CPP_ROOT}/ckpts/smolvla/gguf-${DTYPE}"
-            ;;
-        pi0)
-            GGUF_DIR="${ROBOT_CPP_ROOT}/ckpts/pi0-libero-finetuned-v044/robotcpp-split"
-            ;;
-        *)
-            echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
-            exit 1
-            ;;
-    esac
-fi
 
 SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
@@ -56,14 +40,14 @@ fi
 
 case "${MODEL_TYPE}" in
     smolvla)
-        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${DTYPE}.gguf}"
-        MMPROJ_GGUF="${MMPROJ_GGUF:-${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${DTYPE}.gguf}}"
-        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-${DTYPE}.gguf}"
-        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${DTYPE}.gguf}"
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-f32.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-f32.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
         MODEL_ARGS=(
             --model-type smolvla
             --llm "${LLM_GGUF}"
-            --mmproj "${MMPROJ_GGUF}"
+            --mmproj "${VISION_GGUF}"
             --state-proj "${STATE_PROJ_GGUF}"
             --action-expert "${ACTION_EXPERT_GGUF}"
         )

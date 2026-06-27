@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from eval.libero.common import parse_task_ids
+from eval.libero.utils.common import parse_task_ids
 
 
 DEFAULT_LIBERO_CONFIG_PATH = Path.home() / ".libero"

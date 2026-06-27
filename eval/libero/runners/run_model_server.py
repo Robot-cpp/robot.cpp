@@ -11,15 +11,24 @@ from typing import Any
 import numpy as np
 
 from eval.base_platform import BasePlatform
-from eval.libero.model_server_policy import DEFAULT_IMAGE_KEYS, LiberoModelServerPolicy
-from eval.libero.common import (
+from eval.libero.policy.model_server import (
+    DEFAULT_IMAGE_KEYS,
+    LiberoModelServerPolicy,
+    average_timing,
+    maybe_launch_server,
+    parse_server_env,
+    server_command,
+    stop_server,
+    timing_summary,
+)
+from eval.libero.utils.common import (
     DEFAULT_RESULTS_DIR,
     aggregate_episodes,
     parse_task_ids,
     timestamp,
     write_json,
 )
-from eval.libero.environment import (
+from eval.libero.utils.environment import (
     DEFAULT_LIBERO_CONFIG_PATH,
     apply_runtime_env,
     ensure_libero_config,
@@ -29,14 +38,6 @@ from eval.libero.environment import (
     success_from_info,
     task_description,
     vector_reset,
-)
-from robot_client.policy.sim_policy import (
-    average_timing,
-    maybe_launch_server,
-    parse_server_env,
-    server_command,
-    stop_server,
-    timing_summary,
 )
 
 

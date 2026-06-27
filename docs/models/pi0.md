@@ -157,7 +157,7 @@ environment override:
 GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
 MODEL=robotcpp-pi0-libero-finetuned-v044
 
-python -m eval.libero.run_model_server \
+python -m eval.libero.runners.run_model_server \
   --launch-server \
   --host 127.0.0.1 \
   --port 5555 \
