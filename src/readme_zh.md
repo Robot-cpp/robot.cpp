@@ -114,7 +114,7 @@ STATE=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
   --task "pick up the fork"
 ```
 
-pi0 的 `--image-name` 必须和 checkpoint metadata 里的 `pi0.image_keys` 一致。LIBERO v044 split checkpoint 使用 `observation.images.image` 和 `observation.images.image2`。
+pi0 的 `--image-name` 必须和vit部分的metadata 里的 `pi0.image_keys` 一致。LIBERO v044 split checkpoint 使用 `observation.images.image` 和 `observation.images.image2`。
 
 ### `models/model.h`
 
@@ -144,8 +144,6 @@ if (args.type == model_type::pi0) {
 }
 ```
 
-新增模型时通常需要在这里 include 新模型的 wrapper 头文件，并添加一条分发分支。
-
 ### `models/ggml_backend.*`
 
 这组文件封装 ggml 后端、buffer、scheduler 等公共能力。多个模型都可能复用这层代码，避免每个模型目录里重复处理 ggml 初始化、设备选择和内存管理。
@@ -170,7 +168,7 @@ SmolVLA 的模型实现目录。当前主要分为两层：
 
 ### `models/pi0/`
 
-pi0 的模型实现目录，也采用“模型专用 engine + `Model` wrapper”的结构：
+pi0 的模型实现目录，也采用“模型专用 engine + `Model` 子类”的结构：
 
 * `pi0_engine.*`：模型专用 runtime API，例如 `pi0_params`、`pi0_context`、`pi0_init()`、`pi0_predict_raw_rgb()`、`pi0_reset()`、`pi0_free()`。
 * `pi0_model.*`：把 `pi0_engine` 适配到 `robotcpp::Model`。
@@ -324,7 +322,7 @@ bool make_model(const model_args & args, std::unique_ptr<Model> & out, std::stri
 * `print_usage()`：补充新模型的参数说明。
 * 参数解析循环：解析新模型需要的 CLI 参数，并写入 `model_args`。
 
-如果新模型对 image name、state 维度或 task 文本有特殊要求，尽量在 wrapper 的 `predict()` 或初始化校验里返回明确错误信息，方便 CLI 和 server 复用。
+如果新模型对 image name、state 维度或 task 文本有特殊要求，尽量在子类的 `predict()` 或初始化校验里返回明确错误信息，方便 CLI 和 server 复用。
 
 ### 6. 修改 CMake
 
@@ -340,8 +338,6 @@ add_library(robotcpp STATIC
 )
 ```
 
-如果新模型内部 runtime 足够大、需要单独测试，或要复用已有 ggml/llama 链接配置，也可以建立自己的 target，再让 `robotcpp` 链接它。是否叫 `newmodel_engine` 不重要，重点是外部仍通过 `robotcpp::Model` 创建和调用模型。
-
 ### 7. 验证
 
 #### 新模型最小验证模板
@@ -353,25 +349,21 @@ add_library(robotcpp STATIC
   --model-type newmodel \
   --image /path/to/image.png \
   --image-name image \
-  --state 0,0,0 \
+  --state 0,0,0,0,0,0 \
   --task "grab the block." \
   --threads 4 \
   --newmodel-weights /path/to/newmodel.gguf
 ```
 
-如果 `model-server` 也要使用该模型，还需要确认 server 启动参数能把新模型所需字段传到 `model_args`。通常应保持 server 和 CLI 使用同一套 `make_model()` 路径，以避免两边行为不一致。
+如果 `model-server` 也要使用该模型，还需要确认 server 启动参数能把新模型所需字段传到 `model_args`。
 
 ## 新模型接入检查清单
 
 * `tools/hf2gguf/<model_name>/` 已能把原始 checkpoint 或 `.pt` 转成 C++ runtime 使用的 GGUF。
 * `tools/quant/config/<model_name>_origin.yaml` 已覆盖新模型的所有 GGUF component 和 tensor group。
-* `src/models/<model_name>/` 下有清晰的 `Model` wrapper；只有在确实需要时才拆出内部 runtime 或 engine。
+* `src/models/<model_name>/` 下有清晰的 `Model` ==子类==；只有在确实需要时才拆出内部 runtime 或 engine。
 * `model_type` 已增加新枚举。
 * `model_args` 已包含新模型初始化所需参数。
 * `model_factory.cpp` 已接入新模型。
 * `model-cli.cpp` 已支持 `--model-type <model_name>` 和必要参数。
 * `CMakeLists.txt` 已加入新模型源文件，并让 `robotcpp` 能链接到必要的内部组件。
-* `predict()` 会校验输入图片、state、task，并通过 `error` 返回可读错误。
-* `model_result.actions`、`chunk_size`、`action_dim` 的含义与现有模型保持一致。
-* `reset()` 在模型有 cache 或时序状态时能正确清理状态。
-* `model-cli` 和 `model-server` 走同一套 wrapper，不额外绕过 `robotcpp::Model`。

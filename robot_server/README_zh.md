@@ -65,6 +65,17 @@ bash robot_server/shell/launch_robot_server_linux_cuda.sh
 
 Windows 的 `.bat` 脚本：
 
+### 故障排查
+
+* `Tell CMake where to find the compiler by setting either the environment variable "CUDACXX" or the CMake cache entry CMAKE_CUDA_COMPILER to the full path to the compiler, or to the compiler name if it is in the PATH.`
+
+这是因为CUDACXX变量没有被设置，通过以下方式设置环境变量即可（下面是一个案例，具体应当寻找对应机器的nvcc路径）
+
+```
+export CUDACXX=/usr/local/cuda-12.4/bin/nvcc
+export PATH=/usr/local/cuda-12.4/bin:$PATH
+```
+
 ## 方法2：直接下载预编译发布
 
 从release page下载之后，运行以下命令
