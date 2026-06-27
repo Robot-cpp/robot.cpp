@@ -1,5 +1,7 @@
 # LeRobot SO101
 
+[English](eval\lerobot_so101\README.md)
+
 这个目录提供一个 LeRobot SO101 Platform 的真机同步控制示例。
 
 硬件上除 LeRobot SO101 follower arm 外，还需要一个摄像头。使用 Mac 则推荐使用 iPhone 作为摄像头（需要在同一 Apple ID 下），确认对应 index 后可以很方便的进行无线调用。
