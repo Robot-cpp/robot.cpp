@@ -22,7 +22,7 @@ class SO101ClientConfig:
     robot_cameras: str
     task: str
     camera_key: str = "camera1"
-    model_image_name: str = "observation.images.camera1"
+    model_image_name: str = "observation.images.front"
     fps: int = DEFAULT_FPS
     loops: int = 0
     use_degrees: bool = True
@@ -47,7 +47,7 @@ def config_from_env() -> SO101ClientConfig:
         robot_cameras=robot_cameras,
         task=task,
         camera_key=os.environ.get("CAMERA_KEY", "camera1"),
-        model_image_name=os.environ.get("MODEL_IMAGE_NAME", "observation.images.camera1"),
+        model_image_name=os.environ.get("MODEL_IMAGE_NAME", "observation.images.front"),
         fps=int(os.environ.get("FPS", str(DEFAULT_FPS))),
         loops=int(os.environ.get("LOOPS", "0")),
         use_degrees=use_degrees,
