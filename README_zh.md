@@ -121,12 +121,12 @@ bash robot_client/shell/cpp_client_example.sh
 
 | Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 | RTX 3060 | A100 |
 | ---------------------- | ---------------- | ------------------ | -------- | -------- | ---- |
-| smolvla@libero (bf16*) | 555              | 216                | 28       |          | 52   |
-| smolvla@libero (f32)   | 577              | 236                | 32       |          | 50   |
+| smolvla@libero (bf16*) | 555              | 216                | 28       |          | 43   |
+| smolvla@libero (f32)   | 577              | 236                | 32       |          | 41   |
 | smolvla@so-101 (bf16*) | 339              | 145                | 23       |          | 35   |
 | smolvla@so-101 (f32)   | 396              | 158                | 24       |          | 33   |
-| pi0@libero (f32)       |                  |                    |          |          | 78   |
-| pi0@libero (bf16*)     |                  |                    |          |          | 69   |
+| pi0@libero (f32)       |                  |                    |          |          | 79   |
+| pi0@libero (bf16*)     |                  |                    |          |          | 70   |
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 
