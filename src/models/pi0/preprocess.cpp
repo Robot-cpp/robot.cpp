@@ -69,7 +69,8 @@ bool validate_and_preprocess_pi0(const Pi0ModelConfig & config, const Pi0RawObse
         out.state.assign(model_state_dim, 0.0f);
         std::copy(raw.state, raw.state + raw.state_count, out.state.begin());
         if (config.common.state_mean.size() == model_state_dim || config.common.state_std.size() == model_state_dim) {
-            if (config.common.state_mean.size() != model_state_dim || config.common.state_std.size() != model_state_dim) {
+            if (config.common.state_mean.size() != model_state_dim ||
+                config.common.state_std.size() != model_state_dim) {
                 return pi0_preprocess_error("state_mean and state_std must both match state_dim");
             }
             for (int i = 0; i < config.common.state_dim; ++i) {
