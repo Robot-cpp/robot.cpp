@@ -18,7 +18,7 @@ Wrapper configuration:
 
 Advanced overrides:
   BUILD_DIR=...                   build directory derived from BACKEND by default
-  ROBOTCPP_BACKEND=...            runtime backend value passed to model-server
+  ROBOT_CPP_BACKEND=...            runtime backend value passed to model-server
 
 Arguments after this script are passed to eval.libero.runners.run_model_server before
 the generated --server-command block. Use HOST and PORT env vars instead of
@@ -47,19 +47,19 @@ BACKEND="${BACKEND:-linux-cuda}"
 case "${BACKEND}" in
     linux-cuda)
         BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_linux_cuda}"
-        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-cuda}"
+        ROBOT_CPP_BACKEND_VALUE="${ROBOT_CPP_BACKEND:-cuda}"
         ;;
     linux-cpu)
         BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_linux_cpu}"
-        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-cpu}"
+        ROBOT_CPP_BACKEND_VALUE="${ROBOT_CPP_BACKEND:-cpu}"
         ;;
     mac-metal)
         BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_mac_metal}"
-        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-metal}"
+        ROBOT_CPP_BACKEND_VALUE="${ROBOT_CPP_BACKEND:-metal}"
         ;;
     mac-cpu)
         BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_mac_cpu}"
-        ROBOTCPP_BACKEND_VALUE="${ROBOTCPP_BACKEND:-cpu}"
+        ROBOT_CPP_BACKEND_VALUE="${ROBOT_CPP_BACKEND:-cpu}"
         ;;
     *)
         echo "unsupported BACKEND=${BACKEND}" >&2
@@ -73,7 +73,7 @@ MUJOCO_GL="${MUJOCO_GL:-osmesa}"
 if [[ -z "${PYOPENGL_PLATFORM:-}" && "${MUJOCO_GL}" == "osmesa" ]]; then
     PYOPENGL_PLATFORM="osmesa"
 fi
-ROBOTCPP_EVAL_CACHE_DIR="${ROBOTCPP_EVAL_CACHE_DIR:-${TMPDIR:-/tmp}/robotcpp-eval-cache}"
+ROBOT_CPP_EVAL_CACHE_DIR="${ROBOT_CPP_EVAL_CACHE_DIR:-${TMPDIR:-/tmp}/robot_cpp-eval-cache}"
 
 required_files=(
     "${GGUF_DIR}/${MODEL}.vit.gguf"
@@ -104,9 +104,9 @@ if [[ ! -x "${SERVER_BIN}" ]]; then
 fi
 
 mkdir -p \
-    "${ROBOTCPP_EVAL_CACHE_DIR}/numba" \
-    "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor" \
-    "${ROBOTCPP_EVAL_CACHE_DIR}/triton"
+    "${ROBOT_CPP_EVAL_CACHE_DIR}/numba" \
+    "${ROBOT_CPP_EVAL_CACHE_DIR}/torchinductor" \
+    "${ROBOT_CPP_EVAL_CACHE_DIR}/triton"
 
 PYTHON_BIN="${PYTHON:-python3}"
 if [[ -n "${CONDA_ENV:-}" && -z "${PYTHON:-}" ]]; then
@@ -122,11 +122,11 @@ eval_cmd=(
     "${python_cmd[@]}"
     -m eval.libero.runners.run_model_server
     --launch-server
-    --server-env "ROBOTCPP_BACKEND=${ROBOTCPP_BACKEND_VALUE}"
+    --server-env "ROBOT_CPP_BACKEND=${ROBOT_CPP_BACKEND_VALUE}"
     --mujoco-gl "${MUJOCO_GL}"
-    --numba-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/numba"
-    --torchinductor-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/torchinductor"
-    --triton-cache-dir "${ROBOTCPP_EVAL_CACHE_DIR}/triton"
+    --numba-cache-dir "${ROBOT_CPP_EVAL_CACHE_DIR}/numba"
+    --torchinductor-cache-dir "${ROBOT_CPP_EVAL_CACHE_DIR}/torchinductor"
+    --triton-cache-dir "${ROBOT_CPP_EVAL_CACHE_DIR}/triton"
 )
 server_endpoint_args=()
 if [[ -n "${HOST:-}" ]]; then

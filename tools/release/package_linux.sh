@@ -4,17 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." >/dev/null 2>&1 && pwd)"
 
-CMAKE_BIN="${CMAKE_BIN:-cmake}"
-JOBS="${JOBS:-8}"
-DIST_DIR="${DIST_DIR:-${REPO_ROOT}/dist}"
-BUILD_ROOT="${BUILD_ROOT:-${REPO_ROOT}}"
-BUILD_CPU="${BUILD_CPU:-0}"
-BUILD_CUDA="${BUILD_CUDA:-0}"
-STRIP_BINARIES="${STRIP_BINARIES:-1}"
-SOURCE_PREFIX_MAP="${SOURCE_PREFIX_MAP:-1}"
-PACKAGE_PREFIX="${PACKAGE_PREFIX:-robotcpp}"
-PACKAGE_PLATFORM="${PACKAGE_PLATFORM:-linux}"
-PACKAGE_ARCH="${PACKAGE_ARCH:-x86_64}"
+ROBOT_CPP_CMAKE_BIN="${ROBOT_CPP_CMAKE_BIN:-cmake}"
+ROBOT_CPP_JOBS="${ROBOT_CPP_JOBS:-8}"
+ROBOT_CPP_DIST_DIR="${ROBOT_CPP_DIST_DIR:-${REPO_ROOT}/dist}"
+ROBOT_CPP_BUILD_ROOT="${ROBOT_CPP_BUILD_ROOT:-${REPO_ROOT}}"
+ROBOT_CPP_BUILD_CPU="${ROBOT_CPP_BUILD_CPU:-0}"
+ROBOT_CPP_BUILD_CUDA="${ROBOT_CPP_BUILD_CUDA:-0}"
+ROBOT_CPP_STRIP_BINARIES="${ROBOT_CPP_STRIP_BINARIES:-1}"
+ROBOT_CPP_SOURCE_PREFIX_MAP="${ROBOT_CPP_SOURCE_PREFIX_MAP:-1}"
+ROBOT_CPP_PACKAGE_PREFIX="${ROBOT_CPP_PACKAGE_PREFIX:-robot_cpp}"
+ROBOT_CPP_PACKAGE_PLATFORM="${ROBOT_CPP_PACKAGE_PLATFORM:-linux}"
+ROBOT_CPP_PACKAGE_ARCH="${ROBOT_CPP_PACKAGE_ARCH:-x86_64}"
 
 require_tool() {
     local tool="$1"
@@ -36,12 +36,13 @@ join_flags() {
 
 package_name() {
     local variant="$1"
-    printf '%s-%s-%s-%s' "${PACKAGE_PREFIX}" "${PACKAGE_PLATFORM}" "${variant}" "${PACKAGE_ARCH}"
+    printf '%s-%s-%s-%s' "${ROBOT_CPP_PACKAGE_PREFIX}" "${ROBOT_CPP_PACKAGE_PLATFORM}" "${variant}" \
+        "${ROBOT_CPP_PACKAGE_ARCH}"
 }
 
 detect_cuda_major() {
-    if [[ -n "${CUDA_MAJOR:-}" ]]; then
-        printf '%s\n' "${CUDA_MAJOR}"
+    if [[ -n "${ROBOT_CPP_CUDA_MAJOR:-}" ]]; then
+        printf '%s\n' "${ROBOT_CPP_CUDA_MAJOR}"
         return
     fi
 
@@ -90,13 +91,13 @@ cmake_configure() {
         -DROBOT_CPP_BUILD_MODEL_CLI=OFF
     )
 
-    if [[ "${SOURCE_PREFIX_MAP}" == "1" ]]; then
+    if [[ "${ROBOT_CPP_SOURCE_PREFIX_MAP}" == "1" ]]; then
         local prefix_flags="-ffile-prefix-map=${REPO_ROOT}=. -fmacro-prefix-map=${REPO_ROOT}=. -fdebug-prefix-map=${REPO_ROOT}=."
         local cuda_prefix_flags="-Xcompiler=-ffile-prefix-map=${REPO_ROOT}=. -Xcompiler=-fmacro-prefix-map=${REPO_ROOT}=. -Xcompiler=-fdebug-prefix-map=${REPO_ROOT}=."
 
-        if [[ "${BUILD_ROOT}" != "${REPO_ROOT}" ]]; then
-            prefix_flags="${prefix_flags} -ffile-prefix-map=${BUILD_ROOT}=. -fmacro-prefix-map=${BUILD_ROOT}=. -fdebug-prefix-map=${BUILD_ROOT}=."
-            cuda_prefix_flags="${cuda_prefix_flags} -Xcompiler=-ffile-prefix-map=${BUILD_ROOT}=. -Xcompiler=-fmacro-prefix-map=${BUILD_ROOT}=. -Xcompiler=-fdebug-prefix-map=${BUILD_ROOT}=."
+        if [[ "${ROBOT_CPP_BUILD_ROOT}" != "${REPO_ROOT}" ]]; then
+            prefix_flags="${prefix_flags} -ffile-prefix-map=${ROBOT_CPP_BUILD_ROOT}=. -fmacro-prefix-map=${ROBOT_CPP_BUILD_ROOT}=. -fdebug-prefix-map=${ROBOT_CPP_BUILD_ROOT}=."
+            cuda_prefix_flags="${cuda_prefix_flags} -Xcompiler=-ffile-prefix-map=${ROBOT_CPP_BUILD_ROOT}=. -Xcompiler=-fmacro-prefix-map=${ROBOT_CPP_BUILD_ROOT}=. -Xcompiler=-fdebug-prefix-map=${ROBOT_CPP_BUILD_ROOT}=."
         fi
 
         cmake_args+=(
@@ -108,12 +109,12 @@ cmake_configure() {
         fi
     fi
 
-    "${CMAKE_BIN}" "${cmake_args[@]}" "$@"
+    "${ROBOT_CPP_CMAKE_BIN}" "${cmake_args[@]}" "$@"
 }
 
 cmake_build() {
     local build_dir="$1"
-    "${CMAKE_BIN}" --build "${build_dir}" --target model-server -j "${JOBS}"
+    "${ROBOT_CPP_CMAKE_BIN}" --build "${build_dir}" --target model-server -j "${ROBOT_CPP_JOBS}"
 }
 
 patch_rpath() {
@@ -124,7 +125,7 @@ patch_rpath() {
 
 strip_package() {
     local stage="$1"
-    if [[ "${STRIP_BINARIES}" != "1" ]]; then
+    if [[ "${ROBOT_CPP_STRIP_BINARIES}" != "1" ]]; then
         return
     fi
 
@@ -136,7 +137,7 @@ check_no_local_paths() {
     local file="$1"
     local path
 
-    for path in "${REPO_ROOT}" "${BUILD_ROOT}"; do
+    for path in "${REPO_ROOT}" "${ROBOT_CPP_BUILD_ROOT}"; do
         if [[ -z "${path}" ]]; then
             continue
         fi
@@ -215,9 +216,9 @@ stage_package() {
     local build_dir="$1"
     local package_name="$2"
     local variant="$3"
-    local stage="${DIST_DIR}/${package_name}"
+    local stage="${ROBOT_CPP_DIST_DIR}/${package_name}"
 
-    rm -rf "${stage}" "${DIST_DIR}/${package_name}.tar.gz"
+    rm -rf "${stage}" "${ROBOT_CPP_DIST_DIR}/${package_name}.tar.gz"
     mkdir -p "${stage}/bin" "${stage}/lib"
     cp -a "${build_dir}/bin/model-server" "${stage}/bin/"
     cp -a "${build_dir}/bin"/libggml*.so* "${build_dir}/bin"/libllama*.so* "${stage}/lib/"
@@ -228,14 +229,14 @@ stage_package() {
     write_readme "${stage}" "${variant}"
 
     (
-        cd "${DIST_DIR}"
+        cd "${ROBOT_CPP_DIST_DIR}"
         tar -czf "${package_name}.tar.gz" "${package_name}"
     )
-    ls -lh "${DIST_DIR}/${package_name}.tar.gz"
+    ls -lh "${ROBOT_CPP_DIST_DIR}/${package_name}.tar.gz"
 }
 
 build_cpu_package() {
-    local build_dir="${BUILD_ROOT}/build-release-linux-cpu"
+    local build_dir="${ROBOT_CPP_BUILD_ROOT}/build-release-linux-cpu"
     local variant="cpu"
     local package_name
     package_name="$(package_name "${variant}")"
@@ -249,11 +250,11 @@ build_cpu_package() {
 }
 
 build_cuda_package() {
-    local build_dir="${BUILD_ROOT}/build-release-linux-cuda"
+    local build_dir="${ROBOT_CPP_BUILD_ROOT}/build-release-linux-cuda"
     local cuda_major
     cuda_major="$(detect_cuda_major)"
     if [[ -z "${cuda_major}" || ! "${cuda_major}" =~ ^[0-9]+$ ]]; then
-        echo "error: could not detect CUDA major version; set CUDA_MAJOR=12 or CUDA_MAJOR=13" >&2
+        echo "error: could not detect CUDA major version; set ROBOT_CPP_CUDA_MAJOR=12 or ROBOT_CPP_CUDA_MAJOR=13" >&2
         exit 2
     fi
 
@@ -270,28 +271,29 @@ build_cuda_package() {
 }
 
 main() {
-    require_tool "${CMAKE_BIN}"
+    require_tool "${ROBOT_CPP_CMAKE_BIN}"
     require_tool patchelf
     require_tool readelf
     require_tool strings
     require_tool tar
-    mkdir -p "${DIST_DIR}"
+    mkdir -p "${ROBOT_CPP_DIST_DIR}"
 
-    if [[ "${BUILD_CPU}" != "1" && "${BUILD_CUDA}" != "1" ]]; then
-        echo "error: no package variant selected; set BUILD_CPU=1 and/or BUILD_CUDA=1" >&2
+    if [[ "${ROBOT_CPP_BUILD_CPU}" != "1" && "${ROBOT_CPP_BUILD_CUDA}" != "1" ]]; then
+        echo "error: no package variant selected; set ROBOT_CPP_BUILD_CPU=1 and/or ROBOT_CPP_BUILD_CUDA=1" >&2
         exit 2
     fi
 
-    if [[ "${BUILD_CPU}" == "1" ]]; then
+    if [[ "${ROBOT_CPP_BUILD_CPU}" == "1" ]]; then
         build_cpu_package
     fi
 
-    if [[ "${BUILD_CUDA}" == "1" ]]; then
+    if [[ "${ROBOT_CPP_BUILD_CUDA}" == "1" ]]; then
         build_cuda_package
     fi
 
     echo "== release packages =="
-    find "${DIST_DIR}" -maxdepth 1 -name 'robotcpp-linux-*.tar.gz' -exec ls -lh {} +
+    find "${ROBOT_CPP_DIST_DIR}" -maxdepth 1 \
+        -name "${ROBOT_CPP_PACKAGE_PREFIX}-${ROBOT_CPP_PACKAGE_PLATFORM}-*.tar.gz" -exec ls -lh {} +
 }
 
 main "$@"

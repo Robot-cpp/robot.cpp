@@ -5,15 +5,15 @@
 Build redistributable Linux x86_64 packages by selecting one or more variants:
 
 ```sh
-BUILD_CPU=1 bash tools/release/package_linux.sh
-BUILD_CUDA=1 bash tools/release/package_linux.sh
-BUILD_CPU=1 BUILD_CUDA=1 bash tools/release/package_linux.sh
+ROBOT_CPP_BUILD_CPU=1 bash tools/release/package_linux.sh
+ROBOT_CPP_BUILD_CUDA=1 bash tools/release/package_linux.sh
+ROBOT_CPP_BUILD_CPU=1 ROBOT_CPP_BUILD_CUDA=1 bash tools/release/package_linux.sh
 ```
 
 Outputs:
 
-- `dist/robotcpp-linux-cpu-x86_64.tar.gz`
-- `dist/robotcpp-linux-cuda<major>-x86_64.tar.gz`
+- `dist/robot_cpp-linux-cpu-x86_64.tar.gz`
+- `dist/robot_cpp-linux-cuda<major>-x86_64.tar.gz`
 
 Package layout:
 
@@ -36,17 +36,20 @@ Notes:
 Examples:
 
 ```sh
-BUILD_CPU=1 JOBS=16 bash tools/release/package_linux.sh
-BUILD_CUDA=1 CUDA_MAJOR=12 bash tools/release/package_linux.sh
+ROBOT_CPP_BUILD_CPU=1 ROBOT_CPP_JOBS=16 bash tools/release/package_linux.sh
+ROBOT_CPP_BUILD_CUDA=1 ROBOT_CPP_CUDA_MAJOR=12 bash tools/release/package_linux.sh
 ```
 
 Common knobs:
 
-- `BUILD_CPU`, `BUILD_CUDA`: select package variants.
-- `CUDA_MAJOR`: override the detected CUDA package suffix.
-- `DIST_DIR`, `BUILD_ROOT`, `JOBS`: control output location and build parallelism.
-- `PACKAGE_PREFIX`, `PACKAGE_PLATFORM`, `PACKAGE_ARCH`: override package naming.
-- `STRIP_BINARIES`, `SOURCE_PREFIX_MAP`, `CMAKE_BIN`: packaging and toolchain
+- `ROBOT_CPP_BUILD_CPU`, `ROBOT_CPP_BUILD_CUDA`: select package variants.
+- `ROBOT_CPP_CUDA_MAJOR`: override the detected CUDA package suffix.
+- `ROBOT_CPP_DIST_DIR`, `ROBOT_CPP_BUILD_ROOT`, `ROBOT_CPP_JOBS`: control
+  output location and build parallelism.
+- `ROBOT_CPP_PACKAGE_PREFIX`, `ROBOT_CPP_PACKAGE_PLATFORM`,
+  `ROBOT_CPP_PACKAGE_ARCH`: override package naming.
+- `ROBOT_CPP_STRIP_BINARIES`, `ROBOT_CPP_SOURCE_PREFIX_MAP`,
+  `ROBOT_CPP_CMAKE_BIN`: packaging and toolchain
   controls.
 
 ### Adding Variants
@@ -62,5 +65,5 @@ Use `package_name <variant>` to keep package names consistent. The resulting
 name is:
 
 ```text
-<PACKAGE_PREFIX>-<PACKAGE_PLATFORM>-<variant>-<PACKAGE_ARCH>
+<ROBOT_CPP_PACKAGE_PREFIX>-<ROBOT_CPP_PACKAGE_PLATFORM>-<variant>-<ROBOT_CPP_PACKAGE_ARCH>
 ```

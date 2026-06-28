@@ -57,13 +57,13 @@ Use the CUDA architecture that matches the target GPU.
 
 ## Backend Selection
 
-`ROBOTCPP_BACKEND` selects the shared runtime backend policy for every model.
+`ROBOT_CPP_BACKEND` selects the shared runtime backend policy for every model.
 When it is unset, pi0 defaults to automatic backend selection. In a CUDA build,
 components with GGUF metadata `backend=inherit` resolve to CUDA.
 
 ```sh
-ROBOTCPP_BACKEND=cuda  # use CUDA in a CUDA build
-ROBOTCPP_BACKEND=cpu   # force CPU
+ROBOT_CPP_BACKEND=cuda  # use CUDA in a CUDA build
+ROBOT_CPP_BACKEND=cpu   # force CPU
 ```
 
 The tokenizer sidecar is loaded as CPU vocab-only metadata. The compute
@@ -83,7 +83,7 @@ print(",".join(["0"] * 32))
 PY
 )"
 
-ROBOTCPP_BACKEND=cuda ./build-cuda/bin/model-cli \
+ROBOT_CPP_BACKEND=cuda ./build-cuda/bin/model-cli \
   --model-type pi0 \
   --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
   --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
@@ -123,7 +123,7 @@ Start the CUDA server:
 GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
 MODEL=robotcpp-pi0-libero-finetuned-v044
 
-ROBOTCPP_BACKEND=cuda ./build-cuda/bin/model-server \
+ROBOT_CPP_BACKEND=cuda ./build-cuda/bin/model-server \
   --model-type pi0 \
   --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
   --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
@@ -161,7 +161,7 @@ python -m eval.libero.runners.run_model_server \
   --launch-server \
   --host 127.0.0.1 \
   --port 5555 \
-  --server-env ROBOTCPP_BACKEND=cuda \
+  --server-env ROBOT_CPP_BACKEND=cuda \
   --suite libero_object \
   --task-ids 0 \
   --n-episodes 1 \
