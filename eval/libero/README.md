@@ -155,8 +155,7 @@ with these conventions:
   and `observation.images.image2`.
 * Images are flipped along height and width to match LeRobot's
   `LiberoProcessorStep`.
-* The raw 8D LIBERO state is padded to the configured state dimension; pi0 v044
-  defaults to 32.
+* The raw 8D LIBERO state is sent to `model-server` directly.
 * After the server returns an action chunk, the policy queues it and consumes
   one action per environment step.
 * The action sent to the LIBERO environment uses the first 7 dimensions by

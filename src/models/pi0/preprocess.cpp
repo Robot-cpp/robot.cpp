@@ -62,14 +62,14 @@ bool validate_and_preprocess_pi0(const Pi0ModelConfig & config, const Pi0RawObse
         if (raw.state == nullptr) {
             return pi0_preprocess_error("observation state is required");
         }
-        if (raw.state_count != static_cast<size_t>(config.common.state_dim)) {
-            return pi0_preprocess_error("observation state dimension mismatch");
+        const size_t model_state_dim = static_cast<size_t>(config.common.state_dim);
+        if (raw.state_count > model_state_dim) {
+            return pi0_preprocess_error("observation state dimension exceeds model state_dim");
         }
-        out.state.assign(raw.state, raw.state + raw.state_count);
-        if (config.common.state_mean.size() == static_cast<size_t>(config.common.state_dim) ||
-            config.common.state_std.size() == static_cast<size_t>(config.common.state_dim)) {
-            if (config.common.state_mean.size() != static_cast<size_t>(config.common.state_dim) ||
-                config.common.state_std.size() != static_cast<size_t>(config.common.state_dim)) {
+        out.state.assign(model_state_dim, 0.0f);
+        std::copy(raw.state, raw.state + raw.state_count, out.state.begin());
+        if (config.common.state_mean.size() == model_state_dim || config.common.state_std.size() == model_state_dim) {
+            if (config.common.state_mean.size() != model_state_dim || config.common.state_std.size() != model_state_dim) {
                 return pi0_preprocess_error("state_mean and state_std must both match state_dim");
             }
             for (int i = 0; i < config.common.state_dim; ++i) {

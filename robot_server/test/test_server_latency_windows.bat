@@ -67,7 +67,7 @@ if /I "!MODEL_TYPE!"=="smolvla" (
     set "DEFAULT_STATE_DIM=6"
 ) else if /I "!MODEL_TYPE!"=="pi0" (
     set "DEFAULT_IMAGE_NAMES=observation.images.image,observation.images.image2"
-    set "DEFAULT_STATE_DIM=32"
+    set "DEFAULT_STATE_DIM=8"
 ) else (
     set "DEFAULT_IMAGE_NAMES=image"
     set "DEFAULT_STATE_DIM=6"
