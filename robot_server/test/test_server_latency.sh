@@ -97,7 +97,7 @@ case "${TEST_SUITE}" in
         IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.image,observation.images.image2}}"
         IMAGE_WIDTH="${IMAGE_WIDTH:-256}"
         IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
-        STATE_DIM="${STATE_DIM:-32}"
+        STATE_DIM="${STATE_DIM:-8}"
         ;;
     *)
         echo "unsupported TEST_SUITE=${TEST_SUITE}" >&2

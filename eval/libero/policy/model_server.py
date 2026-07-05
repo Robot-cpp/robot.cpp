@@ -18,6 +18,7 @@ from robot_client.python.model_client import ModelClient, ModelResponse
 
 
 DEFAULT_IMAGE_KEYS = ("observation.images.image", "observation.images.image2")
+LIBERO_STATE_DIM = 8
 
 
 @dataclass
@@ -44,7 +45,7 @@ def quat_xyzw_to_axis_angle(quat_xyzw: np.ndarray) -> np.ndarray:
     return (axis * angle).astype(np.float32)
 
 
-def libero_state_vector(observation: dict[str, Any], state_dim: int) -> np.ndarray:
+def libero_state_vector(observation: dict[str, Any], state_dim: int = LIBERO_STATE_DIM) -> np.ndarray:
     robot_state = observation["robot_state"]
     eef_pos = first_env_value(robot_state["eef"]["pos"]).astype(np.float32).reshape(3)
     eef_quat = first_env_value(robot_state["eef"]["quat"]).astype(np.float32).reshape(4)
@@ -52,8 +53,6 @@ def libero_state_vector(observation: dict[str, Any], state_dim: int) -> np.ndarr
     state = np.concatenate([eef_pos, quat_xyzw_to_axis_angle(eef_quat), gripper_qpos]).astype(np.float32)
     if state.shape[0] > state_dim:
         return state[:state_dim]
-    if state.shape[0] < state_dim:
-        state = np.pad(state, (0, state_dim - state.shape[0]), mode="constant")
     return state.astype(np.float32)
 
 
@@ -94,7 +93,7 @@ class LiberoModelServerPolicy(BasePolicy):
     def __init__(
         self,
         *,
-        state_dim: int = 32,
+        state_dim: int = LIBERO_STATE_DIM,
         action_dim: int = 7,
         image_keys: tuple[str, ...] = DEFAULT_IMAGE_KEYS,
         camera_keys: tuple[str, ...] = DEFAULT_LIBERO_CAMERA_KEYS,

@@ -236,7 +236,7 @@ if /I "!MODEL_TYPE!"=="smolvla" (
 )
 
 if /I "!MODEL_TYPE!"=="pi0" (
-    if not defined ROBOTCPP_BACKEND set "ROBOTCPP_BACKEND=cuda"
+    if not defined ROBOT_CPP_BACKEND set "ROBOT_CPP_BACKEND=cuda"
     if not defined MODEL_BASENAME set "MODEL_BASENAME=robotcpp-pi0-libero-finetuned-v044"
     if not defined VIT_GGUF set "VIT_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.vit.gguf"
     if not defined MMPROJ_GGUF set "MMPROJ_GGUF=!GGUF_DIR!\!MODEL_BASENAME!.mmproj.gguf"

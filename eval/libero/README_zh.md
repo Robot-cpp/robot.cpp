@@ -144,6 +144,6 @@ C++ Policy server：
 * LIBERO camera `image` 和 `image2` 分别映射为 `observation.images.image`
   和 `observation.images.image2`。
 * 图片会沿 height 和 width 翻转，以匹配 LeRobot 的 `LiberoProcessorStep`。
-* LIBERO 原始 8D state 会 pad 到配置的 state dimension，pi0 v044 默认是 32。
+* LIBERO 原始 8D state 会直接发送给 `model-server`。
 * server 返回 action chunk 后，policy 会排队缓存，每个 env step 消费一个 action。
 * 送给 LIBERO environment 的 action 默认只使用前 7 维。

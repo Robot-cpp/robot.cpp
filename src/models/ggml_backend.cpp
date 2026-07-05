@@ -248,7 +248,7 @@ void set_backend_threads(const std::vector<ggml_backend_t> & backends, int n_thr
 }
 
 bool robotcpp_backend_use_accel_from_env(bool default_value) {
-    const char * value = std::getenv("ROBOTCPP_BACKEND");
+    const char * value = std::getenv("ROBOT_CPP_BACKEND");
     if (value == nullptr || value[0] == '\0') {
         return default_value;
     }
@@ -261,6 +261,6 @@ bool robotcpp_backend_use_accel_from_env(bool default_value) {
         return true;
     }
 
-    std::fprintf(stderr, "%s: unsupported ROBOTCPP_BACKEND='%s'; using default backend selection\n", __func__, value);
+    std::fprintf(stderr, "%s: unsupported ROBOT_CPP_BACKEND='%s'; using default backend selection\n", __func__, value);
     return default_value;
 }

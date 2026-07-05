@@ -104,7 +104,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--numba-cache-dir", type=Path)
     parser.add_argument("--torchinductor-cache-dir", type=Path)
     parser.add_argument("--triton-cache-dir", type=Path)
-    parser.add_argument("--state-dim", type=int, default=32)
+    parser.add_argument("--state-dim", type=int, default=8, help="LIBERO state values sent to model-server; no padding is applied")
     parser.add_argument("--env-action-dim", type=int, default=7)
     parser.add_argument("--image-key", action="append")
     parser.add_argument("--libero-config-path", type=Path, default=DEFAULT_LIBERO_CONFIG_PATH)

@@ -53,7 +53,7 @@ case "${MODEL_TYPE}" in
         )
         ;;
     pi0)
-        export ROBOTCPP_BACKEND="${ROBOTCPP_BACKEND:-cuda}"
+        export ROBOT_CPP_BACKEND="${ROBOT_CPP_BACKEND:-cuda}"
         MODEL_BASENAME="${MODEL_BASENAME:-robotcpp-pi0-libero-finetuned-v044}"
         VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
         MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf}"

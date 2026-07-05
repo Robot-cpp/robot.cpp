@@ -21,7 +21,7 @@ if(NOT TARGET ggml OR NOT TARGET llama)
     message(FATAL_ERROR "llama.cpp must provide ggml and llama targets")
 endif()
 
-set(ROBOTCPP_LLAMA_INCLUDE_DIRS
+set(ROBOT_CPP_LLAMA_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/src
@@ -51,7 +51,7 @@ target_include_directories(smolvla_runtime
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${SMOLVLA_DIR}
-        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
+        ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
 )
 target_link_libraries(smolvla_runtime PUBLIC ggml llama)
 target_compile_features(smolvla_runtime PUBLIC cxx_std_17)
@@ -85,7 +85,7 @@ add_library(pi0_engine STATIC
 target_include_directories(pi0_engine
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
+        ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
 )
 target_link_libraries(pi0_engine PUBLIC ggml llama)
 target_compile_features(pi0_engine PUBLIC cxx_std_17)
@@ -178,7 +178,7 @@ if(ROBOT_CPP_BUILD_MODEL_CLI)
     set_target_properties(model-cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_include_directories(model-cli PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${ROBOTCPP_LLAMA_INCLUDE_DIRS}
+        ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
     )
     target_link_libraries(model-cli PRIVATE robotcpp)
     target_compile_features(model-cli PRIVATE cxx_std_17)
