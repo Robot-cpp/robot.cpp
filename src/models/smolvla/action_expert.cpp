@@ -71,10 +71,6 @@ static std::string fmt(const char * f, ...) {
     return std::string(buf.data(), n);
 }
 
-static bool smolvla_action_expert_use_accel_backend() {
-    return robotcpp_backend_use_accel_from_env(false);
-}
-
 static void smolvla_free_model_buffers(std::vector<ggml_backend_buffer_t> & bufs) {
     for (ggml_backend_buffer_t buf : bufs) {
         if (buf) {
@@ -354,7 +350,7 @@ struct smolvla_action_expert * smolvla_action_expert_load(const char * fname, in
     scheduler_config.op_offload = true;
     backend_loader backend;
     if (!backend.load(ctx->backend_cpu, ctx->backends, ctx->sched, ctx->buft_policy,
-                      smolvla_action_expert_use_accel_backend(), scheduler_config, verbosity)) {
+                      false, scheduler_config, verbosity)) {
         LOG_ERR("%s: failed to initialize action backend: %s\n", __func__, backend.error().c_str());
         smolvla_action_expert_free(ctx);
         return nullptr;

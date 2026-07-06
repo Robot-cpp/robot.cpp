@@ -54,5 +54,3 @@ class backend_loader {
 };
 
 void set_backend_threads(const std::vector<ggml_backend_t> & backends, int n_threads);
-
-bool robotcpp_backend_use_accel_from_env(bool default_value);

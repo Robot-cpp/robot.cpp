@@ -1,7 +1,6 @@
 #include "models/pi0/pi0_engine.h"
 
 #include "models/pi0/action.h"
-#include "models/ggml_backend.h"
 #include "models/pi0/load.h"
 #include "models/pi0/pi0_context.h"
 #include "models/pi0/preprocess.h"
@@ -11,7 +10,6 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <memory>
@@ -87,7 +85,6 @@ pi0_context * pi0_init(pi0_params params) {
     paths.action_decoder = params.action_decoder_path ? params.action_decoder_path : "";
 
     robotcpp::pi0::Pi0BackendConfig backend;
-    backend.use_accel = robotcpp_backend_use_accel_from_env(true);
     backend.n_threads = params.n_threads;
 
     robotcpp::pi0::Pi0ModelConfig config;

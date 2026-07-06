@@ -2,11 +2,8 @@
 
 #include "ggml-cpu.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstring>
 #include <cstdio>
-#include <cstdlib>
 #include <string>
 
 static const char * backend_mode_name(backend_mode mode) {
@@ -23,12 +20,6 @@ static const char * backend_mode_name(backend_mode mode) {
 
 static const char * backend_buft_name(ggml_backend_buffer_type_t buft) {
     return buft ? ggml_backend_buft_name(buft) : "(null)";
-}
-
-static std::string backend_env_lower(const char * value) {
-    std::string out(value ? value : "");
-    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-    return out;
 }
 
 static ggml_backend_buffer_type_t backend_host_buft(ggml_backend_t backend) {
@@ -245,22 +236,4 @@ void set_backend_threads(const std::vector<ggml_backend_t> & backends, int n_thr
             set_n_threads_fn(backend, n_threads);
         }
     }
-}
-
-bool robotcpp_backend_use_accel_from_env(bool default_value) {
-    const char * value = std::getenv("ROBOT_CPP_BACKEND");
-    if (value == nullptr || value[0] == '\0') {
-        return default_value;
-    }
-
-    const std::string backend = backend_env_lower(value);
-    if (backend == "cpu") {
-        return false;
-    }
-    if (backend == "auto" || backend == "cuda" || backend == "metal" || backend == "blas") {
-        return true;
-    }
-
-    std::fprintf(stderr, "%s: unsupported ROBOT_CPP_BACKEND='%s'; using default backend selection\n", __func__, value);
-    return default_value;
 }

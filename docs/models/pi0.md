@@ -57,17 +57,10 @@ Use the CUDA architecture that matches the target GPU.
 
 ## Backend Selection
 
-`ROBOT_CPP_BACKEND` selects the shared runtime backend policy for every model.
-When it is unset, pi0 defaults to automatic backend selection. In a CUDA build,
-components with GGUF metadata `backend=inherit` resolve to CUDA.
-
-```sh
-ROBOT_CPP_BACKEND=cuda  # use CUDA in a CUDA build
-ROBOT_CPP_BACKEND=cpu   # force CPU
-```
-
-The tokenizer sidecar is loaded as CPU vocab-only metadata. The compute
-components are `vit`, `mmproj`, `llm`, `state`, and `action_decoder`.
+Backend selection is build-driven. A CUDA build attempts to use CUDA for pi0
+compute components, while a CPU build uses the CPU backend. The tokenizer
+sidecar is loaded as CPU vocab-only metadata. The compute components are `vit`,
+`mmproj`, `llm`, `state`, and `action_decoder`.
 
 ## model-cli
 
@@ -83,7 +76,7 @@ print(",".join(["0"] * 32))
 PY
 )"
 
-ROBOT_CPP_BACKEND=cuda ./build-cuda/bin/model-cli \
+./build-cuda/bin/model-cli \
   --model-type pi0 \
   --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
   --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
@@ -123,7 +116,7 @@ Start the CUDA server:
 GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
 MODEL=robotcpp-pi0-libero-finetuned-v044
 
-ROBOT_CPP_BACKEND=cuda ./build-cuda/bin/model-server \
+./build-cuda/bin/model-server \
   --model-type pi0 \
   --vit "${GGUF_DIR}/${MODEL}.vit.gguf" \
   --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf" \
@@ -150,8 +143,7 @@ same names as the checkpoint image keys.
 ## LIBERO eval
 
 The LIBERO model-server runner is model-agnostic and lives under `eval/libero`.
-The pi0-specific pieces are only the server launch command and optional backend
-environment override:
+The pi0-specific piece is the server launch command:
 
 ```sh
 GGUF_DIR=ckpts/pi0-libero-finetuned-v044/robotcpp-split
@@ -161,7 +153,6 @@ python -m eval.libero.runners.run_model_server \
   --launch-server \
   --host 127.0.0.1 \
   --port 5555 \
-  --server-env ROBOT_CPP_BACKEND=cuda \
   --suite libero_object \
   --task-ids 0 \
   --n-episodes 1 \
