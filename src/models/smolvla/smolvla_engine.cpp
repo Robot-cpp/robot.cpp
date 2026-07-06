@@ -157,6 +157,31 @@ static bool smolvla_env_has_value(const char * name) {
     return value && value[0] != '\0';
 }
 
+static llama_flash_attn_type smolvla_flash_attn_type_from_env(void) {
+    const char * value = std::getenv("SMOLVLA_FLASH_ATTN");
+    if (!value || value[0] == '\0') {
+        return LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    }
+    switch (value[0]) {
+    case '1':
+    case 'y':
+    case 'Y':
+    case 't':
+    case 'T':
+    case 'e':
+    case 'E':
+        return LLAMA_FLASH_ATTN_TYPE_ENABLED;
+    case 'a':
+    case 'A':
+        return LLAMA_FLASH_ATTN_TYPE_AUTO;
+    case 'o':
+    case 'O':
+        return (value[1] == 'n' || value[1] == 'N') ? LLAMA_FLASH_ATTN_TYPE_ENABLED : LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    default:
+        return LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    }
+}
+
 static const char * smolvla_noise_mode_name(int noise_mode) {
     switch (noise_mode) {
     case SMOLVLA_NOISE_MODE_GAUSSIAN:
@@ -462,9 +487,13 @@ struct smolvla_context * smolvla_init(struct smolvla_params params) {
         cparams.n_threads_batch      = ctx->n_threads;
         cparams.embeddings           = true;
         cparams.kv_unified           = true;
-        cparams.flash_attn_type      = LLAMA_FLASH_ATTN_TYPE_DISABLED;
-        // F32 K cache for better precision matching Python (V cache must stay F16 without flash_attn)
+        cparams.flash_attn_type      = smolvla_flash_attn_type_from_env();
+        // F32 K cache for better precision matching Python.
         cparams.type_k = GGML_TYPE_F32;
+        if (ctx->verbosity >= 1) {
+            fprintf(stderr, "[SmolVLA] flash_attn=%s (SMOLVLA_FLASH_ATTN)\n",
+                    llama_flash_attn_type_name(cparams.flash_attn_type));
+        }
         // TODO: Python apply_rope uses default max_wavelength=10000 (not config's 100000)
         //  to match the python implementation, we set the same default here
         cparams.rope_freq_base = 10000.0f;
@@ -852,7 +881,7 @@ static struct smolvla_result smolvla_predict_impl(struct smolvla_context * ctx, 
         llama_batch_free(batch);
 
         llama_set_embeddings(ctx->ctx_llama, false);
-        // llama_synchronize(ctx->ctx_llama);
+        llama_synchronize(ctx->ctx_llama);
         ctx->last_timings.llm_ms = smolvla_elapsed_ms(t_llm_start, smolvla_clock::now());
     }
 
