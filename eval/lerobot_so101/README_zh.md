@@ -115,7 +115,7 @@ bash eval/lerobot_so101/shell/run_robot_client.sh
 - `R`：清空 action queue，机械臂移动回启动时记录的 home pose
 - `Q`：退出同步控制循环
 
-如果相机出现错误，可以使用如下方法进行测试：
+如果相机出现错误，可以使用如下方法进行测试（RealSense 配置详见 [test/README_zh.md](test/README_zh.md)）：
 
 ```bash
 cd eval/lerobot_so101

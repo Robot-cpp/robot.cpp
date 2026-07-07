@@ -5,5 +5,5 @@ dependencies:
   - python=3.12
   - pip
   - pip:
-      - -e third_party/lerobot[feetech]
+      - -e third_party/lerobot[feetech,intelrealsense]
       - -e eval/lerobot_so101/lerobot_camera_opencv_crop

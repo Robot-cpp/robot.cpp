@@ -6,10 +6,11 @@ import cv2
 from numpy.typing import NDArray
 
 from lerobot.cameras.camera import Camera
+from lerobot.cameras.configs import ColorMode
 from lerobot.cameras.opencv.camera_opencv import OpenCVCamera
-from lerobot.cameras.opencv.configuration_opencv import ColorMode
+from lerobot.cameras.realsense.camera_realsense import RealSenseCamera
 
-from .config import OpenCVCameraCropConfig
+from .config import OpenCVCameraCropConfig, RealSenseCameraCropConfig
 
 
 def center_crop_square_rgb(image: NDArray[Any]) -> NDArray[Any]:
@@ -25,7 +26,10 @@ def center_crop_square_rgb(image: NDArray[Any]) -> NDArray[Any]:
     return image[y0 : y0 + side, :].copy()
 
 
-def postprocess_frame(image: NDArray[Any], config: OpenCVCameraCropConfig) -> NDArray[Any]:
+def postprocess_frame(
+    image: NDArray[Any],
+    config: OpenCVCameraCropConfig | RealSenseCameraCropConfig,
+) -> NDArray[Any]:
     processed = image
     if config.resize_width is not None and config.resize_height is not None:
         processed = center_crop_square_rgb(processed)
@@ -76,3 +80,44 @@ class OpenCVCameraCrop(Camera):
     @staticmethod
     def find_cameras() -> list[dict[str, Any]]:
         return OpenCVCamera.find_cameras()
+
+
+class RealSenseCameraCrop(Camera):
+    """Wraps RealSenseCamera; center-crops to square then resizes after capture."""
+
+    config_class = RealSenseCameraCropConfig
+    name = "realsense_crop"
+
+    def __init__(self, config: RealSenseCameraCropConfig):
+        super().__init__(config)
+        self.config = config
+        self._inner = RealSenseCamera(config.to_realsense_config())
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.config.serial_number_or_name})"
+
+    @property
+    def is_connected(self) -> bool:
+        return self._inner.is_connected
+
+    def connect(self, warmup: bool = True) -> None:
+        self._inner.connect(warmup=warmup)
+
+    def disconnect(self) -> None:
+        self._inner.disconnect()
+
+    def _postprocess(self, frame: NDArray[Any]) -> NDArray[Any]:
+        return postprocess_frame(frame, self.config)
+
+    def read(self, color_mode: ColorMode | None = None) -> NDArray[Any]:
+        return self._postprocess(self._inner.read(color_mode=color_mode))
+
+    def async_read(self, timeout_ms: float = 200) -> NDArray[Any]:
+        return self._postprocess(self._inner.async_read(timeout_ms=timeout_ms))
+
+    def read_latest(self, max_age_ms: int = 500) -> NDArray[Any]:
+        return self._postprocess(self._inner.read_latest(max_age_ms=max_age_ms))
+
+    @staticmethod
+    def find_cameras() -> list[dict[str, Any]]:
+        return RealSenseCamera.find_cameras()

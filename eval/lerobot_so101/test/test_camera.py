@@ -44,6 +44,18 @@ Camera connect/read failed. Common fixes on macOS:
 """
 
 
+def opencv_preview_supported() -> bool:
+    """Return False when opencv-python-headless is installed (no highgui)."""
+    import cv2
+
+    try:
+        cv2.namedWindow("__lerobot_so101_preview_probe__", cv2.WINDOW_NORMAL)
+        cv2.destroyWindow("__lerobot_so101_preview_probe__")
+        return True
+    except cv2.error:
+        return False
+
+
 def configure_logging(*, verbose: bool) -> None:
     """Force readable logs even if LeRobot already configured the root logger."""
     level = logging.DEBUG if verbose else logging.INFO
@@ -64,6 +76,14 @@ def load_robot_cameras_json(*, robot_cameras: str | None, cameras_json: Path | N
     return DEFAULT_ROBOT_CAMERAS
 
 
+def camera_source_label(cfg: Any) -> str:
+    if hasattr(cfg, "serial_number_or_name"):
+        return f"serial={cfg.serial_number_or_name}"
+    if hasattr(cfg, "index_or_path"):
+        return f"index_or_path={cfg.index_or_path}"
+    return str(cfg)
+
+
 def apply_camera_index_override(
     camera_configs: dict[str, Any],
     camera_key: str,
@@ -73,11 +93,15 @@ def apply_camera_index_override(
         return
     if camera_key not in camera_configs:
         raise KeyError(f"camera_key {camera_key!r} not in config")
+    cfg = camera_configs[camera_key]
+    if not hasattr(cfg, "index_or_path"):
+        logging.info("Skipping camera_index override for %s (%s)", camera_key, type(cfg).__name__)
+        return
     parsed_index: int | str = camera_index
     if isinstance(camera_index, str) and camera_index.isdigit():
         parsed_index = int(camera_index)
     camera_configs[camera_key] = dataclasses.replace(
-        camera_configs[camera_key],
+        cfg,
         index_or_path=parsed_index,
     )
 
@@ -275,9 +299,16 @@ def run_camera_test(
 
     register_third_party_plugins()
 
+    if preview and not opencv_preview_supported():
+        logging.warning(
+            "OpenCV preview unavailable (opencv-python-headless). "
+            "Use --no-preview or: pip uninstall opencv-python-headless && pip install opencv-python"
+        )
+        preview = False
+
     if frames <= 0 and not preview:
         frames = 30
-        logging.info("frames=0 requires preview; falling back to 30 frames with --no-preview.")
+        logging.info("frames=0 without preview; capturing 30 frames.")
 
     robot_cameras_json = load_robot_cameras_json(
         robot_cameras=robot_cameras,
@@ -299,10 +330,10 @@ def run_camera_test(
     cam = cameras[camera_key]
 
     logging.info(
-        "Connecting %s (%s index_or_path=%s), expected frame shape=%s",
+        "Connecting %s (%s %s), expected frame shape=%s",
         camera_key,
         cam,
-        cfg.index_or_path,
+        camera_source_label(cfg),
         (expected_h, expected_w, 3),
     )
     try:
@@ -316,6 +347,8 @@ def run_camera_test(
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
 
+    read_latest_max_age_ms = int(os.environ.get("CAMERA_READ_LATEST_MAX_AGE_MS", "500"))
+
     continuous = frames <= 0
     frame_limit = None if continuous else frames
     window_name = f"lerobot_so101 camera ({camera_key}) [q=quit]"
@@ -328,7 +361,11 @@ def run_camera_test(
         i = 0
         while frame_limit is None or i < frame_limit:
             t0 = time.perf_counter()
-            image = cam.read_latest()
+            if preview:
+                # imshow/waitKey can block; read_latest would falsely time out on stale buffers.
+                image = cam.read()
+            else:
+                image = cam.read_latest(max_age_ms=read_latest_max_age_ms)
             read_ms = (time.perf_counter() - t0) * 1000.0
 
             validate_frame(image, camera_key, expected_hw)
@@ -352,7 +389,7 @@ def run_camera_test(
             if not preview or i == 0 or (i + 1) % 30 == 0:
                 total_label = "inf" if continuous else str(frame_limit)
                 logging.info(
-                    "frame=%d/%s shape=%s read_latest_ms=%.1f",
+                    "frame=%d/%s shape=%s read_ms=%.1f",
                     i + 1,
                     total_label,
                     image.shape,
@@ -370,7 +407,7 @@ def run_camera_test(
                 overlay = bgr.copy()
                 cv2.putText(
                     overlay,
-                    f"{camera_key} index={cfg.index_or_path} {image.shape[1]}x{image.shape[0]}",
+                    f"{camera_key} {camera_source_label(cfg)} {image.shape[1]}x{image.shape[0]}",
                     (8, 24),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,

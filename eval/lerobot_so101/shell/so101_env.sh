@@ -19,7 +19,7 @@ export ROBOT_USE_DEGREES="true"
 
 # --- Camera ---
 export CAMERA_KEY="camera1"
-export MODEL_IMAGE_NAME="observation.images.front"
+export MODEL_IMAGE_NAME="observation.images.camera1"
 export CAMERA_INDEX="${CAMERA_INDEX:-0}"
 CAMERA_WIDTH="1280"
 CAMERA_HEIGHT="720"
