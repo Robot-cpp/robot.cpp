@@ -72,7 +72,18 @@ static std::string fmt(const char * f, ...) {
 }
 
 static bool smolvla_action_expert_use_accel_backend() {
-    return robotcpp_backend_use_accel_from_env(false);
+    const char * value = std::getenv("SMOLVLA_ACTION_USE_ACCEL");
+    if (value == nullptr || value[0] == '\0') {
+        return false;
+    }
+
+    if (std::strcmp(value, "1") == 0 || std::strcmp(value, "true") == 0 || std::strcmp(value, "TRUE") == 0 ||
+        std::strcmp(value, "on") == 0 || std::strcmp(value, "ON") == 0 || std::strcmp(value, "yes") == 0 ||
+        std::strcmp(value, "YES") == 0) {
+        return true;
+    }
+
+    return false;
 }
 
 static void smolvla_free_model_buffers(std::vector<ggml_backend_buffer_t> & bufs) {
