@@ -514,8 +514,8 @@ smolvla_vision_ctx * smolvla_vision_load(const char * mmproj_path, int verbosity
     scheduler_config.parallel   = false;
     scheduler_config.op_offload = false;
     backend_loader backend;
-    if (!backend.load(ctx->backend_cpu, ctx->backends, ctx->sched, ctx->buft_policy,
-                      robotcpp_backend_use_accel_from_env(true), scheduler_config, verbosity)) {
+    if (!backend.load(ctx->backend_cpu, ctx->backends, ctx->sched, ctx->buft_policy, true, scheduler_config,
+                      verbosity)) {
         LOG_ERR("%s: failed to initialize vision backend: %s\n", __func__, backend.error().c_str());
         smolvla_vision_free(ctx);
         return nullptr;

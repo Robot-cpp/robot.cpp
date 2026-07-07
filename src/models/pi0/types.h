@@ -139,8 +139,7 @@ struct Pi0Observation {
 };
 
 struct Pi0BackendConfig {
-    bool use_accel = true;
-    int n_threads  = 0;
+    int n_threads = 0;
 };
 
 struct Pi0RuntimeConfig {

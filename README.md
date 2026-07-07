@@ -77,8 +77,6 @@ MODEL=robotcpp-pi0-libero-finetuned-v044
   --port 5555
 ```
 
-For the LIBERO v044 split checkpoint, see `docs/models/pi0.md`.
-
 ## model-cli
 
 `model-cli` uses the same robotcpp model wrappers as `model-server`, so CLI and

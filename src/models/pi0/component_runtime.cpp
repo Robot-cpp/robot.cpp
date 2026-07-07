@@ -12,21 +12,14 @@ namespace {
 
 Pi0BackendConfig component_backend_config(const Pi0BackendConfig & base, const Pi0ComponentConfig & component) {
     Pi0BackendConfig out = base;
-    if (component.runtime.backend == "cpu") {
-        out.use_accel = false;
-    } else if (component.runtime.backend == "cuda" || component.runtime.backend == "accel") {
-        out.use_accel = true;
-    } else if (component.runtime.backend != "inherit") {
+    if (component.runtime.backend != "inherit" && component.runtime.backend != "cpu" &&
+        component.runtime.backend != "cuda" && component.runtime.backend != "accel") {
         throw std::invalid_argument("unsupported pi0 component backend: " + component.runtime.backend);
     }
     if (component.runtime.n_threads > 0) {
         out.n_threads = component.runtime.n_threads;
     }
     return out;
-}
-
-const char * pi0_requested_backend_name(bool use_accel) {
-    return use_accel ? "accel" : "cpu";
 }
 
 const char * pi0_resolved_backend_name(backend_mode mode) {
@@ -202,29 +195,25 @@ void pi0_init_component_runtime(Pi0ComponentRuntime & runtime, const Pi0BackendC
                                 const Pi0ComponentConfig & component, const char * label, int verbosity) {
     runtime.reset();
     const Pi0BackendConfig resolved = component_backend_config(base, component);
-    const bool use_accel            = resolved.use_accel;
     runtime.n_threads               = resolved.n_threads;
 
     backend_scheduler_config scheduler_config;
-    scheduler_config.max_nodes  = GGML_DEFAULT_GRAPH_SIZE;
-    scheduler_config.parallel   = false;
-    scheduler_config.op_offload = use_accel;
+    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel  = false;
 
     backend_loader loader;
-    if (!loader.load(runtime.backend_cpu, runtime.backends, runtime.sched, runtime.buft_policy, use_accel,
-                     scheduler_config, verbosity)) {
+    if (!loader.load(runtime.backend_cpu, runtime.backends, runtime.sched, runtime.buft_policy, true, scheduler_config,
+                     verbosity)) {
         throw std::runtime_error(std::string("failed to initialize pi0 ") + (label != nullptr ? label : "component") +
                                  " backend: " + loader.error());
     }
 
     if (verbosity >= 1) {
-        std::fprintf(
-            stderr,
-            "%s: component=%s requested=%s metadata=%s resolved=%s model_buft=%s runtime_buft=%s backend_count=%zu\n",
-            __func__, label != nullptr ? label : "component", pi0_requested_backend_name(use_accel),
-            component.runtime.backend.c_str(), pi0_resolved_backend_name(loader.mode()),
-            pi0_buft_name(runtime.buft_policy.model_buft), pi0_buft_name(runtime.buft_policy.runtime_buft),
-            runtime.backends.size());
+        std::fprintf(stderr,
+                     "%s: component=%s metadata=%s resolved=%s model_buft=%s runtime_buft=%s backend_count=%zu\n",
+                     __func__, label != nullptr ? label : "component", component.runtime.backend.c_str(),
+                     pi0_resolved_backend_name(loader.mode()), pi0_buft_name(runtime.buft_policy.model_buft),
+                     pi0_buft_name(runtime.buft_policy.runtime_buft), runtime.backends.size());
     }
 }
 
