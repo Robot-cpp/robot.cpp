@@ -198,24 +198,22 @@ void pi0_init_component_runtime(Pi0ComponentRuntime & runtime, const Pi0BackendC
     runtime.n_threads               = resolved.n_threads;
 
     backend_scheduler_config scheduler_config;
-    scheduler_config.max_nodes  = GGML_DEFAULT_GRAPH_SIZE;
-    scheduler_config.parallel   = false;
+    scheduler_config.max_nodes = GGML_DEFAULT_GRAPH_SIZE;
+    scheduler_config.parallel  = false;
 
     backend_loader loader;
-    if (!loader.load(runtime.backend_cpu, runtime.backends, runtime.sched, runtime.buft_policy, true,
-                     scheduler_config, verbosity)) {
+    if (!loader.load(runtime.backend_cpu, runtime.backends, runtime.sched, runtime.buft_policy, true, scheduler_config,
+                     verbosity)) {
         throw std::runtime_error(std::string("failed to initialize pi0 ") + (label != nullptr ? label : "component") +
                                  " backend: " + loader.error());
     }
 
     if (verbosity >= 1) {
-        std::fprintf(
-            stderr,
-            "%s: component=%s metadata=%s resolved=%s model_buft=%s runtime_buft=%s backend_count=%zu\n", __func__,
-            label != nullptr ? label : "component", component.runtime.backend.c_str(),
-            pi0_resolved_backend_name(loader.mode()),
-            pi0_buft_name(runtime.buft_policy.model_buft), pi0_buft_name(runtime.buft_policy.runtime_buft),
-            runtime.backends.size());
+        std::fprintf(stderr,
+                     "%s: component=%s metadata=%s resolved=%s model_buft=%s runtime_buft=%s backend_count=%zu\n",
+                     __func__, label != nullptr ? label : "component", component.runtime.backend.c_str(),
+                     pi0_resolved_backend_name(loader.mode()), pi0_buft_name(runtime.buft_policy.model_buft),
+                     pi0_buft_name(runtime.buft_policy.runtime_buft), runtime.backends.size());
     }
 }
 
