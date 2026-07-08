@@ -137,7 +137,7 @@ See the [LIBERO simulation evaluation guide](eval/libero/README.md).
 
 ### 🦾 Using model-server on real hardware, using SO-101 as the example
 
-See the [SO-101 deployment guide](eval/lerobot_so101/README.md). A video tutorial is also planned (bilibili link).
+See the [SO-101 deployment guide](eval/lerobot_so101/README.md). 
 
 ---
 
@@ -149,14 +149,14 @@ For the LIBERO setting, the input contains two 256x256 images and an 8-dimension
 
 For SmolVLA preprocessing, we follow the official default setting: images are first resized to 512x512.
 
-| Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 | RTX 3060 | A100 | Jetson AGX Orin |
-| ---------------------- | ---------------: | -----------------: | -------: | -------: | ---: | --------------: |
-| smolvla@libero (bf16*) |              527 |                216 |       28 |      116 |   43 |             282 |
-| smolvla@libero (f32)   |              577 |                236 |       32 |      142 |   41 |             299 |
-| smolvla@so-101 (bf16*) |              339 |                145 |       23 |       77 |   35 |             184 |
-| smolvla@so-101 (f32)   |              396 |                158 |       24 |       92 |   33 |             200 |
+| Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
+| ---------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
+| smolvla@libero (bf16*) |              527 |                216 |       28 |         116 |   43 |             282 |
+| smolvla@libero (f32)   |              577 |                236 |       32 |         142 |   41 |             299 |
+| smolvla@so-101 (bf16*) |              339 |                145 |       23 |          77 |   35 |             184 |
+| smolvla@so-101 (f32)   |              396 |                158 |       24 |          92 |   33 |             200 |
 | pi0@libero (f32)       |             1839 |                710 |       83 | OOM/offload |   79 |             956 |
-| pi0@libero (bf16*)     |             1954 |                635 |       57 |      267 |   70 |             498 |
+| pi0@libero (bf16*)     |             1954 |                635 |       57 |         267 |   70 |             498 |
 
 > `bf16*`: on Mac, f16 results are used in place of bf16 because current Mac bf16 support is not ideal.
 > `OOM/offload`: pi0@libero (f32) runs out of memory on RTX 3060 and triggers offload, so we do not report a latency number for now.

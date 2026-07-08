@@ -27,39 +27,39 @@ Before running a script, configure the variables below as needed.
 
 Common variables:
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `ROBOT_CPP_ROOT` | Repository root. | Must be set explicitly |
-| `MODEL_TYPE` | Model type, `smolvla` or `pi0`. | `smolvla` |
-| `GGUF_DIR` | Directory containing GGUF files. | Must be set explicitly |
-| `BUILD_DIR` | CMake build directory. | macOS / Linux defaults are organized as `build_{mac/linux}_{cpu/metal/cuda}` |
-| `PORT` | Server listen port. | `5555` |
-| `THREADS` | Inference thread count. | `8` |
-| `TASK` | Language input describing the task. | `grab the block.` |
-| `NOISE_SEED` | Action noise seed. | `-1` |
-| `SKIP_BUILD` | Whether to skip configure/build. Set to `1` to directly launch an existing binary. | `0` |
-| `CMAKE_BIN` | CMake executable. | `cmake` |
+| Variable           | Description                                                                         | Default                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `ROBOT_CPP_ROOT` | Repository root.                                                                    | Must be set explicitly                                                        |
+| `MODEL_TYPE`     | Model type,`smolvla` or `pi0`.                                                  | `smolvla`                                                                   |
+| `GGUF_DIR`       | Directory containing GGUF files.                                                    | Must be set explicitly                                                        |
+| `BUILD_DIR`      | CMake build directory.                                                              | macOS / Linux defaults are organized as`build_{mac/linux}_{cpu/metal/cuda}` |
+| `PORT`           | Server listen port.                                                                 | `5555`                                                                      |
+| `THREADS`        | Inference thread count.                                                             | `8`                                                                         |
+| `TASK`           | Language input describing the task.                                                 | `grab the block.`                                                           |
+| `NOISE_SEED`     | Action noise seed.                                                                  | `-1`                                                                        |
+| `SKIP_BUILD`     | Whether to skip configure/build. Set to`1` to directly launch an existing binary. | `0`                                                                         |
+| `CMAKE_BIN`      | CMake executable.                                                                   | `cmake`                                                                     |
 
 SmolVLA variables:
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `LLM_GGUF` | Full path to the SmolVLA LLM GGUF. | `${GGUF_DIR}/smolvla-llm-f32.gguf` |
-| `VISION_GGUF` | Full path to the SmolVLA vision/mmproj GGUF. | `${GGUF_DIR}/mmproj-smolvla-f32.gguf` |
-| `STATE_PROJ_GGUF` | Full path to the SmolVLA state projector GGUF. | `${GGUF_DIR}/state-proj-smolvla-f32.gguf` |
-| `ACTION_EXPERT_GGUF` | Full path to the SmolVLA action expert GGUF. | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
+| Variable               | Description                                    | Default                                        |
+| ---------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| `LLM_GGUF`           | Full path to the SmolVLA LLM GGUF.             | `${GGUF_DIR}/smolvla-llm-f32.gguf`           |
+| `VISION_GGUF`        | Full path to the SmolVLA vision/mmproj GGUF.   | `${GGUF_DIR}/mmproj-smolvla-f32.gguf`        |
+| `STATE_PROJ_GGUF`    | Full path to the SmolVLA state projector GGUF. | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
+| `ACTION_EXPERT_GGUF` | Full path to the SmolVLA action expert GGUF.   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
 
 pi0 variables:
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `MODEL_BASENAME` | Common filename prefix for pi0 split GGUF files. | `robotcpp-pi0-libero-finetuned-v044` |
-| `VIT_GGUF` | Full path to the pi0 ViT GGUF. | `${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf` |
-| `MMPROJ_GGUF` | Full path to the pi0 mmproj GGUF. | `${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf` |
-| `LLM_GGUF` | Full path to the pi0 LLM GGUF. | `${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf` |
-| `TOKENIZER_GGUF` | Full path to the pi0 tokenizer GGUF. | `${GGUF_DIR}/${MODEL_BASENAME}.tokenizer.gguf` |
-| `STATE_GGUF` | Full path to the pi0 state GGUF. | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf` |
-| `ACTION_DECODER_GGUF` | Full path to the pi0 action decoder GGUF. | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
+| Variable                | Description                                      | Default                                               |
+| ----------------------- | ------------------------------------------------ | ----------------------------------------------------- |
+| `MODEL_BASENAME`      | Common filename prefix for pi0 split GGUF files. | `robotcpp-pi0-libero-finetuned-v044`                |
+| `VIT_GGUF`            | Full path to the pi0 ViT GGUF.                   | `${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf`            |
+| `MMPROJ_GGUF`         | Full path to the pi0 mmproj GGUF.                | `${GGUF_DIR}/${MODEL_BASENAME}.mmproj.gguf`         |
+| `LLM_GGUF`            | Full path to the pi0 LLM GGUF.                   | `${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf`            |
+| `TOKENIZER_GGUF`      | Full path to the pi0 tokenizer GGUF.             | `${GGUF_DIR}/${MODEL_BASENAME}.tokenizer.gguf`      |
+| `STATE_GGUF`          | Full path to the pi0 state GGUF.                 | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
+| `ACTION_DECODER_GGUF` | Full path to the pi0 action decoder GGUF.        | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
 ### Invocation
 
@@ -123,5 +123,3 @@ MODEL=robotcpp-pi0-libero-finetuned-v044
 
 Replace `/path/to/...`, `GGUF_DIR`, and `MODEL` with the actual local GGUF model
 file paths. `model-server` currently listens only on `127.0.0.1`.
-
-## Method 3: Docker

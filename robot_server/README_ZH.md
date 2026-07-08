@@ -116,5 +116,3 @@ MODEL=robotcpp-pi0-libero-finetuned-v044
 ```
 
 其中 `/path/to/...`、`GGUF_DIR` 和 `MODEL` 需要替换为本地实际的 GGUF 模型文件路径。`model-server` 当前仅监听 `127.0.0.1`。
-
-## 方法3：docker
