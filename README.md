@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img alt="Robot.cpp demo" src="image/README/1783509681902.png" width="880">
+  <img alt="Robot.cpp overview" src="assets/readme/overview-en.png" width="880">
 </p>
 
 Robot.cpp is a lightweight on-device robot model inference framework built on top of llama.cpp. It inherits llama.cpp's zero-dependency and lightweight philosophy: robot model inference can run without complex Python dependency setup or PyTorch environment configuration. This makes Robot.cpp especially useful for cross-platform deployment and edge devices where environment setup is often painful.

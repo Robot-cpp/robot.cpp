@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img alt="Robot.cpp demo" src="image/README_zh/1783509568027.png" width="880">
+  <img alt="Robot.cpp 架构图" src="assets/readme/overview-zh.png" width="880">
 </p>
 
 Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cpp的基础上进行开发，继承了其零依赖、轻量化的哲学，无需python相关的依赖配置，即可完成机器人模型推理，这使得其在跨平台尤其是环境配置复杂的边缘设备上具有优势。
