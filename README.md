@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://huggingface.co/rrobottt"><img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-Model%20Zoo-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black"></a>
-  <img alt="WeChat" src="https://img.shields.io/badge/WeChat-Join%20Discussion%20Group-07C160?style=for-the-badge&logo=wechat&logoColor=white">
+  <a href="assets/readme/wechat-group.jpg"><img alt="WeChat" src="https://img.shields.io/badge/WeChat-Join%20Discussion%20Group-07C160?style=for-the-badge&logo=wechat&logoColor=white"></a>
 </p>
 
 <p align="center">
