@@ -1,5 +1,9 @@
 # HF 到 GGUF 转换工具
 
+<p align="center">
+  <strong>简体中文</strong> | <a href="README.md">English</a>
+</p>
+
 这个目录放将checkpoint 到 GGUF 的转换工具。
 
 - `smolvla/`：将 SmolVLA的lerobot-style的checkpoint 转成四个 GGUF component。

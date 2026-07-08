@@ -1,6 +1,8 @@
 # eval/ Platform Integration Guide
 
-[中文](README_ZH.md)
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
 
 The `eval/` directory holds **end-to-end evaluation and closed-loop control examples** for robot.cpp on specific robots or simulators. This code does not run model inference itself—that is handled by [`model-server`](../robot_server/README.md). `eval/` wires each platform’s observation capture, action execution, and (optionally) benchmark workflows.
 

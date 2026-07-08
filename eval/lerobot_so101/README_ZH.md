@@ -1,6 +1,8 @@
 # LeRobot SO101
 
-[English](README.md)
+<p align="center">
+  <strong>简体中文</strong> | <a href="README.md">English</a>
+</p>
 
 这个目录提供一个 LeRobot SO101 Platform 的真机同步控制示例。
 

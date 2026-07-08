@@ -1,5 +1,9 @@
 # `src` 目录说明与新增模型指南
 
+<p align="center">
+  <strong>简体中文</strong> | <a href="README.md">English</a>
+</p>
+
 这份文档说明 `robot.cpp/src` 下的核心代码结构，以及如何把一个新的机器人模型 runtime 接入到统一的 `robotcpp::Model` 抽象中。
 
 ## 文件结构

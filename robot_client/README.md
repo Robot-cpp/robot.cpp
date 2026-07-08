@@ -1,5 +1,9 @@
 # Robot Client
 
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
+
 This directory provides client-side code for the vla.cpp `model-server`. The client is only responsible for encoding the current observation as a TCP request, sending it to the server, and parsing the returned action chunk and timing information. Robot observation collection and action execution are handled by the upper-level platform / policy code.
 
 ## Usage

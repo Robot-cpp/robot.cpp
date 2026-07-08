@@ -1,6 +1,8 @@
 # Camera Test & RealSense Setup
 
-[中文](README_ZH.md)
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
 
 This directory provides **camera smoke tests** before running the SO-101 real-robot client. It shares the same `so101_env` configuration as `shell/run_robot_client.*`.
 

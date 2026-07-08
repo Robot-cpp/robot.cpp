@@ -1,6 +1,8 @@
 # LeRobot SO101
 
-[中文](README_ZH.md)
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
 
 This directory provides a real-robot synchronous control example for the
 LeRobot SO101 platform.

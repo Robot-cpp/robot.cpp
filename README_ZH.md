@@ -9,7 +9,7 @@
 <h3 align="center">轻松让机器人模型运行在任意设备上。</h3>
 
 <p align="center">
-  <a href="README.md">English</a> | <strong>简体中文</strong>
+  <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
 
 <p align="center">

@@ -9,7 +9,7 @@
 <h3 align="center">Run your robot model on any device, easily.</h3>
 
 <p align="center">
-  <strong>English</strong> | <a href="README_ZH.md">简体中文</a>
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
 </p>
 
 <p align="center">

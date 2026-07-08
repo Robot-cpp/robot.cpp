@@ -1,5 +1,9 @@
 # Tools
 
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
+
 | Directory | Overview | Usage |
 | --- | --- | --- |
 | `hf2gguf` | Converts safetensors checkpoints into GGUF files used by robot.cpp. | [hf2gguf/README.md](hf2gguf/README.md) |

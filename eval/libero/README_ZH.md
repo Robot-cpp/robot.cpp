@@ -1,5 +1,9 @@
 # LIBERO Eval
 
+<p align="center">
+  <strong>简体中文</strong> | <a href="README.md">English</a>
+</p>
+
 这个目录提供 LIBERO 仿真评测与测速脚本，主要覆盖两类 policy：
 
 * robot.cpp C++ Policy：通过 `model-server` 加载 GGUF，跑 rollout 和延迟测试。

@@ -1,5 +1,9 @@
 # Quant Tool
 
+<p align="center">
+  <strong>简体中文</strong> | <a href="README.md">English</a>
+</p>
+
 这个目录提供一个基于 YAML 的 GGUF 选择性量化工具。
 
 ## 使用说明

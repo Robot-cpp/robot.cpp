@@ -1,5 +1,9 @@
 # How To Add A New Sim
 
+<p align="center">
+  <a href="HOW_TO_ADD_NEW_SIM_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
+
 Use `eval/libero/` as the reference for simulator benchmarks. A sim integration
 usually owns its environment construction, rollout loop, success metrics, and
 observation adapter. It should reuse `model-server` for inference instead of
