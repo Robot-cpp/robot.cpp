@@ -1,6 +1,6 @@
 # `src` Directory and New Model Guide
 
-[中文](readme_zh.md)
+[中文](README_ZH.md)
 
 This document describes the core code structure under `robot.cpp/src` and how
 to integrate a new robot model runtime into the unified `robotcpp::Model`

@@ -1,6 +1,6 @@
 # LeRobot SO101
 
-[中文](eval\lerobot_so101\README_zh.md)
+[中文](README_ZH.md)
 
 This directory provides a real-robot synchronous control example for the
 LeRobot SO101 platform.

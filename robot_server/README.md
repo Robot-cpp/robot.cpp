@@ -1,6 +1,6 @@
 # Robot Server
 
-[中文](README_zh.md)
+[中文](README_ZH.md)
 
 `robot_server` provides the lightweight TCP protocol used by `model-server` and
 the Python/C++ clients. The server keeps one robot policy model loaded

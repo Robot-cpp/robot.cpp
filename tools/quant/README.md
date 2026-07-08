@@ -1,6 +1,6 @@
 # Quant Tool
 
-[中文](README_zh.md)
+[中文](README_ZH.md)
 
 This directory provides a YAML-based selective GGUF quantization tool.
 

@@ -1,6 +1,6 @@
 # HF to GGUF Conversion Tools
 
-[中文](README_zh.md)
+[中文](README_ZH.md)
 
 This directory contains tools for converting checkpoints to GGUF.
 

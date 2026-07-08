@@ -1,10 +1,10 @@
 # eval/ 平台接入指南
 
-[English](eval/README.md)
+[English](README.md)
 
-`eval/` 目录存放 **robot.cpp 在具体机器人或仿真环境上的评测与闭环控制示例**。这里的代码不负责模型推理本身，推理由 `[model-server](../robot_server/README_zh.md)` 完成。`eval/` 只负责把各平台的 observation 采集、action 下发，以及benchmark 流程串起来。
+`eval/` 目录存放 **robot.cpp 在具体机器人或仿真环境上的评测与闭环控制示例**。这里的代码不负责模型推理本身，推理由 `[model-server](../robot_server/README_ZH.md)` 完成。`eval/` 只负责把各平台的 observation 采集、action 下发，以及benchmark 流程串起来。
 
-仓库根目录的 [README_zh.md](../README_zh.md) 介绍了整体三层抽象：
+仓库根目录的 [README_ZH.md](../README_ZH.md) 介绍了整体三层抽象：
 
 
 | 层              | 职责                                                    | 代码位置                                       |
@@ -30,8 +30,8 @@ eval/
 
 | 目录                                             | 场景   | 说明                                                                                         |
 | ---------------------------------------------- | ---- | ------------------------------------------------------------------------------------------ |
-| `[libero/](libero/README_zh.md)`               | 仿真评测 | 面向 LIBERO benchmark，含 C++ policy rollout 与 LeRobot baseline 对比。[English](libero/README.md) |
-| `[lerobot_so101/](lerobot_so101/README_zh.md)` | 真机闭环 | SO-101 follower + 单相机的 observe → predict → act 同步控制。[English](lerobot_so101/README.md)     |
+| `[libero/](libero/README_ZH.md)`               | 仿真评测 | 面向 LIBERO benchmark，含 C++ policy rollout 与 LeRobot baseline 对比。[English](libero/README.md) |
+| `[lerobot_so101/](lerobot_so101/README_ZH.md)` | 真机闭环 | SO-101 follower + 单相机的 observe → predict → act 同步控制。[English](lerobot_so101/README.md)     |
 
 
 两类示例的组织方式略有不同：
@@ -64,7 +64,7 @@ Platform.send_action()         # 下发到机器人
 
 ## 如何新增一个 Platform
 
-以下步骤以新增真机 platform 为主。若接入的是仿真 benchmark，可参考 `[eval/libero/](libero/README_zh.md)` 自行组织 runner 与 policy adapter。
+以下步骤以新增真机 platform 为主。若接入的是仿真 benchmark，可参考 `[eval/libero/](libero/README_ZH.md)` 自行组织 runner 与 policy adapter。
 
 ### step1：创建目录
 
@@ -207,7 +207,7 @@ strings ckpts/<gguf_dir>/mmproj-smolvla-f32.gguf | rg "observation\.images\."
 
 ### step6：启动与验证
 
-1. 启动 model-server（见 [robot_server/README_zh.md](../robot_server/README_zh.md)）。
+1. 启动 model-server（见 [robot_server/README_ZH.md](../robot_server/README_ZH.md)）。
 2. 运行 platform client shell。
 3. 先用 server 延迟脚本确认 server 正常。
 4. 再跑真机 / 仿真闭环；观察 server 终端是否有 `[SmolVLA] Error:` 等报错。
@@ -232,9 +232,8 @@ LIBERO 的 `[ModelServerPolicy](libero/policy/model_server.py)` 即为自定义 
 
 ## 相关文档
 
-- [SO-101 真机使用说明](lerobot_so101/README_zh.md)
-- [LIBERO 仿真评测说明](libero/README_zh.md)
-- [robot_server 启动与协议](../robot_server/README_zh.md)
+- [SO-101 真机使用说明](lerobot_so101/README_ZH.md)
+- [LIBERO 仿真评测说明](libero/README_ZH.md)
+- [robot_server 启动与协议](../robot_server/README_ZH.md)
 - [robot_client 与 policy](../robot_client/README.md)
-- [新增模型 runtime](../src/readme_zh.md)
-
+- [新增模型 runtime](../src/README_ZH.md)

@@ -223,4 +223,4 @@ python eval/lerobot_so101/shell/build_robot_cameras.py
 - [ ] `run_camera_test` 输出 224×224 帧
 - [ ] `MODEL_IMAGE_NAME` 与模型 checkpoint 一致
 
-更多 SO-101 真机流程见 [../README_zh.md](../README_zh.md)。
+更多 SO-101 真机流程见 [../README_ZH.md](../README_ZH.md)。

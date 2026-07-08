@@ -1,6 +1,6 @@
 # Camera Test & RealSense Setup
 
-[中文](README_zh.md)
+[中文](README_ZH.md)
 
 This directory provides **camera smoke tests** before running the SO-101 real-robot client. It shares the same `so101_env` configuration as `shell/run_robot_client.*`.
 
@@ -208,4 +208,4 @@ python eval/lerobot_so101/shell/build_robot_cameras.py
 - [ ] `run_camera_test` prints 224×224 frames
 - [ ] `MODEL_IMAGE_NAME` matches the model checkpoint
 
-See [../README_zh.md](../README_zh.md) for the full SO-101 real-robot workflow.
+See [../README_ZH.md](../README_ZH.md) for the full SO-101 real-robot workflow.

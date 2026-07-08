@@ -1,6 +1,6 @@
 # eval/ Platform Integration Guide
 
-[中文](eval/README_zh.md)
+[中文](README_ZH.md)
 
 The `eval/` directory holds **end-to-end evaluation and closed-loop control examples** for robot.cpp on specific robots or simulators. This code does not run model inference itself—that is handled by [`model-server`](../robot_server/README.md). `eval/` wires each platform’s observation capture, action execution, and (optionally) benchmark workflows.
 
@@ -27,8 +27,8 @@ eval/
 
 | Directory | Scenario | Notes |
 |---|---|---|
-| [`libero/`](libero/README.md) | Sim eval | LIBERO benchmark with C++ policy rollout and LeRobot baseline. [中文](libero/README_zh.md) |
-| [`lerobot_so101/`](lerobot_so101/README.md) | Real robot | SO-101 follower + single-camera observe → predict → act loop. [中文](lerobot_so101/README_zh.md) |
+| [`libero/`](libero/README.md) | Sim eval | LIBERO benchmark with C++ policy rollout and LeRobot baseline. [中文](libero/README_ZH.md) |
+| [`lerobot_so101/`](lerobot_so101/README.md) | Real robot | SO-101 follower + single-camera observe → predict → act loop. [中文](lerobot_so101/README_ZH.md) |
 
 The two examples are organized slightly differently:
 
@@ -224,8 +224,8 @@ LIBERO’s [`ModelServerPolicy`](libero/policy/model_server.py) is an example of
 
 ## Related docs
 
-- [SO-101 real-robot guide](lerobot_so101/README.md) · [中文](lerobot_so101/README_zh.md)
-- [LIBERO sim eval](libero/README.md) · [中文](libero/README_zh.md)
+- [SO-101 real-robot guide](lerobot_so101/README.md) · [中文](lerobot_so101/README_ZH.md)
+- [LIBERO sim eval](libero/README.md) · [中文](libero/README_ZH.md)
 - [robot_server launch and protocol](../robot_server/README.md)
 - [robot_client and policy](../robot_client/README.md)
-- [Adding a new model runtime](../src/readme_zh.md)
+- [Adding a new model runtime](../src/README.md)

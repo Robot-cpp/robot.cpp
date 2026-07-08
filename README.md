@@ -9,7 +9,7 @@
 <h3 align="center">Run your robot model on any device, easily.</h3>
 
 <p align="center">
-  <strong>English</strong> | <a href="README_zh.md">简体中文</a>
+  <strong>English</strong> | <a href="README_ZH.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -73,7 +73,7 @@ There are two ways to start `model-server`.
 
 ##### Option 1: Download a prebuilt binary
 
-For several platforms and configurations, we provide prebuilt `model-server` binaries on the release page.
+For several platforms and configurations, we provide prebuilt `model-server` binaries on the [release page](https://github.com/Robot-cpp/robot.cpp/releases/latest).
 
 After downloading, run `model-server` like this:
 
@@ -227,7 +227,7 @@ Robot.cpp welcomes community contributions for new model runtimes, platform adap
 
 If you want to extend this project, start with these documents:
 
-* [How to add a new model](src/readme.md)
+* [How to add a new model](src/README.md)
 * How to add a new platform: [real robot](eval/README.md), [simulation](eval/HOW_TO_ADD_NEW_SIM.md).
 
 Issues and PRs are welcome. For larger model-architecture changes, protocol changes, or platform abstraction changes, we recommend opening an issue first to align on the interface boundary.
