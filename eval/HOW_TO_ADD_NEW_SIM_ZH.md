@@ -1,8 +1,8 @@
-# 如何新增一个仿真 Benchmark
-
 <p align="center">
   <strong>简体中文</strong> | <a href="HOW_TO_ADD_NEW_SIM.md">English</a>
 </p>
+
+# 如何新增一个仿真 Benchmark
 
 新增仿真 benchmark 时，建议以 `eval/libero/` 作为参考。一个仿真接入通常需要自己管理环境构造、rollout 循环、成功率指标和 observation 适配逻辑。模型推理应复用 `model-server`，不要在 Python 侧直接加载模型权重。
 

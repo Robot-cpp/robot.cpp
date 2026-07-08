@@ -1,8 +1,8 @@
-# LIBERO Eval
-
 <p align="center">
   <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
+
+# LIBERO Eval
 
 这个目录提供 LIBERO 仿真评测与测速脚本，主要覆盖两类 policy：
 

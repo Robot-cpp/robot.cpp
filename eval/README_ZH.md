@@ -1,8 +1,8 @@
-# eval/ 平台接入指南
-
 <p align="center">
   <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
+
+# eval/ 平台接入指南
 
 `eval/` 目录存放 **robot.cpp 在具体机器人或仿真环境上的评测与闭环控制示例**。这里的代码不负责模型推理本身，推理由 `[model-server](../robot_server/README_ZH.md)` 完成。`eval/` 只负责把各平台的 observation 采集、action 下发，以及benchmark 流程串起来。
 

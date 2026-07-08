@@ -1,8 +1,8 @@
-# LIBERO Eval
-
 <p align="center">
   <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
 </p>
+
+# LIBERO Eval
 
 This directory provides LIBERO simulation eval and latency scripts for two
 policy paths:

@@ -1,8 +1,8 @@
-# 相机测试与 RealSense 配置
-
 <p align="center">
   <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
+
+# 相机测试与 RealSense 配置
 
 本目录提供 SO-101 真机部署前的**相机连通性测试**，与 `shell/run_robot_client.*` 共用同一套 `so101_env` 配置。
 

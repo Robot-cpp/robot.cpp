@@ -1,8 +1,8 @@
-# Robot Server
-
 <p align="center">
   <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
+
+# Robot Server
 
 `robot_server` 提供了 `model-server` 与 Python/C++ 客户端使用的轻量级 TCP 协议。服务端会在进程内常驻加载一个机器人策略模型，并针对每个预测请求返回一段 action chunk。具体有两种使用方式
 

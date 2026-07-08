@@ -4,13 +4,13 @@
   <sub>后续可替换为 GIF/WebP 动图，以便在 GitHub README 顶部自动播放。</sub>
 </p>
 
-<h1 align="center">🤖 Robot.cpp</h1>
-
-<h3 align="center">轻松让机器人模型运行在任意设备上。</h3>
-
 <p align="center">
   <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
+
+<h1 align="center">🤖 Robot.cpp</h1>
+
+<h3 align="center">轻松让机器人模型运行在任意设备上。</h3>
 
 <p align="center">
   <a href="https://huggingface.co/rrobottt"><img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-模型仓库-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black"></a>

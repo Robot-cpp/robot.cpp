@@ -1,8 +1,8 @@
-# Quant Tool
-
 <p align="center">
   <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
 </p>
+
+# Quant Tool
 
 This directory provides a YAML-based selective GGUF quantization tool.
 

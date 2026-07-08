@@ -1,8 +1,8 @@
-# Robot Client
-
 <p align="center">
   <strong>简体中文</strong> | <a href="README.md">English</a>
 </p>
+
+# Robot Client
 
 这个目录提供 vla.cpp `model-server` 的客户端代码。client 只负责把当前 observation 编码为 TCP 请求，发送给 server，并解析返回的 action chunk 与 timing 信息；具体怎么采集机器人观测、怎么下发动作，由上层 platform / policy 完成。
 
