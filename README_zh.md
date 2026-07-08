@@ -6,33 +6,25 @@
 
 <h1 align="center">🤖 Robot.cpp</h1>
 
-<h3 align="center">让机器人模型运行在任意设备上。</h3>
+<h3 align="center">轻松让机器人模型运行在任意设备上。</h3>
 
 <p align="center">
   <a href="README.md">English</a> | <strong>简体中文</strong>
 </p>
 
 <p align="center">
-  <a href="https://huggingface.co/rrobottt">
-    <img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-模型仓库-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black">
-  </a>
+  <a href="https://huggingface.co/rrobottt"><img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-模型仓库-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black"></a>
   <img alt="WeChat" src="https://img.shields.io/badge/微信-加入交流群-07C160?style=for-the-badge&logo=wechat&logoColor=white">
 </p>
 
 <p align="center">
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
-    <img alt="macOS release" src="https://img.shields.io/badge/macOS-发布包-000000?style=for-the-badge&logo=apple&logoColor=white">
-  </a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
-    <img alt="Linux release" src="https://img.shields.io/badge/Linux-发布包-FCC624?style=for-the-badge&logo=linux&logoColor=black">
-  </a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
-    <img alt="Windows release" src="https://img.shields.io/badge/Windows-发布包-0078D6?style=for-the-badge&logo=windows&logoColor=white">
-  </a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="macOS release" src="https://img.shields.io/badge/macOS-发布包-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Linux release" src="https://img.shields.io/badge/Linux-发布包-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Windows release" src="https://img.shields.io/badge/Windows-发布包-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
 </p>
 
 <p align="center">
-  <img alt="Robot.cpp demo" src="image/README_zh/1783488032896.png" width="880">
+  <img alt="Robot.cpp demo" src="image/README_zh/1783509568027.png" width="880">
 </p>
 
 Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cpp的基础上进行开发，继承了其零依赖、轻量化的哲学，无需python相关的依赖配置，即可完成机器人模型推理，这使得其在跨平台尤其是环境配置复杂的边缘设备上具有优势。
@@ -44,6 +36,7 @@ Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cp
 * `model-client`：用来与 `model-server`进行通信的client，封装通信协议部分，负责给 `model-server`发送请求。我们提供了c++和python版本的client，供君选择。
 * `policy`：实际使用 `model-client`，与具体的机器人系统或者仿真系统连接的一层抽象，policy负责接受机器人平台给的observation，对其进行处理，然后交给 `model-client`，获得action的最终输出，在这一层看不到通信细节，使用更加友好。
 * `platform`：不同的机器人平台，负责传感器管理，以及机器人控制。
+* `robotcpp::model`：实际的model runtime实现。具体而言，我们采用多态来对不同模型进行抽象，使暴露到上层的接口统一。另一方面我们使用模块化设计的哲学，每个model都被拆成多个GGUF模块，以采用不同的精度，backend，线程等配置。
 
 工具上，我们亦都提供了两种工具帮助更好地对机器人模型进行开发：
 

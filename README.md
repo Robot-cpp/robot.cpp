@@ -6,33 +6,25 @@
 
 <h1 align="center">🤖 Robot.cpp</h1>
 
-<h3 align="center">Run your robot model on any device.</h3>
+<h3 align="center">Run your robot model on any device, easily.</h3>
 
 <p align="center">
   <strong>English</strong> | <a href="README_zh.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="https://huggingface.co/rrobottt">
-    <img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-Model%20Zoo-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black">
-  </a>
+  <a href="https://huggingface.co/rrobottt"><img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-Model%20Zoo-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black"></a>
   <img alt="WeChat" src="https://img.shields.io/badge/WeChat-Join%20Discussion%20Group-07C160?style=for-the-badge&logo=wechat&logoColor=white">
 </p>
 
 <p align="center">
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
-    <img alt="macOS release" src="https://img.shields.io/badge/macOS-Release%20Package-000000?style=for-the-badge&logo=apple&logoColor=white">
-  </a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
-    <img alt="Linux release" src="https://img.shields.io/badge/Linux-Release%20Package-FCC624?style=for-the-badge&logo=linux&logoColor=black">
-  </a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
-    <img alt="Windows release" src="https://img.shields.io/badge/Windows-Release%20Package-0078D6?style=for-the-badge&logo=windows&logoColor=white">
-  </a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="macOS release" src="https://img.shields.io/badge/macOS-Release%20Package-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Linux release" src="https://img.shields.io/badge/Linux-Release%20Package-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Windows release" src="https://img.shields.io/badge/Windows-Release%20Package-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
 </p>
 
 <p align="center">
-  <img alt="Robot.cpp demo" src="image/README_zh/1783486646504.png" width="880">
+  <img alt="Robot.cpp demo" src="image/README/1783509681902.png" width="880">
 </p>
 
 Robot.cpp is a lightweight on-device robot model inference framework built on top of llama.cpp. It inherits llama.cpp's zero-dependency and lightweight philosophy: robot model inference can run without complex Python dependency setup or PyTorch environment configuration. This makes Robot.cpp especially useful for cross-platform deployment and edge devices where environment setup is often painful.
@@ -44,6 +36,7 @@ For robot-side usage, this repository provides examples for both simulation and 
 * `model-client`: a client for communicating with `model-server`. It wraps the communication protocol and sends requests to `model-server`. We provide both C++ and Python clients.
 * `policy`: an abstraction layer that uses `model-client` and connects it to a specific robot or simulation system. A policy receives observations from the robot platform, processes them, sends them through `model-client`, and returns the final action output. This layer hides the communication details and is easier to use.
 * `platform`: a concrete robot platform responsible for sensor management and robot control.
+* `robotcpp::Model`: the actual model runtime implementation. Different models are abstracted through polymorphism, so the upper layers see one unified interface. At the same time, Robot.cpp follows a modular design philosophy: each model is split into multiple GGUF modules, making it possible to use different precision, backend, thread, and other configurations for different model components.
 
 We also provide two tools to support robot model development:
 
