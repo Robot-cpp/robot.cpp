@@ -1,7 +1,5 @@
 <p align="center">
-  <strong>Demo video placeholder</strong>
-  <br>
-  <sub>Replace this block with an animated GIF/WebP demo for GitHub autoplay.</sub>
+  <img alt="Robot.cpp SO-101 demo" src="assets/readme/robotcpp-so101-demo.webp" width="880">
 </p>
 
 <p align="center">

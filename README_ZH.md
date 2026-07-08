@@ -1,7 +1,5 @@
 <p align="center">
-  <strong>演示视频占位</strong>
-  <br>
-  <sub>后续可替换为 GIF/WebP 动图，以便在 GitHub README 顶部自动播放。</sub>
+  <img alt="Robot.cpp SO-101 演示" src="assets/readme/robotcpp-so101-demo.webp" width="880">
 </p>
 
 <p align="center">
