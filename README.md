@@ -1,6 +1,8 @@
-# Robot.cpp
+<p align="right">
+  <strong>English</strong> | <a href="README_zh.md">简体中文</a>
+</p>
 
-[中文](README_zh.md)
+# 🤖 Robot.cpp
 
 [Demo placeholder]
 
@@ -23,7 +25,7 @@ We also provide two tools to support robot model development:
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/Robot-cpp/robot.cpp
@@ -37,7 +39,7 @@ This section introduces three usage paths to help you quickly understand the rep
 * Using `model-server` in a simulation platform, using LIBERO as the example.
 * Using `model-server` on a real robot, using SO-101 as the example.
 
-### Start model-server and connect a dummy client
+### 🔌 Start model-server and connect a dummy client
 
 We use SmolVLA GGUF files as the example for starting `model-server`.
 
@@ -111,17 +113,17 @@ Then run:
 bash robot_client/shell/cpp_client_example.sh
 ```
 
-### Using model-server in simulation, using LIBERO as the example
+### 🧪 Using model-server in simulation, using LIBERO as the example
 
 See the [LIBERO simulation evaluation guide](eval/libero/README.md).
 
-### Using model-server on real hardware, using SO-101 as the example
+### 🦾 Using model-server on real hardware, using SO-101 as the example
 
 See the [SO-101 deployment guide](eval/lerobot_so101/README.md). A video tutorial is also planned (bilibili link).
 
 ---
 
-## Performance
+## ⚡ Performance
 
 We benchmark Robot.cpp on several platforms. Each measurement uses 5 warmup runs and 100 loop runs. The reported latency is the average time from receiving the image, through preprocessing and forward inference, to producing a usable action chunk, measured in milliseconds. All state projectors remain in f32 precision.
 
@@ -142,7 +144,7 @@ For SmolVLA preprocessing, we follow the official default setting: images are fi
 
 ---
 
-## Model Zoo
+## 🧩 Model Zoo
 
 This section lists converted GGUF models that can be used directly with `model-server` for smoke tests and quick starts. For your own real-world scenarios, we recommend using [`hf2gguf`](tools/hf2gguf/README.md) to generate your own GGUF models. Different components can also use different precisions; in practice, the best precision choice is often component-specific. In our examples, the state projector always stays in f32, while the other GGUF files follow the listed precision. You can mix and match them to explore better accuracy/performance tradeoffs.
 
@@ -157,7 +159,7 @@ This section lists converted GGUF models that can be used directly with `model-s
 
 ---
 
-## Repository Layout
+## 🗂️ Repository Layout
 
 Key directories:
 
@@ -199,7 +201,7 @@ robot.cpp/
 
 ---
 
-## Extension and Contribution
+## 🌱 Extension and Contribution
 
 Robot.cpp welcomes community contributions for new model runtimes, platform adapters, evaluation flows, model conversion tools, and performance optimization. We aim to keep the core inference framework lightweight, cross-platform, and easy to reproduce, while allowing different robot models and platforms to connect through a unified interface.
 
@@ -212,7 +214,7 @@ Issues and PRs are welcome. For larger model-architecture changes, protocol chan
 
 ---
 
-## License
+## 📄 License
 
 Robot.cpp source code is released under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
 
@@ -220,7 +222,7 @@ This repository also includes third-party open-source components, each under its
 
 ---
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 Robot.cpp's design and implementation benefit from several excellent open-source projects:
 

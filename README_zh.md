@@ -1,3 +1,7 @@
+<p align="right">
+  <a href="README.md">English</a> | <strong>简体中文</strong>
+</p>
+
 # 🤖 Robot.cpp
 
 【demo 位置】
