@@ -1,12 +1,39 @@
-<p align="right">
+<p align="center">
+  <strong>Demo video placeholder</strong>
+  <br>
+  <sub>Replace this block with an animated GIF/WebP demo for GitHub autoplay.</sub>
+</p>
+
+<h1 align="center">🤖 Robot.cpp</h1>
+
+<h3 align="center">Run your robot model on any device.</h3>
+
+<p align="center">
   <strong>English</strong> | <a href="README_zh.md">简体中文</a>
 </p>
 
-# 🤖 Robot.cpp
+<p align="center">
+  <a href="https://huggingface.co/rrobottt">
+    <img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-Model%20Zoo-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black">
+  </a>
+  <img alt="WeChat" src="https://img.shields.io/badge/WeChat-Join%20Discussion%20Group-07C160?style=for-the-badge&logo=wechat&logoColor=white">
+</p>
 
-[Demo placeholder]
+<p align="center">
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
+    <img alt="macOS release" src="https://img.shields.io/badge/macOS-Release%20Package-000000?style=for-the-badge&logo=apple&logoColor=white">
+  </a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
+    <img alt="Linux release" src="https://img.shields.io/badge/Linux-Release%20Package-FCC624?style=for-the-badge&logo=linux&logoColor=black">
+  </a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
+    <img alt="Windows release" src="https://img.shields.io/badge/Windows-Release%20Package-0078D6?style=for-the-badge&logo=windows&logoColor=white">
+  </a>
+</p>
 
-![1783392980125](image/README_zh/1783392980125.png)
+<p align="center">
+  <img alt="Robot.cpp demo" src="image/README_zh/1783486646504.png" width="880">
+</p>
 
 Robot.cpp is a lightweight on-device robot model inference framework built on top of llama.cpp. It inherits llama.cpp's zero-dependency and lightweight philosophy: robot model inference can run without complex Python dependency setup or PyTorch environment configuration. This makes Robot.cpp especially useful for cross-platform deployment and edge devices where environment setup is often painful.
 
@@ -21,7 +48,7 @@ For robot-side usage, this repository provides examples for both simulation and 
 We also provide two tools to support robot model development:
 
 * [`hf2gguf`](tools/hf2gguf/README.md): converts safetensors checkpoints into the GGUF files used by this project.
-* [`quant`](tools/quant/README_zh.md): selectively quantizes arbitrary tensor groups in a model. Users only need to adjust a YAML plan to generate quantized GGUF files.
+* [`quant`](tools/quant/README.md): selectively quantizes arbitrary tensor groups in a model. Users only need to adjust a YAML plan to generate quantized GGUF files.
 
 ---
 
@@ -99,13 +126,13 @@ python robot_client/examples/python/minimal_example.py
 
 We provide a build-to-run example in `robot_client/shell/cpp_client_example.sh`. Adjust these environment variables as needed:
 
-| Environment variable | Default                                  | Purpose                                                                 |
-| -------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
-| `ROBOT_CPP_ROOT`     | unset; required                          | Repository root.                                                        |
-| `BUILD_DIR`          | `${ROBOT_CPP_ROOT}/build_robot_client`   | C++ client CMake build directory.                                       |
-| `PORT`               | `5555`                                   | Server port used by the client.                                         |
-| `BUILD_CLIENT`       | `0`                                      | Whether to force rebuild the client. Set to `1` to rebuild even if the binary already exists. |
-| `CMAKE_BIN`          | `cmake`                                  | CMake command path, useful for selecting a custom CMake binary.         |
+| Environment variable | Default                                  | Purpose                                                                                        |
+| -------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `ROBOT_CPP_ROOT`   | unset; required                          | Repository root.                                                                               |
+| `BUILD_DIR`        | `${ROBOT_CPP_ROOT}/build_robot_client` | C++ client CMake build directory.                                                              |
+| `PORT`             | `5555`                                 | Server port used by the client.                                                                |
+| `BUILD_CLIENT`     | `0`                                    | Whether to force rebuild the client. Set to`1` to rebuild even if the binary already exists. |
+| `CMAKE_BIN`        | `cmake`                                | CMake command path, useful for selecting a custom CMake binary.                                |
 
 Then run:
 
@@ -207,7 +234,7 @@ Robot.cpp welcomes community contributions for new model runtimes, platform adap
 
 If you want to extend this project, start with these documents:
 
-* [How to add a new model](src/readme_zh.md)
+* [How to add a new model](src/readme.md)
 * How to add a new platform: [real robot](eval/README.md), [simulation](eval/HOW_TO_ADD_NEW_SIM.md).
 
 Issues and PRs are welcome. For larger model-architecture changes, protocol changes, or platform abstraction changes, we recommend opening an issue first to align on the interface boundary.

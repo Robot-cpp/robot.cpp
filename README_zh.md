@@ -1,12 +1,39 @@
-<p align="right">
+<p align="center">
+  <strong>演示视频占位</strong>
+  <br>
+  <sub>后续可替换为 GIF/WebP 动图，以便在 GitHub README 顶部自动播放。</sub>
+</p>
+
+<h1 align="center">🤖 Robot.cpp</h1>
+
+<h3 align="center">让机器人模型运行在任意设备上。</h3>
+
+<p align="center">
   <a href="README.md">English</a> | <strong>简体中文</strong>
 </p>
 
-# 🤖 Robot.cpp
+<p align="center">
+  <a href="https://huggingface.co/rrobottt">
+    <img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-模型仓库-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black">
+  </a>
+  <img alt="WeChat" src="https://img.shields.io/badge/微信-加入交流群-07C160?style=for-the-badge&logo=wechat&logoColor=white">
+</p>
 
-【demo 位置】
+<p align="center">
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
+    <img alt="macOS release" src="https://img.shields.io/badge/macOS-发布包-000000?style=for-the-badge&logo=apple&logoColor=white">
+  </a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
+    <img alt="Linux release" src="https://img.shields.io/badge/Linux-发布包-FCC624?style=for-the-badge&logo=linux&logoColor=black">
+  </a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest">
+    <img alt="Windows release" src="https://img.shields.io/badge/Windows-发布包-0078D6?style=for-the-badge&logo=windows&logoColor=white">
+  </a>
+</p>
 
-![1783392980125](image/README_zh/1783392980125.png)
+<p align="center">
+  <img alt="Robot.cpp demo" src="image/README_zh/1783488032896.png" width="880">
+</p>
 
 Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cpp的基础上进行开发，继承了其零依赖、轻量化的哲学，无需python相关的依赖配置，即可完成机器人模型推理，这使得其在跨平台尤其是环境配置复杂的边缘设备上具有优势。
 
