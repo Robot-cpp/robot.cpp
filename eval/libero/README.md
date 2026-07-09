@@ -162,3 +162,44 @@ with these conventions:
   one action per environment step.
 * The action sent to the LIBERO environment uses the first 7 dimensions by
   default.
+
+## Troubleshooting
+
+These are common setup issues when running the eval on a fresh headless
+machine.
+
+### LIBERO assets are missing (`FileNotFoundError: .../scenes/libero_floor_base_style.xml`)
+
+The `libero` package ships an **empty** `assets/` directory, so its
+`get_assets_path()` returns that empty path and never triggers a download. Fetch
+the mesh/texture assets once into the package directory:
+
+```bash
+ASSETS=$(python -c "import libero, os; print(os.path.join(os.path.dirname(libero.__file__), 'libero', 'assets'))")
+python -c "from huggingface_hub import snapshot_download; snapshot_download('lerobot/libero-assets', repo_type='dataset', local_dir='${ASSETS}')"
+```
+
+`bddl_files` and `init_files` are bundled with the package, so only the assets
+above need downloading. `ensure_libero_config` writes `~/.libero/config.yaml`
+automatically on first run.
+
+### Headless rendering: prefer EGL over OSMesa
+
+On a headless host without `/dev/dri`, `MUJOCO_GL=egl` may fail with
+`Cannot initialize a EGL device display ... PLATFORM_DEVICE extension`. This
+usually means glvnd fell back to Mesa EGL. If the machine has an NVIDIA GPU,
+register the NVIDIA EGL vendor so EGL can enumerate the GPU as a device:
+
+```bash
+sudo tee /usr/share/glvnd/egl_vendor.d/10_nvidia.json >/dev/null <<'EOF'
+{ "file_format_version": "1.0.0", "ICD": { "library_path": "libEGL_nvidia.so.0" } }
+EOF
+# then:
+export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0   # match CUDA_VISIBLE_DEVICES
+```
+
+GPU rendering is roughly an order of magnitude faster than OSMesa software
+rendering (~15 ms/step vs ~120 ms/step in our tests), which matters a lot for
+full-suite rollouts. Only fall back to `MUJOCO_GL=osmesa`
+(`apt-get install -y libosmesa6`, `PYOPENGL_PLATFORM=osmesa`) when no GPU
+rendering is available.

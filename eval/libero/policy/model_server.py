@@ -100,6 +100,7 @@ class LiberoModelServerPolicy(BasePolicy):
         host: str = "127.0.0.1",
         port: int = 5555,
         timeout: float | None = 120.0,
+        n_action_steps: int | None = None,
     ):
         if len(image_keys) != len(camera_keys):
             raise ValueError("image_keys and camera_keys must have the same length")
@@ -108,6 +109,7 @@ class LiberoModelServerPolicy(BasePolicy):
         self.state_dim = state_dim
         self.image_keys = image_keys
         self.camera_keys = camera_keys
+        self.n_action_steps = n_action_steps if (n_action_steps and n_action_steps > 0) else None
         self.predict_calls = 0
         self.timing_records: list[ServerTiming] = []
 
@@ -123,6 +125,21 @@ class LiberoModelServerPolicy(BasePolicy):
         self.predict_calls += 1
         self.timing_records.append(ServerTiming(roundtrip_ms=roundtrip_ms, timings=response.timings))
         return response
+
+    def select_action(self, platform_obs: dict[str, Any], *, platform: Any, task: str) -> np.ndarray:
+        # Same as BasePolicy.select_action, but only keep the first
+        # ``n_action_steps`` actions of each predicted chunk (open-loop horizon).
+        if not self.action_queue:
+            response = self.predict_action_chunk(platform_obs, platform=platform, task=task)
+            action_dim = self._action_dim(platform, response, response.actions[0] if response.actions else None)
+            rows = response.actions
+            if self.n_action_steps is not None:
+                rows = rows[: self.n_action_steps]
+            for row in rows:
+                self.action_queue.append([float(value) for value in row[:action_dim]])
+        row = self.action_queue.popleft()
+        action_dim = self.action_dim or len(platform.action_keys) or len(row)
+        return np.asarray(row[:action_dim], dtype=np.float32)
 
     def build_observation(self, observation: dict[str, Any], *, platform: Any, task: str) -> dict[str, Any]:
         del platform
