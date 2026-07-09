@@ -137,7 +137,7 @@ See the [LIBERO simulation evaluation guide](eval/libero/README.md).
 
 ### 🦾 Using model-server on real hardware, using SO-101 as the example
 
-See the [SO-101 deployment guide](eval/lerobot_so101/README.md). 
+See the [SO-101 deployment guide](eval/lerobot_so101/README.md).
 
 ---
 
@@ -167,14 +167,64 @@ For SmolVLA preprocessing, we follow the official default setting: images are fi
 
 This section lists converted GGUF models that can be used directly with `model-server` for smoke tests and quick starts. For your own real-world scenarios, we recommend using [`hf2gguf`](tools/hf2gguf/README.md) to generate your own GGUF models. Different components can also use different precisions; in practice, the best precision choice is often component-specific. In our examples, the state projector always stays in f32, while the other GGUF files follow the listed precision. You can mix and match them to explore better accuracy/performance tradeoffs.
 
-| Model   | Benchmark | Precision | Link                                                                    |
-| ------- | --------- | --------- | ----------------------------------------------------------------------- |
-| SmolVLA | SO-101    | bf16      | [smolvla-so101-bf16](https://huggingface.co/rrobottt/smolvla-so101-bf16) |
-| SmolVLA | SO-101    | f16       | [smolvla-so101-fp16](https://huggingface.co/rrobottt/smolvla-so101-fp16) |
-| SmolVLA | SO-101    | f32       | [smolvla-so101-fp32](https://huggingface.co/rrobottt/smolvla-so101-fp32) |
-| pi0     | LIBERO    | bf16      | [pi-libero-bf16](https://huggingface.co/rrobottt/pi-libero-bf16)         |
-| pi0     | LIBERO    | f16       | [pi0-libero-f16](https://huggingface.co/rrobottt/pi0-libero-f16)         |
-| pi0     | LIBERO    | f32       | [pi0-libero-f32](https://huggingface.co/rrobottt/pi0-libero-f32)         |
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Benchmark</th>
+      <th>Original Python Model</th>
+      <th>Precision</th>
+      <th>GGUF Model</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="3">SmolVLA</td>
+      <td rowspan="3">SO-101</td>
+      <td rowspan="3"><code>smolvla_450m_grasp_50k</code> (local checkpoint)</td>
+      <td>bf16</td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-so101-bf16">smolvla-so101-bf16</a></td>
+    </tr>
+    <tr>
+      <td>f16</td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-so101-fp16">smolvla-so101-fp16</a></td>
+    </tr>
+    <tr>
+      <td>f32</td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-so101-fp32">smolvla-so101-fp32</a></td>
+    </tr>
+    <tr>
+      <td rowspan="3">SmolVLA</td>
+      <td rowspan="3">LIBERO</td>
+      <td rowspan="3"><a href="https://huggingface.co/lerobot/smolvla_libero">lerobot/smolvla_libero</a></td>
+      <td>bf16</td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-bf16">smolvla-libero-bf16</a></td>
+    </tr>
+    <tr>
+      <td>f16</td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-fp16">smolvla-libero-fp16</a></td>
+    </tr>
+    <tr>
+      <td>f32</td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-fp32">smolvla-libero-fp32</a></td>
+    </tr>
+    <tr>
+      <td rowspan="3">pi0</td>
+      <td rowspan="3">LIBERO</td>
+      <td rowspan="3"><a href="https://huggingface.co/lerobot/pi0_libero_finetuned_v044">lerobot/pi0_libero_finetuned_v044</a></td>
+      <td>bf16</td>
+      <td><a href="https://huggingface.co/rrobottt/pi-libero-bf16">pi-libero-bf16</a></td>
+    </tr>
+    <tr>
+      <td>f16</td>
+      <td><a href="https://huggingface.co/rrobottt/pi0-libero-f16">pi0-libero-f16</a></td>
+    </tr>
+    <tr>
+      <td>f32</td>
+      <td><a href="https://huggingface.co/rrobottt/pi0-libero-f32">pi0-libero-f32</a></td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
@@ -230,6 +280,26 @@ If you want to extend this project, start with these documents:
 * How to add a new platform: [real robot](eval/README.md), [simulation](eval/HOW_TO_ADD_NEW_SIM.md).
 
 Issues and PRs are welcome. For larger model-architecture changes, protocol changes, or platform abstraction changes, we recommend opening an issue first to align on the interface boundary.
+
+---
+
+## 📝 Citation
+
+Robot.cpp is developed by the VIPL-VSU group, Key Laboratory of AI Safety, Institute of Computing Technology, Chinese Academy of Sciences (CAS), Beijing 100190, China.
+
+**Project Lead:** Chuyan Xiong ([@lxsy-xcy](https://github.com/lxsy-xcy))
+**Corresponding Author:** Ruiping Wang ([wangruiping@ict.ac.cn](mailto:wangruiping@ict.ac.cn))
+
+If you use Robot.cpp in your project, please cite the GitHub repository to acknowledge its ongoing development and contributors:
+
+```bibtex
+@misc{robotcpp2026,
+    author = {Chuyan Xiong, Sutong Wang, Jie Huang, Hong Chang, Ruiping Wang},
+    title = {Robot.cpp: Run Your Robot Model Easily on Any Device},
+    howpublished = {\url{https://github.com/Robot-cpp/robot.cpp}},
+    year = {2026}
+}
+```
 
 ---
 

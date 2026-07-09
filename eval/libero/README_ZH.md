@@ -153,7 +153,8 @@ python -m eval.libero.runners.run_lerobot \
 runner 会把 `stdout.log`、`stderr.log`、`baseline_run.json` 和 LeRobot 的
 `eval_info.json` 写到 `eval/results/lerobot-baseline-*` 目录下。
 
-SmolVLA 请用 `HuggingFaceVLA/smolvla_libero`（其输入布局与 GGUF 一致）。
+SmolVLA 请使用 [`lerobot/smolvla_libero`](https://huggingface.co/lerobot/smolvla_libero)
+（其输入布局与 GGUF 一致）。
 
 ## C++ Policy 请求语义
 

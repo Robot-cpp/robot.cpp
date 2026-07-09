@@ -162,7 +162,8 @@ python -m eval.libero.runners.run_lerobot \
 The runner writes `stdout.log`, `stderr.log`, `baseline_run.json`, and
 LeRobot's `eval_info.json` under `eval/results/lerobot-baseline-*`.
 
-For SmolVLA, use `HuggingFaceVLA/smolvla_libero` (its inputs match the GGUF).
+For SmolVLA, use [`lerobot/smolvla_libero`](https://huggingface.co/lerobot/smolvla_libero)
+(its inputs match the GGUF).
 
 ## C++ Policy Request Semantics
 
