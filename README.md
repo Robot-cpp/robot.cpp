@@ -43,9 +43,10 @@ We also provide two tools to support robot model development:
 
 ---
 
-## 🌱 News
+## 📰 News
 
-* **Jul 2026:** Robot.cpp started as [pi0.cpp](https://github.com/JJJYmmm/pi0.cpp), our first attempt at bringing pi0 into the GGUF ecosystem. ✨
+* **2025.07.09:** Robot.cpp v0.1.0 was released, providing prebuilt binaries, performance benchmarks, and SO-101 real-robot and LIBERO simulation examples.
+* **2025.05.10:** We open-sourced [**pi0.cpp**](https://github.com/JJJYmmm/pi0.cpp), an early public prototype for lightweight local inference of the π0 robot policy model.
 
 ## 🚀 Quick Start
 
