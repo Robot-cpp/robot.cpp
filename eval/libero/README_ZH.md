@@ -65,11 +65,11 @@ pip install "lerobot[smolvla]"  # smolvla （transformers>=4.57）
 ### step1：准备 C++ Policy GGUF
 
 Pi0 GGUF checkpoint 可以参考
-[`rrobottt/pi-libero-bf16`](https://huggingface.co/rrobottt/pi-libero-bf16)。
+[`robotcpp/pi-libero-bf16`](https://huggingface.co/robotcpp/pi-libero-bf16)。
 C++ Policy 使用转换后的 split GGUF 文件：
 
 ```bash
-hf download rrobottt/pi-libero-bf16 \
+hf download robotcpp/pi-libero-bf16 \
   --include "*.gguf" \
   --local-dir ckpts/pi-libero-bf16
 ```
@@ -81,7 +81,7 @@ GGUF_DIR=ckpts/pi-libero-bf16
 MODEL=pi-libero-bf16
 ```
 
-SmolVLA 则下载 `rrobottt/smolvla-libero-bf16`，并用 `MODEL_TYPE=smolvla` 运行
+SmolVLA 则下载 `robotcpp/smolvla-libero-bf16`，并用 `MODEL_TYPE=smolvla` 运行
 （脚本会把 `GGUF_DIR` 默认成 `ckpts/smolvla-libero-bf16`）。这些仓库是私有/gated，
 需要有权限的 token；受限网络下设 `HF_ENDPOINT=https://hf-mirror.com`。
 

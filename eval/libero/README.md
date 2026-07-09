@@ -67,11 +67,11 @@ Rendering: prefer GPU (EGL). If `MUJOCO_GL=egl` cannot find a device, see
 ### step1: Prepare C++ Policy GGUF
 
 For Pi0, refer to the GGUF checkpoint
-[`rrobottt/pi-libero-bf16`](https://huggingface.co/rrobottt/pi-libero-bf16).
+[`robotcpp/pi-libero-bf16`](https://huggingface.co/robotcpp/pi-libero-bf16).
 The C++ Policy uses converted split GGUF files:
 
 ```bash
-hf download rrobottt/pi-libero-bf16 \
+hf download robotcpp/pi-libero-bf16 \
   --include "*.gguf" \
   --local-dir ckpts/pi-libero-bf16
 ```
@@ -83,7 +83,7 @@ GGUF_DIR=ckpts/pi-libero-bf16
 MODEL=pi-libero-bf16
 ```
 
-For SmolVLA, download `rrobottt/smolvla-libero-bf16` and run with
+For SmolVLA, download `robotcpp/smolvla-libero-bf16` and run with
 `MODEL_TYPE=smolvla` (the wrapper then defaults `GGUF_DIR=ckpts/smolvla-libero-bf16`).
 These repos are private/gated — use an authorized token, and set
 `HF_ENDPOINT=https://hf-mirror.com` on restricted networks.

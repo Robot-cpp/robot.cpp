@@ -11,7 +11,7 @@
 <h3 align="center">轻松让机器人模型运行在任意设备上。</h3>
 
 <p align="center">
-  <a href="https://huggingface.co/rrobottt"><img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-模型仓库-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black"></a>
+  <a href="https://huggingface.co/robotcpp"><img alt="Hugging Face" src="https://img.shields.io/badge/HuggingFace-模型仓库-ffcc4d?style=for-the-badge&logo=huggingface&logoColor=black"></a>
   <a href="assets/readme/wechat-group.jpg"><img alt="WeChat" src="https://img.shields.io/badge/微信-加入交流群-07C160?style=for-the-badge&logo=wechat&logoColor=white"></a>
 </p>
 
@@ -63,7 +63,7 @@ git submodule update --init --recursive
 
 #### Step 0：下载gguf model
 
-在hugging-face上下载一份gguf示例：[huggingface.co/rrobottt/smolvla-so101-fp32](https://huggingface.co/rrobottt/smolvla-so101-fp32)
+在hugging-face上下载一份gguf示例：[huggingface.co/robotcpp/smolvla-so101-fp32](https://huggingface.co/robotcpp/smolvla-so101-fp32)
 
 #### Step 1：model-server的启动
 
@@ -183,45 +183,45 @@ bash robot_client/shell/cpp_client_example.sh
       <td rowspan="3">SO-101</td>
       <td rowspan="3">-</td>
       <td>bf16</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-so101-bf16">smolvla-so101-bf16</a></td>
+      <td><a href="https://huggingface.co/robotcpp/smolvla-so101-bf16">smolvla-so101-bf16</a></td>
     </tr>
     <tr>
       <td>f16</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-so101-fp16">smolvla-so101-fp16</a></td>
+      <td><a href="https://huggingface.co/robotcpp/smolvla-so101-fp16">smolvla-so101-fp16</a></td>
     </tr>
     <tr>
       <td>f32</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-so101-fp32">smolvla-so101-fp32</a></td>
+      <td><a href="https://huggingface.co/robotcpp/smolvla-so101-fp32">smolvla-so101-fp32</a></td>
     </tr>
     <tr>
       <td rowspan="3">SmolVLA</td>
       <td rowspan="3">LIBERO</td>
       <td rowspan="3"><a href="https://huggingface.co/lerobot/smolvla_libero">lerobot/smolvla_libero</a></td>
       <td>bf16</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-bf16">smolvla-libero-bf16</a></td>
+      <td><a href="https://huggingface.co/robotcpp/smolvla-libero-bf16">smolvla-libero-bf16</a></td>
     </tr>
     <tr>
       <td>f16</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-f16">smolvla-libero-f16</a></td>
+      <td><a href="https://huggingface.co/robotcpp/smolvla-libero-f16">smolvla-libero-f16</a></td>
     </tr>
     <tr>
       <td>f32</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-f32">smolvla-libero-f32</a></td>
+      <td><a href="https://huggingface.co/robotcpp/smolvla-libero-f32">smolvla-libero-f32</a></td>
     </tr>
     <tr>
       <td rowspan="3">pi0</td>
       <td rowspan="3">LIBERO</td>
       <td rowspan="3"><a href="https://huggingface.co/lerobot/pi0_libero_finetuned_v044">lerobot/pi0_libero_finetuned_v044</a></td>
       <td>bf16</td>
-      <td><a href="https://huggingface.co/rrobottt/pi-libero-bf16">pi-libero-bf16</a></td>
+      <td><a href="https://huggingface.co/robotcpp/pi-libero-bf16">pi-libero-bf16</a></td>
     </tr>
     <tr>
       <td>f16</td>
-      <td><a href="https://huggingface.co/rrobottt/pi0-libero-f16">pi0-libero-f16</a></td>
+      <td><a href="https://huggingface.co/robotcpp/pi0-libero-f16">pi0-libero-f16</a></td>
     </tr>
     <tr>
       <td>f32</td>
-      <td><a href="https://huggingface.co/rrobottt/pi0-libero-f32">pi0-libero-f32</a></td>
+      <td><a href="https://huggingface.co/robotcpp/pi0-libero-f32">pi0-libero-f32</a></td>
     </tr>
   </tbody>
 </table>
