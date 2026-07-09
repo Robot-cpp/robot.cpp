@@ -43,6 +43,10 @@ We also provide two tools to support robot model development:
 
 ---
 
+## 🌱 News
+
+* **Jul 2026:** Robot.cpp started as [pi0.cpp](https://github.com/JJJYmmm/pi0.cpp), our first attempt at bringing pi0 into the GGUF ecosystem. ✨
+
 ## 🚀 Quick Start
 
 ```bash
