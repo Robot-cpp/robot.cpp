@@ -47,14 +47,20 @@ conda activate robotcpp-libero
 ```bash
 pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
+pip install "lerobot[libero]"
 ```
 
-如果当前机器没有可用 EGL device，可以切到 OSMesa：
+跑 **LeRobot baseline**（step4）还需要各自 policy 的 extra；两者依赖的
+`transformers` 互斥，按需分别安装：
 
 ```bash
-export MUJOCO_GL=osmesa
-export PYOPENGL_PLATFORM=osmesa
+pip install "lerobot[pi]"       # pi0     （transformers fork）
+pip install "lerobot[smolvla]"  # smolvla （transformers>=4.57）
 ```
+
+渲染优先用 GPU（EGL）。如果 `MUJOCO_GL=egl` 找不到设备，见
+[Troubleshooting](#troubleshooting)。OSMesa（`MUJOCO_GL=osmesa`、
+`PYOPENGL_PLATFORM=osmesa`）也能用，但是软件渲染、慢约 8 倍。
 
 ### step1：准备 C++ Policy GGUF
 
@@ -75,6 +81,10 @@ GGUF_DIR=ckpts/pi-libero-bf16
 MODEL=pi-libero-bf16
 ```
 
+SmolVLA 则下载 `rrobottt/smolvla-libero-bf16`，并用 `MODEL_TYPE=smolvla` 运行
+（脚本会把 `GGUF_DIR` 默认成 `ckpts/smolvla-libero-bf16`）。这些仓库是私有/gated，
+需要有权限的 token；受限网络下设 `HF_ENDPOINT=https://hf-mirror.com`。
+
 ### step2：运行 LIBERO 评测
 
 最简单的方式是使用 `run_model_server.sh`。它会检查 GGUF 和已有
@@ -89,7 +99,10 @@ bash eval/libero/scripts/run_model_server.sh
 
 | 变量 | 说明 |
 | --- | --- |
+| `MODEL_TYPE` | `pi0`（默认）或 `smolvla`。 |
 | `GGUF_DIR`, `MODEL` | split GGUF 输入，默认使用 step1 的路径和文件名前缀。 |
+| `SMOLVLA_DTYPE` | SmolVLA GGUF 精度（`bf16`/`f32`；state projector 始终 f32）。 |
+| `N_ACTION_STEPS` | 每个预测 chunk 在重新请求前消费的动作数（open-loop horizon）。默认整块（= `chunk_size`，pi0 即 50）；SmolVLA 默认 `1`（闭环）。见 [Action chunk execution](#action-chunk-execution)。 |
 | `BACKEND` | C++ Policy server preset，与 `robot_server/test/test_server_latency.sh` 一致，可选 `linux-cuda`、`linux-cpu`、`mac-metal`、`mac-cpu`，默认 `linux-cuda`。 |
 | `SERVER_BIN` | 自定义 `model-server` 路径；默认会由 `BACKEND` 推导对应 build 目录。 |
 | `HOST`, `PORT` | client/server 共享 endpoint，需要保持一致。 |
@@ -140,6 +153,8 @@ python -m eval.libero.runners.run_lerobot \
 runner 会把 `stdout.log`、`stderr.log`、`baseline_run.json` 和 LeRobot 的
 `eval_info.json` 写到 `eval/results/lerobot-baseline-*` 目录下。
 
+SmolVLA 请用 `HuggingFaceVLA/smolvla_libero`（其输入布局与 GGUF 一致）。
+
 ## C++ Policy 请求语义
 
 `LiberoModelServerPolicy` 会按以下规则把 LIBERO observation 送到
@@ -151,3 +166,44 @@ C++ Policy server：
 * LIBERO 原始 8D state 会直接发送给 `model-server`。
 * server 返回 action chunk 后，policy 会排队缓存，每个 env step 消费一个 action。
 * 送给 LIBERO environment 的 action 默认只使用前 7 维。
+
+### Action chunk execution
+
+server 每次预测返回一整块 action chunk（`chunk_size`，例如 50）；客户端的
+action queue 决定重新请求前执行其中几个。robot.cpp 会消费**整块**，即等价于
+`n_action_steps = chunk_size`。这对 pi0 正好（原生 `n_action_steps=50`），但对
+SmolVLA 不对——它原生 `n_action_steps=1`（闭环，每步重预测），开环跑 50 会明显
+掉点。SmolVLA 请用 `N_ACTION_STEPS=1`（脚本默认），baseline 侧也匹配
+（`--policy.n_action_steps=1`）。
+
+## Troubleshooting
+
+在全新的无头机器上跑评测时的常见问题。
+
+### LIBERO assets 缺失（`FileNotFoundError: .../scenes/libero_floor_base_style.xml`）
+
+`libero` 包自带的 `assets/` 是**空目录**，导致 `get_assets_path()` 直接返回这个空
+路径、永不触发下载。把 mesh/texture assets 下到包目录一次即可：
+
+```bash
+ASSETS=$(python -c "import libero, os; print(os.path.join(os.path.dirname(libero.__file__), 'libero', 'assets'))")
+python -c "from huggingface_hub import snapshot_download; snapshot_download('lerobot/libero-assets', repo_type='dataset', local_dir='${ASSETS}')"
+```
+
+`bddl_files` 和 `init_files` 已随包提供，只需下上面的 assets。`ensure_libero_config`
+会在首次运行时自动写 `~/.libero/config.yaml`。
+
+### 无头渲染：优先 EGL 而非 OSMesa
+
+无头机器（没有 `/dev/dri`）上 `MUJOCO_GL=egl` 可能报
+`Cannot initialize a EGL device display ... PLATFORM_DEVICE extension`，通常是
+glvnd 回退到了 Mesa EGL。如果机器有 NVIDIA GPU，注册 NVIDIA EGL vendor 让 EGL
+能把 GPU 枚举成设备：
+
+```bash
+sudo tee /usr/share/glvnd/egl_vendor.d/10_nvidia.json >/dev/null <<'EOF'
+{ "file_format_version": "1.0.0", "ICD": { "library_path": "libEGL_nvidia.so.0" } }
+EOF
+# 然后：
+export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0   # 与 CUDA_VISIBLE_DEVICES 对应
+```

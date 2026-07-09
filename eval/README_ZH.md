@@ -207,6 +207,14 @@ strings ckpts/<gguf_dir>/mmproj-smolvla-f32.gguf | rg "observation\.images\."
 - 顺序与模型期望一致；
 - 维度与 checkpoint 的 `observation.state` shape 匹配。
 
+**动作执行步长（action execution horizon）**
+
+`model-server` 每次预测返回一整块 action chunk；执行节奏由 policy 的 action queue
+（[`base_policy.py`](../robot_client/policy/base_policy.py)）决定重新请求前执行几个。
+默认消费整块（开环）。为"每步重预测"训练的闭环策略（如 SmolVLA，`n_action_steps=1`）
+若开环执行会明显掉点——这类模型要每步重新请求。见 LIBERO 评测的
+[Action chunk execution](libero/README_ZH.md#action-chunk-execution)。
+
 ### step6：启动与验证
 
 1. 启动 model-server（见 [robot_server/README_ZH.md](../robot_server/README_ZH.md)）。

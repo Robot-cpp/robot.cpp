@@ -49,14 +49,20 @@ If reusing an existing environment, install at least:
 ```bash
 pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
+pip install "lerobot[libero]"
 ```
 
-If the machine has no available EGL device, switch to OSMesa:
+The **LeRobot baseline** (step4) also needs the policy's own extra. The two are
+mutually exclusive (different `transformers`), so install per baseline:
 
 ```bash
-export MUJOCO_GL=osmesa
-export PYOPENGL_PLATFORM=osmesa
+pip install "lerobot[pi]"       # pi0     (transformers fork)
+pip install "lerobot[smolvla]"  # smolvla (transformers>=4.57)
 ```
+
+Rendering: prefer GPU (EGL). If `MUJOCO_GL=egl` cannot find a device, see
+[Troubleshooting](#troubleshooting). OSMesa (`MUJOCO_GL=osmesa`,
+`PYOPENGL_PLATFORM=osmesa`) works but is ~8x slower software rendering.
 
 ### step1: Prepare C++ Policy GGUF
 
@@ -77,6 +83,11 @@ GGUF_DIR=ckpts/pi-libero-bf16
 MODEL=pi-libero-bf16
 ```
 
+For SmolVLA, download `rrobottt/smolvla-libero-bf16` and run with
+`MODEL_TYPE=smolvla` (the wrapper then defaults `GGUF_DIR=ckpts/smolvla-libero-bf16`).
+These repos are private/gated — use an authorized token, and set
+`HF_ENDPOINT=https://hf-mirror.com` on restricted networks.
+
 ### step2: Run LIBERO Eval
 
 The simplest path is `run_model_server.sh`. It checks the GGUF files and an
@@ -92,7 +103,10 @@ Common variables:
 
 | Variable | Description |
 | --- | --- |
+| `MODEL_TYPE` | `pi0` (default) or `smolvla`. |
 | `GGUF_DIR`, `MODEL` | Split GGUF inputs. Defaults to the path and filename prefix from step1. |
+| `SMOLVLA_DTYPE` | SmolVLA GGUF precision (`bf16`/`f32`; state projector stays f32). |
+| `N_ACTION_STEPS` | Actions consumed per predicted chunk before re-querying (open-loop horizon). Default: full chunk (= `chunk_size`, i.e. 50 for pi0); SmolVLA defaults to `1` (closed-loop). See [Action chunk execution](#action-chunk-execution). |
 | `BACKEND` | C++ Policy server preset, matching `robot_server/test/test_server_latency.sh`. Options are `linux-cuda`, `linux-cpu`, `mac-metal`, and `mac-cpu`; default is `linux-cuda`. |
 | `SERVER_BIN` | Custom `model-server` path. By default it is derived from `BACKEND`. |
 | `HOST`, `PORT` | Shared client/server endpoint and must stay in sync. |
@@ -148,6 +162,8 @@ python -m eval.libero.runners.run_lerobot \
 The runner writes `stdout.log`, `stderr.log`, `baseline_run.json`, and
 LeRobot's `eval_info.json` under `eval/results/lerobot-baseline-*`.
 
+For SmolVLA, use `HuggingFaceVLA/smolvla_libero` (its inputs match the GGUF).
+
 ## C++ Policy Request Semantics
 
 `LiberoModelServerPolicy` sends LIBERO observations to the C++ Policy server
@@ -162,6 +178,16 @@ with these conventions:
   one action per environment step.
 * The action sent to the LIBERO environment uses the first 7 dimensions by
   default.
+
+### Action chunk execution
+
+The server returns a full action chunk (`chunk_size`, e.g. 50) per predict; the
+client's action queue decides how many to execute before re-querying. robot.cpp
+consumes the **whole** chunk, i.e. effectively `n_action_steps = chunk_size`.
+This matches pi0 (native `n_action_steps=50`), but **not** SmolVLA, whose native
+`n_action_steps=1` (closed-loop, re-predict every step) — running SmolVLA
+open-loop at 50 degrades it badly. Use `N_ACTION_STEPS=1` for SmolVLA (the
+wrapper's default) and match it on the baseline (`--policy.n_action_steps=1`).
 
 ## Troubleshooting
 

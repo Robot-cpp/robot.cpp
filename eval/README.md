@@ -199,6 +199,15 @@ If the checkpoint was trained in LeRobot with a `rename_map` (e.g. `front` → `
 - order matches what the model expects;
 - dimension matches the checkpoint’s `observation.state` shape.
 
+**Action execution horizon**
+
+`model-server` returns a full action chunk per predict; the policy's action
+queue ([`base_policy.py`](../robot_client/policy/base_policy.py)) decides how many
+to execute before re-querying. The default consumes the whole chunk (open-loop).
+Closed-loop policies trained to re-predict every step (e.g. SmolVLA,
+`n_action_steps=1`) degrade badly if run open-loop — re-query every step for
+those. See the LIBERO eval's [Action chunk execution](libero/README.md#action-chunk-execution).
+
 ### step6: Launch and verify
 
 1. Start model-server (see [robot_server/README.md](../robot_server/README.md)).
