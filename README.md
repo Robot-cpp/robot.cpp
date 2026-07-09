@@ -181,7 +181,7 @@ This section lists converted GGUF models that can be used directly with `model-s
     <tr>
       <td rowspan="3">SmolVLA</td>
       <td rowspan="3">SO-101</td>
-      <td rowspan="3"><code>smolvla_450m_grasp_50k</code> (local checkpoint)</td>
+      <td rowspan="3">-</td>
       <td>bf16</td>
       <td><a href="https://huggingface.co/rrobottt/smolvla-so101-bf16">smolvla-so101-bf16</a></td>
     </tr>
@@ -202,11 +202,11 @@ This section lists converted GGUF models that can be used directly with `model-s
     </tr>
     <tr>
       <td>f16</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-fp16">smolvla-libero-fp16</a></td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-f16">smolvla-libero-f16</a></td>
     </tr>
     <tr>
       <td>f32</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-fp32">smolvla-libero-fp32</a></td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-f32">smolvla-libero-f32</a></td>
     </tr>
     <tr>
       <td rowspan="3">pi0</td>

@@ -165,7 +165,7 @@ bash robot_client/shell/cpp_client_example.sh
 
 ## 🧩 model-zoo
 
-这里整理一些已经转换好的 GGUF 模型，可以直接配合 `model-server` 做smoke test，以方便quick start！但针对自己的实际场景，我们推荐使用[hf2gguf](tools/hf2gguf/README_ZH.md)l来生成自己的GGUF model！并且对于不同的部分，您还可以自定义不同的精度，来实现不同部分的精度组合（事实上，不同部分的最优精度通常是不同的），我们的例子中，state proj始终保持f32精度，其他的gguf随着precision精度变化而变化，您可以自行组合，探索更好更高效的性能tradeoff！
+这里整理一些已经转换好的 GGUF 模型，可以直接配合 `model-server` 做smoke test，以方便quick start！但针对自己的实际场景，我们推荐使用[hf2gguf](tools/hf2gguf/README_ZH.md)来生成自己的GGUF model！并且对于不同的部分，您还可以自定义不同的精度，来实现不同部分的精度组合（事实上，不同部分的最优精度通常是不同的），我们的例子中，state proj始终保持f32精度，其他的gguf随着precision精度变化而变化，您可以自行组合，探索更好更高效的性能tradeoff！
 
 <table>
   <thead>
@@ -181,7 +181,7 @@ bash robot_client/shell/cpp_client_example.sh
     <tr>
       <td rowspan="3">SmolVLA</td>
       <td rowspan="3">SO-101</td>
-      <td rowspan="3"><code>smolvla_450m_grasp_50k</code>（本地 checkpoint）</td>
+      <td rowspan="3">-</td>
       <td>bf16</td>
       <td><a href="https://huggingface.co/rrobottt/smolvla-so101-bf16">smolvla-so101-bf16</a></td>
     </tr>
@@ -202,11 +202,11 @@ bash robot_client/shell/cpp_client_example.sh
     </tr>
     <tr>
       <td>f16</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-fp16">smolvla-libero-fp16</a></td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-f16">smolvla-libero-f16</a></td>
     </tr>
     <tr>
       <td>f32</td>
-      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-fp32">smolvla-libero-fp32</a></td>
+      <td><a href="https://huggingface.co/rrobottt/smolvla-libero-f32">smolvla-libero-f32</a></td>
     </tr>
     <tr>
       <td rowspan="3">pi0</td>
