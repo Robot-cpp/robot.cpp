@@ -152,11 +152,11 @@ bash robot_client/shell/cpp_client_example.sh
 | Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
 | ---------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
 | smolvla@libero (bf16*) |              527 |                216 |       28 |         116 |   43 |             282 |
-| smolvla@libero (f32)   |              577 |                236 |       32 |         142 |   41 |             299 |
-| smolvla@so-101 (bf16*) |              339 |                145 |       23 |          77 |   35 |             184 |
-| smolvla@so-101 (f32)   |              396 |                158 |       24 |          92 |   33 |             200 |
-| pi0@libero (f32)       |             1839 |                710 |       83 | OOM/offload |   79 |             956 |
-| pi0@libero (bf16*)     |             1954 |                635 |       57 |         267 |   70 |             498 |
+| smolvla@libero (f32)   |              577 |                236 |       32 |         142 |   42 |             299 |
+| smolvla@so-101 (bf16*) |              339 |                145 |       23 |          77 |   36 |             184 |
+| smolvla@so-101 (f32)   |              396 |                158 |       24 |          92 |   34 |             200 |
+| pi0@libero (f32)       |             1839 |                710 |       83 | OOM/offload |   71 |             956 |
+| pi0@libero (bf16*)     |             1954 |                635 |       57 |         267 |   66 |             498 |
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 > `OOM/offload`：pi0@libero (f32) 在 RTX 3060 上会 OOM 并触发 offload，因此暂时不报告 latency 数值。
