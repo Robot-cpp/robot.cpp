@@ -45,8 +45,8 @@ We also provide two tools to support robot model development:
 
 ## 📰 News
 
-* **2025.07.09:** Robot.cpp v0.1.0 was released, providing prebuilt binaries, performance benchmarks, and SO-101 real-robot and LIBERO simulation examples.
-* **2025.05.10:** We open-sourced [**pi0.cpp**](https://github.com/JJJYmmm/pi0.cpp), an early public prototype for lightweight local inference of the π0 robot policy model.
+* **2026.07.09:** Robot.cpp v0.1.0 was released, providing prebuilt binaries, performance benchmarks, and SO-101 real-robot and LIBERO simulation examples.
+* **2026.05.10:** We open-sourced [**pi0.cpp**](https://github.com/JJJYmmm/pi0.cpp), an early public prototype for lightweight local inference of the π0 robot policy model.
 
 ## 🚀 Quick Start
 
