@@ -1,68 +1,72 @@
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
+
 # Robot Client
 
-这个目录提供 vla.cpp `model-server` 的客户端代码。client 只负责把当前 observation 编码为 TCP 请求，发送给 server，并解析返回的 action chunk 与 timing 信息；具体怎么采集机器人观测、怎么下发动作，由上层 platform / policy 完成。
+This directory provides client-side code for the vla.cpp `model-server`. The client is only responsible for encoding the current observation as a TCP request, sending it to the server, and parsing the returned action chunk and timing information. Robot observation collection and action execution are handled by the upper-level platform / policy code.
 
-## 使用说明
+## Usage
 
-### step0：先启动 model-server
+### step0: Start model-server first
 
-所有 client 都要求 vla.cpp server 已经在运行。最常见的地址是：
+All clients require the vla.cpp server to be running. The most common address is:
 
 ```text
 127.0.0.1:5555
 ```
 
-例如可以先在仓库根目录启动：
+For example, from the repository root:
 
 ```bash
 bash robot_server/shell/launch_robot_server_mac_cpu.sh
 ```
 
-如果使用 Windows、CUDA 或不同模型 checkpoint，可以改用 `robot_server/shell/` 下对应脚本。只要 host/port 与 client 配置一致即可。
+If you are using Windows, CUDA, or a different model checkpoint, use the corresponding script under `robot_server/shell/`. The only requirement is that the host/port match the client configuration.
 
-### step1：Python 最小 smoke test
+### step1: Minimal Python smoke test
 
-Python TCP client 位于：
+The Python TCP client is located at:
 
 ```text
 robot_client/python/model_client.py
 ```
 
-它提供：
+It provides:
 
-* `health()`：检查 server 是否可用
-* `reset()`：重置 server 侧缓存
-* `shutdown()`：请求 server 退出
-* `predict(observation)`：发送 observation，返回 action chunk
+* `health()`: check whether the server is available
+* `reset()`: reset server-side cache/state
+* `shutdown()`: ask the server to exit
+* `predict(observation)`: send an observation and return an action chunk
 
-最小 Python 示例位于：
+The minimal Python example is located at:
 
 ```text
 robot_client/examples/python/minimal_example.py
 ```
 
-启动 server 后运行：
+After starting the server, run:
 
 ```bash
 python robot_client/examples/python/minimal_example.py
 ```
 
-也可以用脚本跑一次 benchmark smoke test：
+You can also run a benchmark smoke test through the wrapper script:
 
 ```bash
 export VLA_CPP_ROOT=/path/to/vla.cpp/robot.cpp
 bash robot_client/shell/client_example.sh
 ```
 
-⚠️注意：
+Note:
 
-* `client_example.sh` 依赖 `VLA_CPP_ROOT` 环境变量。
-* `minimal_example.py` 默认连接 `127.0.0.1:5555`。
-* observation 至少需要包含 `images`、`state`、`prompt` 三个字段。
+* `client_example.sh` depends on the `VLA_CPP_ROOT` environment variable.
+* `minimal_example.py` connects to `127.0.0.1:5555` by default.
+* An observation must contain at least `images`, `state`, and `prompt`.
 
-### step2：Python observation 格式
+### step2: Python observation format
 
-Python client 接收的 observation 是一个 dict：
+The Python client accepts an observation as a dict:
 
 ```python
 {
@@ -77,7 +81,7 @@ Python client 接收的 observation 是一个 dict：
 }
 ```
 
-其中图像既可以直接传 `image`，也可以传已经整理好的 raw RGB 字段：
+Images can be passed directly through `image`, or through pre-packed raw RGB fields:
 
 ```python
 {
@@ -89,101 +93,101 @@ Python client 接收的 observation 是一个 dict：
 }
 ```
 
-`model_client.py` 会统一转换为 `RGB / HWC / uint8` 连续 bytes，再按 vla.cpp TCP 协议发送给 server。
+`model_client.py` normalizes the input into contiguous `RGB / HWC / uint8` bytes and sends it to the server using the vla.cpp TCP protocol.
 
-### step3：读取返回结果
+### step3: Read the response
 
-`ModelClient.predict()` 返回 `ModelResponse`：
+`ModelClient.predict()` returns a `ModelResponse`:
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
-| `chunk_size` | server 一次返回的 action 步数 |
-| `action_dim` | 每一步 action 的维度 |
-| `actions_flat` | 一维 action buffer，长度为 `chunk_size * action_dim` |
-| `actions` | 二维 list，形状为 `[chunk_size][action_dim]` |
-| `timings` | server 返回的分段耗时，如 `vision_ms`、`llm_ms`、`model_total_ms` |
+| `chunk_size` | Number of action steps returned by the server in one response |
+| `action_dim` | Dimension of each action step |
+| `actions_flat` | Flat action buffer with length `chunk_size * action_dim` |
+| `actions` | 2D list with shape `[chunk_size][action_dim]` |
+| `timings` | Per-stage timings returned by the server, such as `vision_ms`, `llm_ms`, and `model_total_ms` |
 
-典型用法是把 `response.actions` 放入队列，每次控制循环弹出一行 action：
+A typical usage pattern is to push `response.actions` into a queue and pop one action row per control-loop step:
 
 ```python
 response = client.predict(observation)
 first_action = response.actions[0]
 ```
 
-### step4：真机 policy / sync loop
+### step4: Real-robot policy / sync loop
 
-真机同步闭环使用 `robot_client/policy`：
+The real-robot synchronous control loop uses `robot_client/policy`:
 
 ```text
 robot_client/policy/base_policy.py   # BasePolicy / RobotPolicy
 robot_client/policy/sync_loop.py     # observe -> select_action -> send_action
-robot_client/policy/sim_policy.py    # 仿真评测用 policy helper
+robot_client/policy/sim_policy.py    # Policy helper for simulation evaluation
 ```
 
-其中：
+Where:
 
-* `BasePolicy` 管理 `ModelClient`、action queue、`select_action`
-* `RobotPolicy` 把 platform observation 转成 model-server observation
-* `SyncControlLoop` 串联 platform 与 policy，负责按 FPS 同步执行
-* `SimPolicy` 给 LIBERO 这类仿真评测复用 server 生命周期和 timing 统计
+* `BasePolicy` manages `ModelClient`, the action queue, and `select_action`
+* `RobotPolicy` converts platform observations into model-server observations
+* `SyncControlLoop` connects the platform and policy, and runs them at the target FPS
+* `SimPolicy` reuses the server lifecycle and timing statistics for simulation evaluations such as LIBERO
 
-SO101 真机入口在：
+The SO101 real-robot entry point is:
 
 ```bash
 bash eval/lerobot_so101/script/shell/run_robot_client.sh
 ```
 
-### step5：C++ client
+### step5: C++ client
 
-C++ client 位于：
+The C++ client is located at:
 
 ```text
 robot_client/cpp/model_client.h
 robot_client/cpp/model_client.cpp
 ```
 
-最小 C++ 示例位于：
+The minimal C++ example is located at:
 
 ```text
 robot_client/examples/cpp/minimal_example.cpp
 ```
 
-启动 server 后运行：
+After starting the server, run:
 
 ```bash
 export VLA_CPP_ROOT=/path/to/vla.cpp/robot.cpp
 bash robot_client/shell/cpp_client_example.sh
 ```
 
-可配置变量：
+Configurable variables:
 
-| 变量 | 说明 |
+| Variable | Description |
 | --- | --- |
-| `VLA_CPP_ROOT` | 仓库根目录，脚本必需 |
-| `BUILD_DIR` | CMake build 目录 |
-| `HOST` / `PORT` | model-server 地址 |
-| `BUILD_CLIENT` | 设为 `1` 时强制重新 configure / build C++ 示例 |
-| `CMAKE_BIN` | CMake 可执行文件 |
+| `VLA_CPP_ROOT` | Repository root, required by the script |
+| `BUILD_DIR` | CMake build directory |
+| `HOST` / `PORT` | model-server address |
+| `BUILD_CLIENT` | Set to `1` to force re-configuring / rebuilding the C++ example |
+| `CMAKE_BIN` | CMake executable |
 
-## 当前实现
+## Current Implementation
 
-目录结构如下：
+Directory layout:
 
 ```text
 robot_client/
-├── python/model_client.py              # Python TCP client 与协议编解码
+├── python/model_client.py              # Python TCP client and protocol codec
 ├── cpp/model_client.{h,cpp}            # C++ TCP client
-├── examples/python/minimal_example.py  # Python 最小请求示例
-├── examples/cpp/minimal_example.cpp    # C++ 最小请求示例
-├── shell/client_example.sh             # Python smoke test wrapper
+├── examples/python/minimal_example.py  # Minimal Python request example
+├── examples/cpp/minimal_example.cpp    # Minimal C++ request example
+├── shell/client_example.sh             # Python smoke-test wrapper
 ├── shell/cpp_client_example.sh         # C++ example build/run wrapper
 └── policy/
     ├── base_policy.py                  # BasePolicy / RobotPolicy
-    ├── sim_policy.py                   # 仿真评测 helper
-    └── sync_loop.py                    # 同步控制循环
+    ├── sim_policy.py                   # Simulation evaluation helper
+    └── sync_loop.py                    # Synchronous control loop
 ```
 
-整体调用链可以理解为：
+The overall call chain is:
 
 ```text
 platform.get_observation()
@@ -193,4 +197,4 @@ platform.get_observation()
   -> platform.send_action()
 ```
 
-对于真机，`platform.send_action()` 会把模型输出的向量按 `action_keys` 转成 `{joint_name: value}`；对于仿真，通常直接把 numpy action 传给环境的 `env.step()`。
+For real robots, `platform.send_action()` converts the model output vector into `{joint_name: value}` according to `action_keys`. For simulation, the numpy action is usually passed directly to `env.step()`.

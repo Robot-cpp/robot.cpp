@@ -1,6 +1,11 @@
+<p align="center">
+  <strong>简体中文</strong> | <a href="README.md">English</a>
+</p>
+
 # 相机测试与 RealSense 配置
 
-本目录提供 SO-101 真机部署前的**相机连通性测试**，与 `script/shell/run_robot_client.sh` / `script/bat/run_robot_client.bat` 共用同一套 `so101_env` 配置。
+本目录提供 SO-101 真机部署前的**相机连通性测试**，与 `shell/run_robot_client.*` 共用同一套 `so101_env` 配置。
+>>>>>>>> c2c77c2dbd1e705fd7bf18a7612a6622cbc700b6:eval/lerobot_so101/test/README_ZH.md
 
 
 | 文件                    | 说明                                |
@@ -229,4 +234,8 @@ macOS RealSense 默认参数（`so101_env.sh` 的 `realsense` 分支）：`CAMER
 - [ ] `run_camera_test` 输出 224×224 帧
 - [ ] `MODEL_IMAGE_NAME` 与模型 checkpoint 一致
 
+<<<<<<<< HEAD:eval/lerobot_so101/camera_setup.md
 更多 SO-101 真机流程见 [../README_zh.md](../README_zh.md)。
+========
+更多 SO-101 真机流程见 [../README_ZH.md](../README_ZH.md)。
+>>>>>>>> c2c77c2dbd1e705fd7bf18a7612a6622cbc700b6:eval/lerobot_so101/test/README_ZH.md

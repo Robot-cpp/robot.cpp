@@ -1,3 +1,7 @@
+<p align="center">
+  <a href="HOW_TO_ADD_NEW_SIM_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
+
 # How To Add A New Sim
 
 Use `eval/libero/` as the reference for simulator benchmarks. A sim integration

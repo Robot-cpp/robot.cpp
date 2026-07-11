@@ -1,6 +1,8 @@
-# eval/ Platform Integration Guide
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
 
-[中文](eval/README_zh.md)
+# eval/ Platform Integration Guide
 
 The `eval/` directory holds **end-to-end evaluation and closed-loop control examples** for robot.cpp on specific robots or simulators. This code does not run model inference itself—that is handled by [`model-server`](../robot_server/README.md). `eval/` wires each platform’s observation capture, action execution, and (optionally) benchmark workflows.
 
@@ -27,8 +29,8 @@ eval/
 
 | Directory | Scenario | Notes |
 |---|---|---|
-| [`libero/`](libero/README.md) | Sim eval | LIBERO benchmark with C++ policy rollout and LeRobot baseline. [中文](libero/README_zh.md) |
-| [`lerobot_so101/`](lerobot_so101/README.md) | Real robot | SO-101 follower + single-camera observe → predict → act loop. [中文](lerobot_so101/README_zh.md) |
+| [`libero/`](libero/README.md) | Sim eval | LIBERO benchmark with C++ policy rollout and LeRobot baseline. [中文](libero/README_ZH.md) |
+| [`lerobot_so101/`](lerobot_so101/README.md) | Real robot | SO-101 follower + single-camera observe → predict → act loop. [中文](lerobot_so101/README_ZH.md) |
 
 The two examples are organized slightly differently:
 
@@ -197,6 +199,15 @@ If the checkpoint was trained in LeRobot with a `rename_map` (e.g. `front` → `
 - order matches what the model expects;
 - dimension matches the checkpoint’s `observation.state` shape.
 
+**Action execution horizon**
+
+`model-server` returns a full action chunk per predict; the policy's action
+queue ([`base_policy.py`](../robot_client/policy/base_policy.py)) decides how many
+to execute before re-querying. The default consumes the whole chunk (open-loop).
+Closed-loop policies trained to re-predict every step (e.g. SmolVLA,
+`n_action_steps=1`) degrade badly if run open-loop — re-query every step for
+those. See the LIBERO eval's [Action chunk execution](libero/README.md#action-chunk-execution).
+
 ### step6: Launch and verify
 
 1. Start model-server (see [robot_server/README.md](../robot_server/README.md)).
@@ -224,8 +235,8 @@ LIBERO’s [`ModelServerPolicy`](libero/policy/model_server.py) is an example of
 
 ## Related docs
 
-- [SO-101 real-robot guide](lerobot_so101/README.md) · [中文](lerobot_so101/README_zh.md)
-- [LIBERO sim eval](libero/README.md) · [中文](libero/README_zh.md)
+- [SO-101 real-robot guide](lerobot_so101/README.md) · [中文](lerobot_so101/README_ZH.md)
+- [LIBERO sim eval](libero/README.md) · [中文](libero/README_ZH.md)
 - [robot_server launch and protocol](../robot_server/README.md)
 - [robot_client and policy](../robot_client/README.md)
-- [Adding a new model runtime](../src/readme_zh.md)
+- [Adding a new model runtime](../src/README.md)

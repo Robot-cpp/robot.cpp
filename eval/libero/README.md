@@ -1,6 +1,8 @@
-# LIBERO Eval
+<p align="center">
+  <a href="README_ZH.md">简体中文</a> | <strong>English</strong>
+</p>
 
-[中文文档](README_zh.md)
+# LIBERO Eval
 
 This directory provides LIBERO simulation eval and latency scripts for two
 policy paths:
@@ -47,23 +49,29 @@ If reusing an existing environment, install at least:
 ```bash
 pip install "cmake<4"
 pip install --no-build-isolation "hf-libero>=0.1.3,<0.2.0"
+pip install "lerobot[libero]"
 ```
 
-If the machine has no available EGL device, switch to OSMesa:
+The **LeRobot baseline** (step4) also needs the policy's own extra. The two are
+mutually exclusive (different `transformers`), so install per baseline:
 
 ```bash
-export MUJOCO_GL=osmesa
-export PYOPENGL_PLATFORM=osmesa
+pip install "lerobot[pi]"       # pi0     (transformers fork)
+pip install "lerobot[smolvla]"  # smolvla (transformers>=4.57)
 ```
+
+Rendering: prefer GPU (EGL). If `MUJOCO_GL=egl` cannot find a device, see
+[Troubleshooting](#troubleshooting). OSMesa (`MUJOCO_GL=osmesa`,
+`PYOPENGL_PLATFORM=osmesa`) works but is ~8x slower software rendering.
 
 ### step1: Prepare C++ Policy GGUF
 
 For Pi0, refer to the GGUF checkpoint
-[`rrobottt/pi-libero-bf16`](https://huggingface.co/rrobottt/pi-libero-bf16).
+[`robotcpp/pi-libero-bf16`](https://huggingface.co/robotcpp/pi-libero-bf16).
 The C++ Policy uses converted split GGUF files:
 
 ```bash
-hf download rrobottt/pi-libero-bf16 \
+hf download robotcpp/pi-libero-bf16 \
   --include "*.gguf" \
   --local-dir ckpts/pi-libero-bf16
 ```
@@ -74,6 +82,11 @@ The wrapper defaults to:
 GGUF_DIR=ckpts/pi-libero-bf16
 MODEL=pi-libero-bf16
 ```
+
+For SmolVLA, download `robotcpp/smolvla-libero-bf16` and run with
+`MODEL_TYPE=smolvla` (the wrapper then defaults `GGUF_DIR=ckpts/smolvla-libero-bf16`).
+These repos are private/gated — use an authorized token, and set
+`HF_ENDPOINT=https://hf-mirror.com` on restricted networks.
 
 ### step2: Run LIBERO Eval
 
@@ -90,7 +103,10 @@ Common variables:
 
 | Variable | Description |
 | --- | --- |
+| `MODEL_TYPE` | `pi0` (default) or `smolvla`. |
 | `GGUF_DIR`, `MODEL` | Split GGUF inputs. Defaults to the path and filename prefix from step1. |
+| `SMOLVLA_DTYPE` | SmolVLA GGUF precision (`bf16`/`f32`; state projector stays f32). |
+| `N_ACTION_STEPS` | Actions consumed per predicted chunk before re-querying (open-loop horizon). Default: full chunk (= `chunk_size`, i.e. 50 for pi0); SmolVLA defaults to `1` (closed-loop). See [Action chunk execution](#action-chunk-execution). |
 | `BACKEND` | C++ Policy server preset, matching `robot_server/test/test_server_latency.sh`. Options are `linux-cuda`, `linux-cpu`, `mac-metal`, and `mac-cpu`; default is `linux-cuda`. |
 | `SERVER_BIN` | Custom `model-server` path. By default it is derived from `BACKEND`. |
 | `HOST`, `PORT` | Shared client/server endpoint and must stay in sync. |
@@ -146,6 +162,9 @@ python -m eval.libero.runners.run_lerobot \
 The runner writes `stdout.log`, `stderr.log`, `baseline_run.json`, and
 LeRobot's `eval_info.json` under `eval/results/lerobot-baseline-*`.
 
+For SmolVLA, use [`lerobot/smolvla_libero`](https://huggingface.co/lerobot/smolvla_libero)
+(its inputs match the GGUF).
+
 ## C++ Policy Request Semantics
 
 `LiberoModelServerPolicy` sends LIBERO observations to the C++ Policy server
@@ -160,3 +179,54 @@ with these conventions:
   one action per environment step.
 * The action sent to the LIBERO environment uses the first 7 dimensions by
   default.
+
+### Action chunk execution
+
+The server returns a full action chunk (`chunk_size`, e.g. 50) per predict; the
+client's action queue decides how many to execute before re-querying. robot.cpp
+consumes the **whole** chunk, i.e. effectively `n_action_steps = chunk_size`.
+This matches pi0 (native `n_action_steps=50`), but **not** SmolVLA, whose native
+`n_action_steps=1` (closed-loop, re-predict every step) — running SmolVLA
+open-loop at 50 degrades it badly. Use `N_ACTION_STEPS=1` for SmolVLA (the
+wrapper's default) and match it on the baseline (`--policy.n_action_steps=1`).
+
+## Troubleshooting
+
+These are common setup issues when running the eval on a fresh headless
+machine.
+
+### LIBERO assets are missing (`FileNotFoundError: .../scenes/libero_floor_base_style.xml`)
+
+The `libero` package ships an **empty** `assets/` directory, so its
+`get_assets_path()` returns that empty path and never triggers a download. Fetch
+the mesh/texture assets once into the package directory:
+
+```bash
+ASSETS=$(python -c "import libero, os; print(os.path.join(os.path.dirname(libero.__file__), 'libero', 'assets'))")
+python -c "from huggingface_hub import snapshot_download; snapshot_download('lerobot/libero-assets', repo_type='dataset', local_dir='${ASSETS}')"
+```
+
+`bddl_files` and `init_files` are bundled with the package, so only the assets
+above need downloading. `ensure_libero_config` writes `~/.libero/config.yaml`
+automatically on first run.
+
+### Headless rendering: prefer EGL over OSMesa
+
+On a headless host without `/dev/dri`, `MUJOCO_GL=egl` may fail with
+`Cannot initialize a EGL device display ... PLATFORM_DEVICE extension`. This
+usually means glvnd fell back to Mesa EGL. If the machine has an NVIDIA GPU,
+register the NVIDIA EGL vendor so EGL can enumerate the GPU as a device:
+
+```bash
+sudo tee /usr/share/glvnd/egl_vendor.d/10_nvidia.json >/dev/null <<'EOF'
+{ "file_format_version": "1.0.0", "ICD": { "library_path": "libEGL_nvidia.so.0" } }
+EOF
+# then:
+export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0   # match CUDA_VISIBLE_DEVICES
+```
+
+GPU rendering is roughly an order of magnitude faster than OSMesa software
+rendering (~15 ms/step vs ~120 ms/step in our tests), which matters a lot for
+full-suite rollouts. Only fall back to `MUJOCO_GL=osmesa`
+(`apt-get install -y libosmesa6`, `PYOPENGL_PLATFORM=osmesa`) when no GPU
+rendering is available.

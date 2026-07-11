@@ -25,3 +25,4 @@ checkpoints/
 .vscode/
 
 local_*
+.DS_Store

@@ -107,6 +107,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-dim", type=int, default=8, help="LIBERO state values sent to model-server; no padding is applied")
     parser.add_argument("--env-action-dim", type=int, default=7)
     parser.add_argument("--image-key", action="append")
+    parser.add_argument(
+        "--n-action-steps",
+        type=int,
+        default=None,
+        help="open-loop horizon: consume at most N actions per predicted chunk before re-querying "
+        "(default: full chunk_size; set 1 for closed-loop, e.g. SmolVLA)",
+    )
     parser.add_argument("--libero-config-path", type=Path, default=DEFAULT_LIBERO_CONFIG_PATH)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
@@ -122,6 +129,7 @@ def main() -> int:
         image_keys=image_keys,
         host=args.host,
         port=args.port,
+        n_action_steps=args.n_action_steps,
     )
     envs = None
     close_envs = None

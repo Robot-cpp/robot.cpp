@@ -7,10 +7,13 @@ Run LIBERO eval against an existing model-server binary.
 
 Wrapper configuration:
   CONDA_ENV=robotcpp-libero       optional conda env for the Python eval runner
+  MODEL_TYPE=pi0                  pi0 or smolvla
   BACKEND=linux-cuda              selects linux-cuda / linux-cpu / mac-metal / mac-cpu
   SERVER_BIN=...                  model-server binary; defaults to ${BUILD_DIR}/bin/model-server
   GGUF_DIR=...                    split GGUF checkpoint directory
-  MODEL=...                       split GGUF filename prefix
+  MODEL=...                       split GGUF filename prefix (pi0)
+  SMOLVLA_DTYPE=bf16              smolvla GGUF precision (bf16/f32; state-proj stays f32)
+  N_ACTION_STEPS=...              open-loop horizon (smolvla defaults to 1 = closed-loop)
   HOST=127.0.0.1 PORT=5555        shared client/server endpoint
   SUITE=libero_object             LIBERO suite
   TASK_IDS=0 N_EPISODES=1         rollout selection
@@ -35,13 +38,26 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." >/dev/null 2>&1 && pwd)"
 cd "${REPO_ROOT}"
 
 MODEL_TYPE="${MODEL_TYPE:-pi0}"
-if [[ "${MODEL_TYPE}" != "pi0" ]]; then
-    echo "run_model_server.sh currently supports MODEL_TYPE=pi0 only" >&2
-    exit 2
-fi
-
-GGUF_DIR="${GGUF_DIR:-ckpts/pi-libero-bf16}"
-MODEL="${MODEL:-pi-libero-bf16}"
+case "${MODEL_TYPE}" in
+    pi0)
+        GGUF_DIR="${GGUF_DIR:-ckpts/pi-libero-bf16}"
+        MODEL="${MODEL:-pi-libero-bf16}"
+        ;;
+    smolvla)
+        GGUF_DIR="${GGUF_DIR:-ckpts/smolvla-libero-bf16}"
+        SMOLVLA_DTYPE="${SMOLVLA_DTYPE:-bf16}"
+        # HuggingFaceVLA/smolvla_libero use N_ACTION_STEPS=1
+        N_ACTION_STEPS="${N_ACTION_STEPS:-1}"
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/smolvla-llm-${SMOLVLA_DTYPE}.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-${SMOLVLA_DTYPE}.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-${SMOLVLA_DTYPE}.gguf}"
+        ;;
+    *)
+        echo "run_model_server.sh supports MODEL_TYPE=pi0 or smolvla" >&2
+        exit 2
+        ;;
+esac
 BACKEND="${BACKEND:-linux-cuda}"
 case "${BACKEND}" in
     linux-cuda)
@@ -70,14 +86,26 @@ if [[ -z "${PYOPENGL_PLATFORM:-}" && "${MUJOCO_GL}" == "osmesa" ]]; then
 fi
 ROBOT_CPP_EVAL_CACHE_DIR="${ROBOT_CPP_EVAL_CACHE_DIR:-${TMPDIR:-/tmp}/robot_cpp-eval-cache}"
 
-required_files=(
-    "${GGUF_DIR}/${MODEL}.vit.gguf"
-    "${GGUF_DIR}/${MODEL}.mmproj.gguf"
-    "${GGUF_DIR}/${MODEL}.llm.gguf"
-    "${GGUF_DIR}/${MODEL}.tokenizer.gguf"
-    "${GGUF_DIR}/${MODEL}.state.gguf"
-    "${GGUF_DIR}/${MODEL}.action_decoder.gguf"
-)
+if [[ "${MODEL_TYPE}" == "smolvla" ]]; then
+    required_files=(
+        "${LLM_GGUF}"
+        "${VISION_GGUF}"
+        "${STATE_PROJ_GGUF}"
+        "${ACTION_EXPERT_GGUF}"
+    )
+elif [[ "${MODEL_TYPE}" == "pi0" ]]; then
+    required_files=(
+        "${GGUF_DIR}/${MODEL}.vit.gguf"
+        "${GGUF_DIR}/${MODEL}.mmproj.gguf"
+        "${GGUF_DIR}/${MODEL}.llm.gguf"
+        "${GGUF_DIR}/${MODEL}.tokenizer.gguf"
+        "${GGUF_DIR}/${MODEL}.state.gguf"
+        "${GGUF_DIR}/${MODEL}.action_decoder.gguf"
+    )
+else
+    echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
+    exit 2
+fi
 missing_files=()
 for path in "${required_files[@]}"; do
     if [[ ! -f "${path}" ]]; then
@@ -88,7 +116,11 @@ if (( ${#missing_files[@]} )); then
     echo "missing split GGUF files:" >&2
     printf '  %s\n' "${missing_files[@]}" >&2
     echo "download them first, for example:" >&2
-    echo "  hf download rrobottt/pi-libero-bf16 --include '*.gguf' --local-dir ${GGUF_DIR}" >&2
+    if [[ "${MODEL_TYPE}" == "smolvla" ]]; then
+        echo "  hf download rrobottt/smolvla-libero-bf16 --include '*.gguf' --local-dir ${GGUF_DIR}" >&2
+    else
+        echo "  hf download rrobottt/pi-libero-bf16 --include '*.gguf' --local-dir ${GGUF_DIR}" >&2
+    fi
     exit 2
 fi
 
@@ -158,21 +190,41 @@ fi
 if [[ -n "${OUTPUT:-}" ]]; then
     eval_cmd+=(--output "${OUTPUT}")
 fi
+if [[ -n "${N_ACTION_STEPS:-}" ]]; then
+    eval_cmd+=(--n-action-steps "${N_ACTION_STEPS}")
+fi
 
 eval_cmd+=("$@")
-eval_cmd+=(
-    --server-command
-    "${SERVER_BIN}"
-    --model-type pi0
-    --vit "${GGUF_DIR}/${MODEL}.vit.gguf"
-    --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf"
-    --llm "${GGUF_DIR}/${MODEL}.llm.gguf"
-    --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf"
-    --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf"
-    --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf"
-    "${server_endpoint_args[@]}"
-    --noise-seed "${NOISE_SEED}"
-)
+if [[ "${MODEL_TYPE}" == "smolvla" ]]; then
+    eval_cmd+=(
+        --server-command
+        "${SERVER_BIN}"
+        --model-type smolvla
+        --llm "${LLM_GGUF}"
+        --mmproj "${VISION_GGUF}"
+        --state-proj "${STATE_PROJ_GGUF}"
+        --action-expert "${ACTION_EXPERT_GGUF}"
+        "${server_endpoint_args[@]}"
+        --noise-seed "${NOISE_SEED}"
+    )
+elif [[ "${MODEL_TYPE}" == "pi0" ]]; then
+    eval_cmd+=(
+        --server-command
+        "${SERVER_BIN}"
+        --model-type pi0
+        --vit "${GGUF_DIR}/${MODEL}.vit.gguf"
+        --mmproj "${GGUF_DIR}/${MODEL}.mmproj.gguf"
+        --llm "${GGUF_DIR}/${MODEL}.llm.gguf"
+        --tokenizer "${GGUF_DIR}/${MODEL}.tokenizer.gguf"
+        --state-gguf "${GGUF_DIR}/${MODEL}.state.gguf"
+        --action-decoder "${GGUF_DIR}/${MODEL}.action_decoder.gguf"
+        "${server_endpoint_args[@]}"
+        --noise-seed "${NOISE_SEED}"
+    )
+else
+    echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
+    exit 2
+fi
 
 printf 'Running LIBERO model-server eval:\n  '
 printf '%q ' "${eval_cmd[@]}"
