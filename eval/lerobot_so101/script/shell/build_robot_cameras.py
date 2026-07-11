@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import sys
 
 
@@ -25,18 +26,20 @@ def build() -> dict:
     if driver == "realsense":
         serial = os.environ.get("REALSENSE_SERIAL", "").strip()
         if serial and not serial.startswith("?"):
-            return {
-                key: {
-                    "type": "realsense_crop",
-                    "serial_number_or_name": serial,
-                    "width": _int("CAMERA_WIDTH", 640),
-                    "height": _int("CAMERA_HEIGHT", 480),
-                    "fps": fps,
-                    "resize_width": resize_w,
-                    "resize_height": resize_h,
-                    "warmup_s": warmup_s,
-                }
+            entry: dict = {
+                "type": "realsense_crop",
+                "serial_number_or_name": serial,
+                "resize_width": resize_w,
+                "resize_height": resize_h,
+                "warmup_s": warmup_s,
             }
+            auto = os.environ.get("REALSENSE_AUTO_PROFILE", "").strip().lower()
+            if platform.system() == "Darwin" and auto in ("", "1", "true", "yes"):
+                return {key: entry}
+            entry["width"] = _int("CAMERA_WIDTH", 640)
+            entry["height"] = _int("CAMERA_HEIGHT", 480)
+            entry["fps"] = fps
+            return {key: entry}
         print(
             "[warn] REALSENSE_SERIAL not set. OpenCV index may show SMPTE color bars.",
             file=sys.stderr,

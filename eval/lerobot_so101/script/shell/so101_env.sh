@@ -5,7 +5,9 @@
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROBOT_CPP_ROOT="$(cd "${ROOT}/../.." && pwd)"
 
-export PYTHONPATH="${ROBOT_CPP_ROOT}:${ROOT}:${ROBOT_CPP_ROOT}/robot_client/python:${ROBOT_CPP_ROOT}/robot_client${PYTHONPATH:+:${PYTHONPATH}}"
+# eval.* needs repo root; camera plugin comes from pip install -e (see environment.yaml).
+# Do not add ${ROOT} here — it shadows lerobot_camera_opencv_crop and breaks RealSenseCameraCrop.
+export PYTHONPATH="${ROBOT_CPP_ROOT}:${ROBOT_CPP_ROOT}/robot_client/python:${ROBOT_CPP_ROOT}/robot_client${PYTHONPATH:+:${PYTHONPATH}}"
 
 # --- Robot serial ports ---
 export ROBOT_PORT="${ROBOT_PORT:-?ROBOT_PORT must be set}"
@@ -94,11 +96,15 @@ _verify_python_imports() {
     echo "  Run from ${ROOT}: ./test/run_camera_test.sh" >&2
     exit 1
   fi
+  if ! env -u DYLD_LIBRARY_PATH "${py}" -c "from lerobot_camera_opencv_crop import RealSenseCameraCrop" 2>/dev/null; then
+    echo "[error] RealSenseCameraCrop not found. Install the camera plugin:" >&2
+    echo "  cd ${ROBOT_CPP_ROOT} && pip install -e eval/lerobot_so101/lerobot_camera_opencv_crop" >&2
+    exit 1
+  fi
   if [[ "${CAMERA_DRIVER:-}" == "realsense" && "$(uname -s)" == "Darwin" ]]; then
     if ! env -u DYLD_LIBRARY_PATH "${py}" -c "import pyrealsense2 as rs" 2>/dev/null; then
       echo "[error] pyrealsense2 import failed." >&2
       echo "  Fix: bash ${ROOT}/script/shell/fix_macos_pyrealsense_lib.sh" >&2
-      echo "  Setup: bash ${ROOT}/script/shell/setup_macos_realsense.sh" >&2
       exit 1
     fi
   fi
