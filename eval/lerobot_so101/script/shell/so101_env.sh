@@ -36,7 +36,7 @@ case "${CAMERA_TYPE}" in
     ;;
   realsense)
     export CAMERA_DRIVER="realsense"
-    export REALSENSE_SERIAL="${REALSENSE_SERIAL:-?REALSENSE_SERIAL must be set}"  # 141722072266
+    export REALSENSE_SERIAL="${REALSENSE_SERIAL:-?REALSENSE_SERIAL must be set}"
     export CAMERA_WIDTH=640
     export CAMERA_HEIGHT=480
     export CAMERA_FPS=30
@@ -125,13 +125,13 @@ export ROBOT_CAMERAS="${ROBOT_CAMERAS//$'\n'/}"
 run_python() {
   _verify_python_imports
 
-  if [[ "$(uname -s)" == "Darwin" && "${CAMERA_DRIVER:-}" == "realsense" && "$(id -u)" -ne 0 && "${REALSENSE_SUDO:-1}" != "0" ]]; then
-    echo "[so101] macOS RealSense needs a root shell (sudo python can segfault with conda)." >&2
-    echo "[so101] Run:" >&2
+  if [[ "$(uname -s)" == "Darwin" && "${CAMERA_DRIVER:-}" == "realsense" && "$(id -u)" -ne 0 ]]; then
+    echo "[so101] macOS RealSense: pyrealsense2 cannot access USB as a normal user (No device connected)." >&2
+    echo "[so101] Do NOT use 'sudo bash ...' — enter a root shell instead:" >&2
     echo "  sudo -s" >&2
     echo "  source \"\$(conda info --base)/etc/profile.d/conda.sh\" && conda activate lerobot-demo" >&2
     echo "  cd \"${ROOT}\"" >&2
-    echo "  export REALSENSE_SUDO=0 CAMERA_TYPE=realsense REALSENSE_SERIAL=${REALSENSE_SERIAL}" >&2
+    echo "  export CAMERA_TYPE=realsense REALSENSE_SERIAL=${REALSENSE_SERIAL}" >&2
     echo "  FRAMES=5 ./test/run_camera_test.sh --preview" >&2
     exit 1
   fi

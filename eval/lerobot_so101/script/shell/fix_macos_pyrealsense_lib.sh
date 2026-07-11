@@ -8,13 +8,40 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# shellcheck source=so101_env.sh
-source "${ROOT}/script/shell/so101_env.sh"
 
-PY="$(_realsense_python)"
-PY_DYLIBS="$("${PY}" -c 'import pathlib; print(pathlib.Path(__import__("pyrealsense2").__file__).resolve().parent / ".dylibs")' 2>/dev/null || true)"
-if [[ -z "${PY_DYLIBS}" || ! -d "${PY_DYLIBS}" ]]; then
-  echo "[error] pyrealsense2 not installed. Run: pip install -r ${ROOT}/requirements-macos-realsense.txt" >&2
+if [[ -n "${CONDA_PREFIX:-}" && -x "${CONDA_PREFIX}/bin/python" ]]; then
+  PY="${CONDA_PREFIX}/bin/python"
+elif command -v python >/dev/null 2>&1; then
+  PY="$(command -v python)"
+else
+  echo "[error] python not found; activate conda env first (e.g. conda activate lerobot-demo)" >&2
+  exit 1
+fi
+
+_pkg_dir() {
+  "${PY}" -c '
+import importlib.util
+spec = importlib.util.find_spec("pyrealsense2")
+if spec is None or not spec.submodule_search_locations:
+    raise SystemExit(1)
+print(spec.submodule_search_locations[0])
+' 2>/dev/null || true
+}
+
+PY_PKG="$(_pkg_dir)"
+if [[ -z "${PY_PKG}" || ! -d "${PY_PKG}" ]]; then
+  echo "[error] pyrealsense2 not installed." >&2
+  echo "  Run: pip install -r ${ROOT}/requirements-macos-realsense.txt" >&2
+  exit 1
+fi
+
+PY_DYLIBS="${PY_PKG}/.dylibs"
+if [[ ! -d "${PY_DYLIBS}" ]]; then
+  echo "[error] pyrealsense2 install is incomplete (missing ${PY_DYLIBS})." >&2
+  echo "  Common cause: partial install or root-owned files under site-packages/pyrealsense2." >&2
+  echo "  Fix:" >&2
+  echo "    sudo chown -R \"\$(whoami)\" \"${PY_PKG}\"" >&2
+  echo "    pip install --force-reinstall --no-cache-dir -r ${ROOT}/requirements-macos-realsense.txt" >&2
   exit 1
 fi
 
@@ -44,7 +71,9 @@ fi
 
 if ! env -u DYLD_LIBRARY_PATH "${PY}" -c "import pyrealsense2 as rs; print('[fix] pyrealsense2 import ok')" 2>/dev/null; then
   echo "[error] pyrealsense2 still fails to import after restore." >&2
-  echo "  Try: pip install --force-reinstall -r ${ROOT}/requirements-macos-realsense.txt" >&2
+  echo "  Try:" >&2
+  echo "    sudo chown -R \"\$(whoami)\" \"${PY_PKG}\"" >&2
+  echo "    pip install --force-reinstall --no-cache-dir -r ${ROOT}/requirements-macos-realsense.txt" >&2
   exit 1
 fi
 
