@@ -73,6 +73,9 @@ def load_robot_cameras_json(*, robot_cameras: str | None, cameras_json: Path | N
         return robot_cameras
     if cameras_json is not None:
         return cameras_json.read_text()
+    env_json = os.environ.get("ROBOT_CAMERAS", "").strip()
+    if env_json:
+        return env_json
     return DEFAULT_ROBOT_CAMERAS
 
 

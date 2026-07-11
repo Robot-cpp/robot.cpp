@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: lerobot_camera_opencv_crop
-Version: 0.1.0
-Summary: LeRobot camera plugin: OpenCV capture with center-crop + resize
-Requires-Python: >=3.12
-Requires-Dist: opencv-python<4.14.0,>=4.9.0

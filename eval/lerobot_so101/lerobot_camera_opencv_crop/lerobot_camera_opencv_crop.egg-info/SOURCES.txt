@@ -1,9 +1,0 @@
-pyproject.toml
-lerobot_camera_opencv_crop/__init__.py
-lerobot_camera_opencv_crop/camera.py
-lerobot_camera_opencv_crop/config.py
-lerobot_camera_opencv_crop.egg-info/PKG-INFO
-lerobot_camera_opencv_crop.egg-info/SOURCES.txt
-lerobot_camera_opencv_crop.egg-info/dependency_links.txt
-lerobot_camera_opencv_crop.egg-info/requires.txt
-lerobot_camera_opencv_crop.egg-info/top_level.txt
