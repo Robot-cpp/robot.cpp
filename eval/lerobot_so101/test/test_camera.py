@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-import lerobot_camera_opencv_crop  # noqa: F401  # register opencv_crop CameraConfig subclass
+import lerobot_camera_opencv_crop  # noqa: F401  # register opencv_crop + realsense_crop
 import numpy as np
 from lerobot.cameras.configs import Cv2Backends
 from lerobot.cameras.utils import make_cameras_from_configs
@@ -27,7 +27,7 @@ from lerobot.utils.import_utils import register_third_party_plugins
 from eval.lerobot_so101.utils.robot import build_camera_config
 from robot_client.python.model_client import image_to_rgb_hwc_u8_bytes, state_to_list
 
-# Default matches shell/run_robot_client.sh (camera1 + warmup_s).
+# Default matches script/shell/run_robot_client.sh (camera1 + warmup_s).
 DEFAULT_ROBOT_CAMERAS = (
     '{"camera1":{"type":"opencv_crop","index_or_path":0,"width":1280,"height":720,'
     '"fps":30,"backend":"AVFOUNDATION","resize_width":224,"resize_height":224,'

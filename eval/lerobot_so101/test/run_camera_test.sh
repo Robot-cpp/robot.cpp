@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Camera-only smoke test; same defaults as shell/run_robot_client.sh.
+# Camera-only smoke test; same defaults as script/shell/run_robot_client.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${ROOT}/shell/so101_env.sh"
+source "${ROOT}/script/shell/so101_env.sh"
 
 FRAMES="${FRAMES:-0}"
 PREVIEW="${PREVIEW:-1}"
@@ -14,13 +14,21 @@ ARGS=(
   --frames "${FRAMES}"
 )
 
-if [[ -n "${CAMERA_INDEX}" ]]; then
+if [[ -n "${CAMERA_INDEX:-}" ]]; then
   ARGS+=(--camera-index "${CAMERA_INDEX}")
 fi
 
 case "${1:-}" in
+  --check)
+    bash "${ROOT}/script/shell/check_realsense_env.sh"
+    exit $?
+    ;;
   --list-cameras|--probe)
     PREVIEW=0
+    ;;
+  --no-preview)
+    PREVIEW=0
+    shift
     ;;
 esac
 
@@ -31,7 +39,7 @@ else
 fi
 
 if [[ -n "${ROBOT_CAMERAS:-}" ]]; then
-  echo "[camera-test] camera_key=${CAMERA_KEY} index=${CAMERA_INDEX} preview=${PREVIEW} frames=${FRAMES}"
+  echo "[camera-test] type=${CAMERA_TYPE} driver=${CAMERA_DRIVER} camera_key=${CAMERA_KEY} preview=${PREVIEW} frames=${FRAMES}"
   ARGS+=(--robot-cameras "${ROBOT_CAMERAS}")
 else
   case "${1:-}" in

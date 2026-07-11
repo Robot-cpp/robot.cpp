@@ -24,7 +24,7 @@ def build() -> dict:
 
     if driver == "realsense":
         serial = os.environ.get("REALSENSE_SERIAL", "").strip()
-        if serial:
+        if serial and not serial.startswith("?"):
             return {
                 key: {
                     "type": "realsense_crop",
@@ -48,17 +48,21 @@ def build() -> dict:
 
     index_raw = os.environ.get("CAMERA_INDEX", "0")
     index_or_path: int | str = int(index_raw) if index_raw.isdigit() else index_raw
-    return {
-        key: {
-            "type": "opencv_crop",
-            "index_or_path": index_or_path,
-            "fps": fps,
-            "backend": os.environ.get("CAMERA_BACKEND", "DSHOW"),
-            "resize_width": resize_w,
-            "resize_height": resize_h,
-            "warmup_s": warmup_s,
-        }
+    cfg: dict = {
+        "type": "opencv_crop",
+        "index_or_path": index_or_path,
+        "fps": fps,
+        "backend": os.environ.get("CAMERA_BACKEND", "DSHOW"),
+        "resize_width": resize_w,
+        "resize_height": resize_h,
+        "warmup_s": warmup_s,
     }
+    width = os.environ.get("CAMERA_WIDTH")
+    height = os.environ.get("CAMERA_HEIGHT")
+    if width and height:
+        cfg["width"] = int(width)
+        cfg["height"] = int(height)
+    return {key: cfg}
 
 
 def main() -> int:

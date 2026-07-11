@@ -1,0 +1,3 @@
+# macOS arm64 only. Install after: conda env create -f eval/lerobot_so101/environment.yaml
+# 2.56.x has been observed to segfault on stream start; 2.54.2 is the tested pin.
+pyrealsense2-macosx==2.54.2

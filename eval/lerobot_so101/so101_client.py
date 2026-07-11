@@ -33,11 +33,11 @@ def config_from_env() -> SO101ClientConfig:
     robot_cameras = os.environ.get("ROBOT_CAMERAS")
     task = os.environ.get("TASK")
     if not robot_port:
-        raise SystemExit("ROBOT_PORT is not set (source shell/so101_env.sh first)")
+        raise SystemExit("ROBOT_PORT is not set (source script/shell/so101_env.sh first)")
     if not robot_cameras:
-        raise SystemExit("ROBOT_CAMERAS is not set (source shell/so101_env.sh first)")
+        raise SystemExit("ROBOT_CAMERAS is not set (source script/shell/so101_env.sh first)")
     if not task:
-        raise SystemExit("TASK is not set (source shell/so101_env.sh first)")
+        raise SystemExit("TASK is not set (source script/shell/so101_env.sh first)")
 
     use_degrees_raw = os.environ.get("ROBOT_USE_DEGREES")
     use_degrees = use_degrees_raw.lower() not in ("false", "0", "no") if use_degrees_raw else True

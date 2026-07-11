@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 for %%I in ("%~dp0..") do set "TEST_ROOT=%%~fI"
-call "%TEST_ROOT%\shell\so101_env.bat"
+call "%TEST_ROOT%\script\bat\so101_env.bat"
 if errorlevel 1 exit /b 1
 
 if not defined FRAMES set "FRAMES=30"
@@ -10,12 +10,12 @@ rem lerobot-demo ships opencv-python-headless (no GUI). Default to no preview on
 if not defined PREVIEW set "PREVIEW=0"
 
 if /I "%~1"=="--list-cameras" (
-    "%PYTHON%" "%TEST_ROOT%\test\test_camera.py" --list-cameras %*
+    python "%TEST_ROOT%\test\test_camera.py" --list-cameras %*
     exit /b !ERRORLEVEL!
 )
 
 if /I "%~1"=="--probe" (
-    "%PYTHON%" "%TEST_ROOT%\test\test_camera.py" --probe --camera-key "!CAMERA_KEY!" --robot-cameras "!ROBOT_CAMERAS!" %*
+    python "%TEST_ROOT%\test\test_camera.py" --probe --camera-key "!CAMERA_KEY!" --robot-cameras "!ROBOT_CAMERAS!" %*
     exit /b !ERRORLEVEL!
 )
 
@@ -27,5 +27,5 @@ if "!PREVIEW!"=="0" (
     set "PREVIEW_FLAG=--preview"
 )
 
-"%PYTHON%" "%TEST_ROOT%\test\test_camera.py" --camera-key "!CAMERA_KEY!" --camera-index "!CAMERA_INDEX!" --frames !FRAMES! !PREVIEW_FLAG! --robot-cameras "!ROBOT_CAMERAS!" %*
+python "%TEST_ROOT%\test\test_camera.py" --camera-key "!CAMERA_KEY!" --camera-index "!CAMERA_INDEX!" --frames !FRAMES! !PREVIEW_FLAG! --robot-cameras "!ROBOT_CAMERAS!" %*
 exit /b !ERRORLEVEL!

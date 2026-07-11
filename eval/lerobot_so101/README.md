@@ -38,7 +38,7 @@ Notes:
 All real-robot scripts load:
 
 ```bash
-eval/lerobot_so101/shell/so101_env.sh
+eval/lerobot_so101/script/shell/so101_env.sh
 ```
 
 Edit serial ports, camera settings, and inference parameters in that file for
@@ -85,15 +85,15 @@ If the follower or leader has not been calibrated yet:
 
 ```bash
 cd eval/lerobot_so101
-./shell/calibrate_follower.sh
-./shell/calibrate_leader.sh
+./script/shell/calibrate_follower.sh
+./script/shell/calibrate_leader.sh
 ```
 
 After calibration, teleoperation is a good sanity check:
 
 ```bash
 cd eval/lerobot_so101
-./shell/teleoperate.sh
+./script/shell/teleoperate.sh
 ```
 
 ### step2: Start model-server
@@ -112,7 +112,13 @@ For Windows or CUDA, use the matching script under `robot_server/shell/`.
 After model-server is up, run in another terminal:
 
 ```bash
-bash eval/lerobot_so101/shell/run_robot_client.sh
+bash eval/lerobot_so101/script/shell/run_robot_client.sh
+```
+
+Windows:
+
+```bat
+eval\lerobot_so101\script\bat\run_robot_client.bat
 ```
 
 This script sources `so101_env.sh` and runs `run_sync.py`.
@@ -141,11 +147,16 @@ eval/lerobot_so101/
 ├── environment.yaml            # conda env definition (lerobot-demo)
 ├── run_sync.py                 # real-robot entry: ModelClient + RobotPolicy + Platform + SyncControlLoop
 ├── so101_client.py             # SO101Platform: connect / get_observation / send_action / reset_home
-├── shell/so101_env.sh          # serial ports, camera, server, task, fps, etc.
-├── shell/run_robot_client.sh   # one-command sync loop launcher
-├── shell/calibrate_*.sh        # LeRobot calibration scripts
-├── shell/teleoperate.sh        # LeRobot teleop script
-├── shell/record_dataset.sh     # LeRobot dataset recording script
+├── script/shell/so101_env.sh          # serial ports, camera, server, task, fps (Linux/macOS)
+├── script/bat/so101_env.bat           # Windows env (aligned with so101_env.sh)
+├── script/shell/run_robot_client.sh   # one-command sync loop launcher
+├── script/bat/run_robot_client.bat
+├── script/shell/calibrate_*.sh        # LeRobot calibration scripts
+├── script/bat/calibrate_*.bat
+├── script/shell/teleoperate.sh        # LeRobot teleop script
+├── script/bat/teleoperate.bat
+├── script/shell/record_dataset.sh     # LeRobot dataset recording script
+├── script/bat/record_dataset.bat
 ├── test/run_camera_test.sh     # camera smoke test
 ├── test/test_camera.py         # camera and observation encoding checks
 ├── utils/robot.py              # camera JSON config and home pose helpers

@@ -9,5 +9,5 @@ echo [robot_sync] robot_port=!ROBOT_PORT! teleop_port=!TELEOP_PORT! camera_key=!
 echo [robot_sync] Start model-server first, e.g.:
 echo   robot_server\shell\launch_robot_server_windows_cuda.bat
 
-"%PYTHON%" "%ROBOT_CPP_ROOT%\eval\lerobot_so101\run_sync.py"
+python "%ROBOT_CPP_ROOT%\eval\lerobot_so101\run_sync.py"
 exit /b !ERRORLEVEL!

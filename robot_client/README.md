@@ -130,7 +130,7 @@ robot_client/policy/sim_policy.py    # 仿真评测用 policy helper
 SO101 真机入口在：
 
 ```bash
-bash eval/lerobot_so101/shell/run_robot_client.sh
+bash eval/lerobot_so101/script/shell/run_robot_client.sh
 ```
 
 ### step5：C++ client

@@ -1,8 +1,6 @@
 # 相机测试与 RealSense 配置
 
-[English](README.md)
-
-本目录提供 SO-101 真机部署前的**相机连通性测试**，与 `shell/run_robot_client.*` 共用同一套 `so101_env` 配置。
+本目录提供 SO-101 真机部署前的**相机连通性测试**，与 `script/shell/run_robot_client.sh` / `script/bat/run_robot_client.bat` 共用同一套 `so101_env` 配置。
 
 
 | 文件                    | 说明                                |
@@ -66,7 +64,7 @@ python -m lerobot.scripts.lerobot_find_cameras realsense
 
 ### 4. 配置环境变量
 
-**Windows** 可编辑 `eval/lerobot_so101/shell/so101_env.bat`，或在当前终端临时设置：
+**Windows** 可编辑 `eval/lerobot_so101/script/bat/so101_env.bat`，或在当前终端临时设置：
 
 ```bat
 set REALSENSE_SERIAL=你的序列号
@@ -91,7 +89,7 @@ set CAMERA_RESIZE_HEIGHT=224
 | `CAMERA_RESIZE_WIDTH` / `CAMERA_RESIZE_HEIGHT` | 送入模型前的尺寸，默认 `224×224`                                      |
 
 
-Windows 下 `so101_env.bat` 会通过 `shell/build_robot_cameras.py` 自动生成 `ROBOT_CAMERAS` JSON。若 PowerShell 会话里残留了错误的 `ROBOT_CAMERAS`，先清除再跑脚本：
+Windows 下 `so101_env.bat` 会通过 `script/shell/build_robot_cameras.py` 自动生成 `ROBOT_CAMERAS` JSON。若 PowerShell 会话里残留了错误的 `ROBOT_CAMERAS`，先清除再跑脚本：
 
 ```powershell
 Remove-Item Env:ROBOT_CAMERAS -ErrorAction SilentlyContinue
@@ -162,7 +160,7 @@ cmd /c robot_server\shell\launch_robot_server_windows_cuda.bat
 
 rem 终端 2：真机同步控制
 cd eval\lerobot_so101
-shell\run_robot_client.bat
+script\bat\run_robot_client.bat
 ```
 
 成功连接相机时会看到：
@@ -190,27 +188,35 @@ RealSenseCamera(序列号) connected.
 
 ## Linux / macOS 使用 RealSense
 
-当前 `shell/so101_env.sh` 默认仍为 `opencv_crop`。使用 RealSense 时可手动 export：
+编辑 `script/shell/so101_env.sh` 中 `CAMERA_TYPE=realsense` 和 `REALSENSE_SERIAL`，然后：
 
 ```bash
-export CAMERA_DRIVER=realsense
-export REALSENSE_SERIAL=你的序列号
-export CAMERA_WIDTH=640
-export CAMERA_HEIGHT=480
-
-# 或直接设置完整 JSON：
-export ROBOT_CAMERAS='{"camera1":{"type":"realsense_crop","serial_number_or_name":"你的序列号","width":640,"height":480,"fps":30,"resize_width":224,"resize_height":224,"warmup_s":5}}'
-
 cd eval/lerobot_so101
-./test/run_camera_test.sh --no-preview
+./test/run_camera_test.sh --check          # 环境预检
+./script/shell/find_realsense.sh                  # 查序列号
+FRAMES=5 ./test/run_camera_test.sh --no-preview
 ```
 
-也可在仓库根目录用 Python 生成 JSON（与 Windows `build_robot_cameras.py` 相同逻辑）：
+### macOS（D435）额外步骤
+
+`environment.yaml` 里的 `intelrealsense` 在 macOS 上不可靠，需单独安装：
 
 ```bash
-export CAMERA_DRIVER=realsense REALSENSE_SERIAL=你的序列号
-python eval/lerobot_so101/shell/build_robot_cameras.py
+conda activate lerobot-demo
+bash eval/lerobot_so101/script/shell/setup_macos_realsense.sh
 ```
+
+macOS 上 `pyrealsense2` 访问 USB **必须在 root shell**（不要用 `sudo python`，conda 下会 segfault）：
+
+```bash
+sudo -s
+source "$(conda info --base)/etc/profile.d/conda.sh" && conda activate lerobot-demo
+cd eval/lerobot_so101
+export REALSENSE_SUDO=0 CAMERA_TYPE=realsense REALSENSE_SERIAL=你的序列号
+FRAMES=5 ./test/run_camera_test.sh --preview
+```
+
+macOS RealSense 默认参数（`so101_env.sh` 的 `realsense` 分支）：`CAMERA_WARMUP_S=15`，`REALSENSE_AUTO_PROFILE=1`。
 
 ---
 
@@ -218,7 +224,7 @@ python eval/lerobot_so101/shell/build_robot_cameras.py
 
 - [ ] `conda activate lerobot-demo`
 - [ ] `import pyrealsense2` 成功
-- [ ] `lerobot_find_cameras realsense` 能看到设备
+- [ ] macOS：`setup_macos_realsense.sh` + root shell 下 `run_camera_test --preview`
 - [ ] `REALSENSE_SERIAL` 已设置
 - [ ] `run_camera_test` 输出 224×224 帧
 - [ ] `MODEL_IMAGE_NAME` 与模型 checkpoint 一致

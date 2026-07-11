@@ -34,7 +34,7 @@ conda activate lerobot-demo
 所有真机脚本都会先加载：
 
 ```bash
-eval/lerobot_so101/shell/so101_env.sh
+eval/lerobot_so101/script/shell/so101_env.sh
 ```
 
 因此，首先需要根据自己的机器修改这个文件里的串口、相机和推理参数：
@@ -79,15 +79,15 @@ export CAMERA_INDEX=1
 
 ```bash
 cd eval/lerobot_so101
-./shell/calibrate_follower.sh
-./shell/calibrate_leader.sh
+./script/shell/calibrate_follower.sh
+./script/shell/calibrate_leader.sh
 ```
 
 建议校准后启动遥操，确认正确性：
 
 ```bash
 cd eval/lerobot_so101
-./shell/teleoperate.sh
+./script/shell/teleoperate.sh
 ```
 
 ### step2：启动 model-server
@@ -105,7 +105,13 @@ Windows / CUDA 的启动可以换成 `robot_server/shell/` 下对应的脚本。
 model-server 启动后，在另一个终端运行：
 
 ```bash
-bash eval/lerobot_so101/shell/run_robot_client.sh
+bash eval/lerobot_so101/script/shell/run_robot_client.sh
+```
+
+Windows:
+
+```bat
+eval\lerobot_so101\script\bat\run_robot_client.bat
 ```
 
 这个脚本会加载 `so101_env.sh`，然后运行 `run_sync.py` ：
@@ -115,7 +121,7 @@ bash eval/lerobot_so101/shell/run_robot_client.sh
 - `R`：清空 action queue，机械臂移动回启动时记录的 home pose
 - `Q`：退出同步控制循环
 
-如果相机出现错误，可以使用如下方法进行测试（RealSense 配置详见 [test/README_zh.md](test/README_zh.md)）：
+如果相机出现错误，可以使用如下方法进行测试（RealSense 配置详见 [test/camera_setup.md](test/camera_setup.md)）：
 
 ```bash
 cd eval/lerobot_so101
@@ -133,11 +139,16 @@ eval/lerobot_so101/
 ├── environment.yaml            # conda 环境定义（lerobot-demo）
 ├── run_sync.py                 # 真机入口：ModelClient + RobotPolicy + Platform + SyncControlLoop
 ├── so101_client.py             # SO101Platform，负责 connect / get_observation / send_action / reset_home
-├── shell/so101_env.sh          # 串口、相机、server、task、fps 等运行配置
-├── shell/run_robot_client.sh   # 一键启动真机同步闭环
-├── shell/calibrate_*.sh        # LeRobot 校准脚本
-├── shell/teleoperate.sh        # LeRobot 遥操脚本
-├── shell/record_dataset.sh     # LeRobot 数据录制脚本
+├── script/shell/so101_env.sh          # 串口、相机、server、task、fps 等运行配置（Linux/macOS）
+├── script/bat/so101_env.bat           # Windows 环境配置（与 so101_env.sh 对齐）
+├── script/shell/run_robot_client.sh   # 一键启动真机同步闭环
+├── script/bat/run_robot_client.bat
+├── script/shell/calibrate_*.sh        # LeRobot 校准脚本
+├── script/bat/calibrate_*.bat
+├── script/shell/teleoperate.sh        # LeRobot 遥操脚本
+├── script/bat/teleoperate.bat
+├── script/shell/record_dataset.sh     # LeRobot 数据录制脚本
+├── script/bat/record_dataset.bat
 ├── test/run_camera_test.sh     # 相机 smoke test
 ├── test/test_camera.py         # 相机与 observation 编码检查
 ├── utils/robot.py              # 相机 JSON 配置与 home pose 提取
