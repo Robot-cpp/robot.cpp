@@ -82,7 +82,7 @@ python -m lerobot.scripts.lerobot_find_cameras realsense
 sudo rs-enumerate-devices -s
 ```
 
-记下输出中的 **Serial Number**（例如 `141722072266`）。不要用 Asic Serial Number 或 Firmware Update Id。
+记下输出中的 **Serial Number**（例如 `1417220722`**）。
 
 ### Step 3. 写入配置
 
@@ -90,7 +90,7 @@ sudo rs-enumerate-devices -s
 
 ```bash
 export CAMERA_TYPE=realsense
-export REALSENSE_SERIAL=141722072266
+export REALSENSE_SERIAL="你的序列号"
 unset ROBOT_CAMERAS   # 改相机配置后建议清除缓存
 ```
 
@@ -124,12 +124,9 @@ $env:REALSENSE_SERIAL = "你的序列号"
 macOS RealSense 须在 **root shell**（`sudo -s`）中运行，不要用 `sudo bash`。
 
 ```bash
-cd eval/lerobot_so101
+conda activate lerobot-demo
 unset ROBOT_CAMERAS
-export CAMERA_TYPE=realsense
-export REALSENSE_SERIAL=你的序列号
-export REALSENSE_AUTO_PROFILE=1
-./test/run_camera_test.sh --preview
+bash eval/lerobot_so101/test/run_camera_test.sh --preview
 ```
 
 期望输出类似：

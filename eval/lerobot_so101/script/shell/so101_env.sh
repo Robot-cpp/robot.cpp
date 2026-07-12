@@ -42,7 +42,7 @@ case "${CAMERA_TYPE}" in
     export CAMERA_FPS=30
     if [[ "$(uname -s)" == "Darwin" ]]; then
       export CAMERA_WARMUP_S=15
-      export REALSENSE_AUTO_PROFILE=1
+      export REALSENSE_AUTO_PROFILE=0
     else
       export CAMERA_BACKEND="DSHOW"
       export CAMERA_WARMUP_S=5
