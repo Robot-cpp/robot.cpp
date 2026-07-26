@@ -142,6 +142,8 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### 🦾 model-server在真机平台上的使用（以SO-101为例）
 
+分步视频教程：[在 SO-101 上部署 Robot.cpp](https://www.bilibili.com/video/BV1iHKE6aEto/)。
+
 详见 [SO101部署说明](eval/lerobot_so101/README_ZH.md)。
 
 ---

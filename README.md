@@ -142,6 +142,8 @@ See the [LIBERO simulation evaluation guide](eval/libero/README.md).
 
 ### 🦾 Using model-server on real hardware, using SO-101 as the example
 
+Step-by-step video tutorial: [Deploy Robot.cpp on SO-101](https://www.bilibili.com/video/BV1iHKE6aEto/).
+
 See the [SO-101 deployment guide](eval/lerobot_so101/README.md).
 
 ---
