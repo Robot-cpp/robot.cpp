@@ -208,10 +208,18 @@ endif()
 if(BUILD_TESTING)
     find_package(Python3 COMPONENTS Interpreter QUIET)
 
-    add_executable(robotcpp-model-type-test tests/starvla/model_type_test.cpp)
+    add_executable(robotcpp-model-type-test tests/model_type_test.cpp)
     target_link_libraries(robotcpp-model-type-test PRIVATE robotcpp)
     target_compile_features(robotcpp-model-type-test PRIVATE cxx_std_17)
     add_test(NAME robotcpp-model-type-test COMMAND robotcpp-model-type-test)
+
+    foreach(model_name IN ITEMS smolvla pi0)
+        add_executable(robotcpp-${model_name}-model-test
+            tests/${model_name}/model_test.cpp)
+        target_link_libraries(robotcpp-${model_name}-model-test PRIVATE robotcpp)
+        add_test(NAME robotcpp-${model_name}-model-test
+            COMMAND robotcpp-${model_name}-model-test)
+    endforeach()
 
     if(ROBOT_CPP_BUILD_STARVLA)
     foreach(test_name IN ITEMS oft_prompt groot_prompt oft_image_preprocess qwen_vl_profile fast_runtime)
@@ -233,14 +241,6 @@ if(BUILD_TESTING)
     add_test(NAME robotcpp-starvla-fast-codec-test
         COMMAND robotcpp-starvla-fast-codec-test)
 
-    add_executable(starvla-action tests/starvla/action_test.cpp)
-    set_target_properties(starvla-action PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-    target_include_directories(starvla-action PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${ROBOT_CPP_LLAMA_INCLUDE_DIRS})
-    target_link_libraries(starvla-action PRIVATE starvla_runtime)
-    target_compile_features(starvla-action PRIVATE cxx_std_17)
     endif()
 endif()
 

@@ -185,15 +185,10 @@ Select the normalization profile once at startup with `--unnorm-key`.
 
 ## Compare actions
 
-`compare_starvla_actions.py` compares a local Python `.pt` result with the C++
-output. For diffusion policies, pass the saved initial noise to
-`starvla-action`:
+`compare_starvla_actions.py` compares a local Python `.pt` result with C++
+actions saved as JSON:
 
 ```bash
-build_cuda/bin/starvla-action \
-  --policy policy.gguf --image image.png --task "grab the block." \
-  --initial-noise initial_noise.f32 > response.json
-
 uv run python tools/hf2gguf/starvla/compare_starvla_actions.py \
   --reference golden.json \
   --candidate response.json
