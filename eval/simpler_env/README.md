@@ -19,6 +19,8 @@ not used as the local conversion reference.
   ensemble.
 - Identical task, episode, seed, prompt, image, action postprocessing, and
   termination contract on both backends.
+- Diffusion variants receive the same BF16-rounded initial noise for every
+  episode and policy step through protocol v4.
 
 The paired profile contains 96 rollouts per backend: 4 tasks x 24 object
 episodes. A subset is marked `partial`. Bridge success rate has no implicit

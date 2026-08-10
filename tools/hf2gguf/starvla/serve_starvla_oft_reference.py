@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve a pinned official StarVLA OFT checkpoint over robot.cpp protocol v3.
+"""Serve a pinned official StarVLA OFT checkpoint over robot.cpp protocol v4.
 
 This process is the Python-reference backend for closed-loop parity evaluation.
 It deliberately shares the robot.cpp client protocol and SimplerEnv adapter, so
@@ -20,9 +20,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 import numpy as np
 
@@ -125,12 +126,62 @@ class PredictRequest:
     images: tuple[WireImage, ...]
     state: tuple[float, ...]
     task: str
+    initial_noise: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
 class PredictResult:
     actions: np.ndarray
     metrics: Mapping[str, float]
+
+
+@contextmanager
+def explicit_torch_initial_noise(
+    torch: Any, values: Sequence[float], expected_shape: tuple[int, ...]
+) -> Iterator[None]:
+    noise = np.asarray(values, dtype=np.float32)
+    if noise.size != math.prod(expected_shape) or not np.isfinite(noise).all():
+        raise ProtocolError(
+            f"initial_noise must contain {math.prod(expected_shape)} finite values"
+        )
+    noise = noise.reshape(expected_shape)
+    original_randn = torch.randn
+    matching_calls = 0
+
+    def explicit_randn(*shape: Any, **kwargs: Any) -> Any:
+        nonlocal matching_calls
+        size = kwargs.pop("size", None)
+        if size is not None and shape:
+            return original_randn(*shape, size=size, **kwargs)
+        requested_shape = size
+        if requested_shape is None:
+            requested_shape = shape[0] if len(shape) == 1 and isinstance(shape[0], (tuple, list)) else shape
+        if tuple(int(value) for value in requested_shape) != expected_shape:
+            if size is not None:
+                return original_randn(size=size, **kwargs)
+            return original_randn(*shape, **kwargs)
+        matching_calls += 1
+        if matching_calls != 1:
+            raise RuntimeError("official policy requested diffusion noise more than once")
+        unsupported = set(kwargs) - {"device", "dtype", "requires_grad"}
+        if unsupported:
+            raise RuntimeError(f"unsupported torch.randn arguments: {sorted(unsupported)}")
+        result = torch.as_tensor(
+            noise,
+            device=kwargs.get("device"),
+            dtype=kwargs.get("dtype"),
+        )
+        if kwargs.get("requires_grad", False):
+            result.requires_grad_(True)
+        return result
+
+    torch.randn = explicit_randn
+    try:
+        yield
+    finally:
+        torch.randn = original_randn
+    if matching_calls != 1:
+        raise RuntimeError("official policy did not request the expected diffusion noise")
 
 
 def _canonical_json_bytes(value: Any) -> bytes:
@@ -512,15 +563,15 @@ def validate_request_header(header: RequestHeader) -> None:
 
 
 def decode_predict_request(payload: bytes) -> PredictRequest:
-    if len(payload) < wire.PREDICT_REQ_V2_FIXED.size:
+    if len(payload) < wire.PREDICT_REQ_FIXED.size:
         raise ProtocolError("short predict request")
-    image_count, state_count, task_len = wire.PREDICT_REQ_V2_FIXED.unpack_from(payload)
+    image_count, state_count, noise_count, task_len = wire.PREDICT_REQ_FIXED.unpack_from(payload)
     if image_count == 0:
         raise ProtocolError("predict request requires at least one image")
 
-    offset = wire.PREDICT_REQ_V2_FIXED.size
+    offset = wire.PREDICT_REQ_FIXED.size
     remaining = len(payload) - offset
-    if image_count > remaining // wire.PREDICT_REQ_V2_IMAGE.size:
+    if image_count > remaining // wire.PREDICT_REQ_IMAGE.size:
         raise ProtocolError("image count exceeds predict request metadata")
 
     metadata: list[tuple[int, int, int, int, int, int]] = []
@@ -533,8 +584,8 @@ def decode_predict_request(payload: bytes) -> PredictRequest:
             channels,
             stride_bytes,
             data_len,
-        ) = wire.PREDICT_REQ_V2_IMAGE.unpack_from(payload, offset)
-        offset += wire.PREDICT_REQ_V2_IMAGE.size
+        ) = wire.PREDICT_REQ_IMAGE.unpack_from(payload, offset)
+        offset += wire.PREDICT_REQ_IMAGE.size
         if image_format != wire.IMAGE_RAW_RGB_U8:
             raise ProtocolError(f"image[{index}] has an unsupported image format")
         if width <= 0 or height <= 0 or channels != 3:
@@ -550,6 +601,7 @@ def decode_predict_request(payload: bytes) -> PredictRequest:
 
     body_size = (
         state_count * 4
+        + noise_count * 4
         + task_len
         + sum(name_len + data_len for name_len, *_rest, data_len in metadata)
     )
@@ -564,6 +616,15 @@ def decode_predict_request(payload: bytes) -> PredictRequest:
     offset += state_count * 4
     if any(not math.isfinite(value) for value in state):
         raise ProtocolError("state contains a non-finite value")
+
+    initial_noise: tuple[float, ...]
+    if noise_count:
+        initial_noise = tuple(struct.unpack_from(f"<{noise_count}f", payload, offset))
+    else:
+        initial_noise = ()
+    offset += noise_count * 4
+    if any(not math.isfinite(value) for value in initial_noise):
+        raise ProtocolError("initial_noise contains a non-finite value")
 
     task = _decode_utf8(payload[offset : offset + task_len], "task")
     offset += task_len
@@ -590,6 +651,7 @@ def decode_predict_request(payload: bytes) -> PredictRequest:
         images=tuple(images),
         state=state,
         task=task,
+        initial_noise=initial_noise,
     )
 
 
@@ -671,6 +733,8 @@ class PinnedOFTReferencePolicy:
             )
         if request.state:
             raise ProtocolError("OFT Bridge reference does not accept robot state")
+        if request.initial_noise:
+            raise ProtocolError("OFT Bridge reference does not accept initial_noise")
         if not request.task.strip():
             raise ProtocolError("task must not be empty")
 

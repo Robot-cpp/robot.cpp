@@ -22,8 +22,6 @@ class StarVLAModel final : public Model {
     bool predict(const observation & obs, model_result & out, std::string & error) override;
     void reset() override;
 
-    bool is_ready() const;
-
   private:
     explicit StarVLAModel(std::unique_ptr<starvla::StarVLAEngine> engine);
 

@@ -37,6 +37,7 @@ from serve_starvla_oft_reference import (  # noqa: E402
     ReferenceProtocolServer,
     _canonical_json_bytes,
     build_runtime_metadata,
+    explicit_torch_initial_noise,
     wire,
     write_metadata,
 )
@@ -267,6 +268,7 @@ class DiffusionReferencePolicy:
         framework: Any,
         metadata: Mapping[str, Any],
         unnormalize: Callable[[np.ndarray, str], np.ndarray],
+        torch_module: Any,
         holder: Any = None,
     ) -> None:
         self.variant_name = variant_name
@@ -274,6 +276,7 @@ class DiffusionReferencePolicy:
         self.metadata = dict(metadata)
         self.model_info = dict(self.metadata["model_info"])
         self.unnormalize = unnormalize
+        self.torch = torch_module
         self.holder = holder
 
     def reset(self) -> None:
@@ -285,14 +288,15 @@ class DiffusionReferencePolicy:
         )
         started = time.perf_counter()
         forward_started = time.perf_counter()
-        if self.variant_name == "qwen25_pi":
-            result = self.framework.predict_action(
-                batch_images=[[image]], instructions=[request.task], state=None
-            )
-        else:
-            result = self.framework.predict_action(
-                examples=[{"image": [image], "lang": request.task}]
-            )
+        with explicit_torch_initial_noise(self.torch, request.initial_noise, (1, 16, 7)):
+            if self.variant_name == "qwen25_pi":
+                result = self.framework.predict_action(
+                    batch_images=[[image]], instructions=[request.task], state=None
+                )
+            else:
+                result = self.framework.predict_action(
+                    examples=[{"image": [image], "lang": request.task}]
+                )
         forward_ms = (time.perf_counter() - forward_started) * 1000.0
         if not isinstance(result, Mapping) or "normalized_actions" not in result:
             raise RuntimeError("official policy did not return normalized_actions")
@@ -353,7 +357,10 @@ class FastReferencePolicy:
         )
         import torch
 
-        image, unnorm_key = _request_input(
+        if request.initial_noise:
+            raise ProtocolError("FAST Bridge reference does not accept initial_noise")
+
+        image, _ = _request_input(
             request, self.model_info, "FAST Bridge reference"
         )
         messages = build_messages(image, request.task)
@@ -445,6 +452,7 @@ def _load_diffusion_policy(
         framework=framework,
         metadata=metadata,
         unnormalize=unnormalize,
+        torch_module=torch,
         holder=holder,
     )
 

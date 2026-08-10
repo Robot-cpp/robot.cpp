@@ -159,7 +159,7 @@ def wait_for_server(policy: BasePolicy, timeout_s: float) -> None:
         try:
             policy.health()
             return
-        except Exception as exc:
+        except OSError as exc:
             last_error = exc
             time.sleep(0.25)
     raise RuntimeError(f"model-server did not become healthy within {timeout_s:.1f}s: {last_error}")
@@ -192,7 +192,7 @@ def maybe_launch_server(args: Any, policy: BasePolicy) -> subprocess.Popen[str] 
         policy.health()
         print(f"Using existing model-server at {args.host}:{args.port}")
         return None
-    except Exception:
+    except OSError:
         pass
 
     cmd = server_command(args)

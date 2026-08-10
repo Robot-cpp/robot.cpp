@@ -29,8 +29,9 @@ CONTRACT_FIELDS = (
     "max_episode_steps", "control_freq", "sim_freq", "image_name", "image_size",
     "unnorm_key", "action_scale", "action_ensemble", "action_ensemble_horizon",
     "adaptive_ensemble_alpha", "rgb_overlay", "camera_name", "raytracing",
+    "initial_noise",
 )
-ROLLOUT_FIELDS = ("task", "task_name", "env_name", "noise_seed")
+ROLLOUT_FIELDS = ("task", "task_name", "env_name", "noise_seed", "initial_noise_seed")
 
 
 class ComparisonError(ValueError):

@@ -26,6 +26,7 @@ from eval.simpler_env.policy.model_server import (
     DEFAULT_IMAGE_NAME,
     DEFAULT_IMAGE_SIZE,
     DEFAULT_UNNORM_KEY,
+    EXPLICIT_NOISE_CONTRACT,
     SimplerEnvModelServerPolicy,
 )
 from eval.simpler_env.utils.environment import (
@@ -47,16 +48,21 @@ from eval.simpler_env.utils.environment import (
 
 
 PAIRED_RESULT_ROLES = ("reference_python_ckpt", "candidate_cpp_gguf")
+DIFFUSION_FRAMEWORKS = frozenset({"groot", "pi", "pi_v3"})
 
 
 def _first_bool(value: Any) -> bool:
     array = np.asarray(value).reshape(-1)
-    return bool(array[0]) if array.size else False
+    if array.size != 1:
+        raise RuntimeError(f"expected one termination value, got shape={np.asarray(value).shape}")
+    return bool(array[0])
 
 
 def _first_float(value: Any) -> float:
     array = np.asarray(value).reshape(-1)
-    return float(array[0]) if array.size else 0.0
+    if array.size != 1 or not np.isfinite(array[0]):
+        raise RuntimeError(f"expected one finite reward value, got {value!r}")
+    return float(array[0])
 
 
 def _write_video(path: Path, images: list[np.ndarray], fps: int) -> None:
@@ -83,7 +89,7 @@ def _command_with_noise_seed(command: list[str], seed: int) -> list[str]:
 def _launch_fresh_server(args: argparse.Namespace, policy: SimplerEnvModelServerPolicy):
     try:
         health = policy.health()
-    except Exception:
+    except OSError:
         pass
     else:
         raise RuntimeError(
@@ -138,6 +144,7 @@ def run_episode(
     camera_name: str | None,
     video_path: Path | None,
     video_fps: int,
+    initial_noise_seed: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     observation, _ = reset_env(env, task_spec, episode_id)
     task = language_instruction(env)
@@ -145,7 +152,7 @@ def run_episode(
         raise RuntimeError(
             f"unexpected instruction for {task_spec.env_name}: {task!r}"
         )
-    policy.reset(task, reset_server=True)
+    policy.reset(task, reset_server=True, noise_seed=initial_noise_seed)
     image = observation_image(env, observation, camera_name)
     frames = [image] if video_path is not None else []
     start_predict_calls = policy.predict_calls
@@ -192,6 +199,7 @@ def run_episode(
         "steps": steps,
         "elapsed_s": time.perf_counter() - started,
         "predict_calls": policy.predict_calls - start_predict_calls,
+        "initial_noise_seed": list(initial_noise_seed) if initial_noise_seed else None,
         "server_timing_avg_ms": average_timing(records),
         "video": str(video_path) if video_path is not None else None,
     }
@@ -255,6 +263,8 @@ def _validate_args(args: argparse.Namespace) -> tuple[list[int], list[int]]:
     )
     if any(value <= 0 for value in positive):
         raise ValueError("repeat, episode, timing, and ensemble values must be positive")
+    if args.server_noise_seed_base < 0:
+        raise ValueError("--server-noise-seed-base must be non-negative")
     if (args.result_role is None) != (args.comparison_id is None):
         raise ValueError("--result-role and --comparison-id must be set together")
     if args.result_role is not None:
@@ -281,6 +291,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     video_dir = args.video_dir or output.with_suffix("").with_name(output.stem + "-videos")
     apply_runtime_env()
     root = simpler_env_root(args.simpler_env_root)
+    explicit_noise = args.expected_framework in DIFFUSION_FRAMEWORKS
     policy = SimplerEnvModelServerPolicy(
         host=args.host,
         port=args.port,
@@ -291,6 +302,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         action_ensemble=not args.no_action_ensemble,
         action_ensemble_horizon=args.action_ensemble_horizon,
         adaptive_ensemble_alpha=args.adaptive_ensemble_alpha,
+        initial_noise_shape=(16, 7) if explicit_noise else None,
     )
     episodes: list[dict[str, Any]] = []
     launches: list[dict[str, Any]] = []
@@ -303,9 +315,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         base_command = server_command(args) if args.launch_server else []
         for task_spec in selected_tasks(task_ids):
             for repeat in range(1, args.repeats + 1):
+                derived_seed = args.server_noise_seed_base + task_spec.task_id * args.repeats + repeat - 1
                 noise_seed = None
                 if args.launch_server:
-                    noise_seed = args.server_noise_seed_base + task_spec.task_id * args.repeats + repeat - 1
+                    noise_seed = derived_seed
                     launch_args = copy(args)
                     launch_args.server_command = _command_with_noise_seed(base_command, noise_seed)
                     process = _launch_fresh_server(launch_args, policy)
@@ -345,6 +358,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                             camera_name=args.camera_name,
                             video_path=video_path,
                             video_fps=args.video_fps,
+                            initial_noise_seed=(derived_seed, episode_id) if explicit_noise else None,
                         )
                     finally:
                         close_env(env)
@@ -403,6 +417,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "rgb_overlay": not args.no_rgb_overlay,
             "camera_name": args.camera_name,
             "raytracing": args.enable_raytracing,
+            "initial_noise": EXPLICIT_NOISE_CONTRACT if explicit_noise else None,
         },
         "model": recorded_model,
         "episodes": episodes,

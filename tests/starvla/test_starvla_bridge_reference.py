@@ -38,7 +38,22 @@ class _Framework:
 
     def predict_action(self, **kwargs: object) -> dict[str, np.ndarray]:
         self.kwargs = kwargs
+        self.torch.randn(size=(1, 16, 7), dtype=np.float32)
         return {"normalized_actions": np.zeros((1, 16, 7), dtype=np.float32)}
+
+
+class _FakeTorch:
+    def __init__(self) -> None:
+        self.randn = lambda *args, **kwargs: np.random.standard_normal(  # noqa: ARG005
+            kwargs.get("size", args)
+        )
+
+    @staticmethod
+    def as_tensor(value, **_kwargs):
+        return np.asarray(value)
+
+
+_Framework.torch = _FakeTorch()
 
 
 def _metadata() -> dict[str, object]:
@@ -66,7 +81,7 @@ class StarVLABridgeReferenceTests(unittest.TestCase):
         with self.assertRaises(protocol.PayloadTooBig):
             protocol.validate_request_header(header)
 
-    def test_reference_protocol_matches_v3_client(self) -> None:
+    def test_reference_protocol_matches_v4_client(self) -> None:
         class Policy:
             model_info = {"model_type": "starvla"}
 
@@ -87,12 +102,14 @@ class StarVLABridgeReferenceTests(unittest.TestCase):
                 {
                     "images": [{"name": "image_0", "image": np.zeros((2, 3, 3), dtype=np.uint8)}],
                     "state": [],
+                    "initial_noise": [0.25] * 112,
                     "prompt": "task",
                 }
             ),
         )
         response = decode_predict_response(payload)
         self.assertEqual(policy.request.task, "task")
+        self.assertEqual(policy.request.initial_noise, (0.25,) * 112)
         self.assertEqual(policy.request.images[0].to_rgb_array().shape, (2, 3, 3))
         self.assertEqual((response.chunk_size, response.action_dim), (16, 7))
 
@@ -103,9 +120,13 @@ class StarVLABridgeReferenceTests(unittest.TestCase):
             framework=framework,
             metadata=_metadata(),
             unnormalize=lambda value, _key: value,
+            torch_module=framework.torch,
         )
         request = server.PredictRequest(
-            images=(_Image(),), state=(), task="put spoon on towel"
+            images=(_Image(),),
+            state=(),
+            task="put spoon on towel",
+            initial_noise=(0.25,) * 112,
         )
         result = policy.predict(request)
         self.assertEqual(result.actions.shape, (16, 7))
@@ -118,6 +139,7 @@ class StarVLABridgeReferenceTests(unittest.TestCase):
             framework=_Framework(),
             metadata=_metadata(),
             unnormalize=lambda value, _key: value,
+            torch_module=_FakeTorch(),
         )
         with self.assertRaisesRegex(server.ProtocolError, "does not accept state"):
             policy.predict(

@@ -53,6 +53,7 @@ from serve_starvla_oft_reference import (  # noqa: E402
     _git_tracked_index_sha256,
     _git_tree_sha1,
     build_runtime_metadata,
+    explicit_torch_initial_noise,
     wire,
     write_metadata,
 )
@@ -320,10 +321,12 @@ class PinnedGROOTReferencePolicy:
         processor_factory: Callable[..., Any],
         checkpoint: Path,
         metadata: Mapping[str, Any],
+        torch_module: Any,
     ) -> None:
         self.framework = framework
         self.metadata = dict(metadata)
         self.model_info = dict(self.metadata["model_info"])
+        self.torch = torch_module
         self.unnorm_key = str(self.model_info["default_unnorm_key"])
         self.processor = processor_factory(
             str(checkpoint), unnorm_key=self.unnorm_key
@@ -358,9 +361,10 @@ class PinnedGROOTReferencePolicy:
         pil_image = Image.fromarray(image.to_rgb_array(), mode="RGB")
         total_started = time.perf_counter()
         forward_started = time.perf_counter()
-        output = self.framework.predict_action(
-            examples=[{"image": [pil_image], "lang": request.task}]
-        )
+        with explicit_torch_initial_noise(self.torch, request.initial_noise, (1, 16, 7)):
+            output = self.framework.predict_action(
+                examples=[{"image": [pil_image], "lang": request.task}]
+            )
         forward_ms = (time.perf_counter() - forward_started) * 1000.0
         if not isinstance(output, Mapping) or "normalized_actions" not in output:
             raise RuntimeError("official GR00T forward did not return normalized_actions")
@@ -443,6 +447,7 @@ def load_pinned_reference_policy(
         processor_factory=processor_factory,
         checkpoint=Path(paths["checkpoint"]),
         metadata=metadata,
+        torch_module=torch,
     )
 
 

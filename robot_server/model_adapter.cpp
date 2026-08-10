@@ -31,6 +31,7 @@ bool model_adapter::predict(const proto::predict_request & req, proto::predict_r
         obs.images.push_back(image);
     }
     obs.state = req.state;
+    obs.initial_noise = req.initial_noise;
     obs.task  = req.task;
 
     robotcpp::model_result result;

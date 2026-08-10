@@ -53,7 +53,7 @@ class AdaptiveEnsemblerTest(unittest.TestCase):
 
 
 class SimplerEnvPolicyTest(unittest.TestCase):
-    def test_predict_uses_v3_observation_and_records_shape(self) -> None:
+    def test_predict_uses_v4_observation_and_records_shape(self) -> None:
         actions = np.arange(112, dtype=np.float32).tolist()
         client = FakeClient([ModelResponse(16, 7, actions, {"model_total_ms": 2.5})])
         policy = SimplerEnvModelServerPolicy(client=client)
@@ -65,6 +65,24 @@ class SimplerEnvPolicyTest(unittest.TestCase):
         self.assertEqual(set(client.observations[0]), {"images", "state", "prompt"})
         self.assertEqual(client.observations[0]["images"][0]["name"], "image_0")
         self.assertEqual(policy.predict_calls, 1)
+
+    def test_explicit_noise_is_bf16_and_step_keyed(self) -> None:
+        client = FakeClient([ModelResponse(16, 7, [0.0] * 112, {})] * 3)
+        policy = SimplerEnvModelServerPolicy(
+            client=client, initial_noise_shape=(16, 7)
+        )
+        image = np.zeros((224, 224, 3), dtype=np.uint8)
+        policy.reset("task", noise_seed=(7, 3))
+        policy.predict_action_chunk(image, "task")
+        policy.predict_action_chunk(image, "task")
+        first = client.observations[0]["initial_noise"]
+        second = client.observations[1]["initial_noise"]
+        self.assertEqual(first.shape, (16, 7))
+        self.assertFalse(np.array_equal(first, second))
+        self.assertTrue(np.all((first.view(np.uint32) & 0xFFFF) == 0))
+        policy.reset("task", noise_seed=(7, 3))
+        policy.predict_action_chunk(image, "task")
+        np.testing.assert_array_equal(client.observations[2]["initial_noise"], first)
 
     def test_rejects_bad_action_contract(self) -> None:
         image = np.zeros((224, 224, 3), dtype=np.uint8)
@@ -138,8 +156,8 @@ class FakeRolloutPolicy:
         self.timing_records = []
         self.reset_calls = []
 
-    def reset(self, task, *, reset_server):
-        self.reset_calls.append((task, reset_server))
+    def reset(self, task, *, reset_server, noise_seed=None):
+        self.reset_calls.append((task, reset_server, noise_seed))
 
     def step(self, image, task):
         self.predict_calls += 1
@@ -195,7 +213,7 @@ class BridgeRolloutTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["steps"], 2)
         self.assertEqual(result["predict_calls"], 2)
-        self.assertEqual(policy.reset_calls, [("put carrot on plate", True)])
+        self.assertEqual(policy.reset_calls, [("put carrot on plate", True, None)])
 
 
 if __name__ == "__main__":

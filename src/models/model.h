@@ -29,6 +29,7 @@ struct model_image {
 struct observation {
     std::vector<model_image> images;
     std::vector<float> state;
+    std::vector<float> initial_noise;
     std::string task;
 };
 

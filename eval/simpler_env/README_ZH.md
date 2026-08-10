@@ -15,6 +15,8 @@ Python 原始 `.pt` 为 reference，以 robot.cpp CUDA GGUF 为 candidate；官�
   `image_0`。
 - 每步重新预测 action chunk，最近七次预测使用官方 FP32 自适应集成。
 - 两端必须使用相同 task、episode、seed、prompt、图像、action 后处理和终止条件。
+- diffusion variant 通过 protocol v4 在每个 episode、每个 policy step 使用同一份
+  BF16 舍入后的初始噪声。
 
 完整 paired profile 为 4 task x 24 object episode，每端 96 个 rollout；子集结果标记为
 `partial`。Bridge 成功率只报告结果，不设隐式 pass 阈值，也不能替代逐 action 的 3%

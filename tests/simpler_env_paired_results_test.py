@@ -38,6 +38,7 @@ CONFIG = {
     "rgb_overlay": True,
     "camera_name": None,
     "raytracing": False,
+    "initial_noise": None,
 }
 
 
@@ -57,6 +58,7 @@ def result(role: str, task_ids: list[int], episode_ids: list[int]) -> dict:
                 "task_name": f"task_{task_id}",
                 "env_name": f"env_{task_id}",
                 "noise_seed": 1000 + task_id,
+                "initial_noise_seed": None,
                 "success": (task_id + episode_id) % 3 == 0,
             }
             for task_id in task_ids

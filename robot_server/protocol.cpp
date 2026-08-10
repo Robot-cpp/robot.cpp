@@ -1,5 +1,6 @@
 #include "protocol.h"
 
+#include <cmath>
 #include <cstring>
 #include <limits>
 
@@ -122,6 +123,17 @@ static bool checked_u32_count(size_t n, const char * label, std::string & error)
     return true;
 }
 
+static bool validate_f32_array(const std::vector<float> & values, const char * label,
+                               std::string & error) {
+    for (float value : values) {
+        if (!std::isfinite(value)) {
+            error = std::string(label) + " contains a non-finite value";
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool validate_image_payload(const image_payload & image, const char * label, std::string & error) {
     if (image.image_format != image_raw_rgb_u8) {
         error = std::string(label) + " unsupported image format";
@@ -216,7 +228,13 @@ bool encode_predict_request(const predict_request & req, std::vector<uint8_t> & 
         return false;
     }
     if (!checked_u32_count(req.images.size(), "images", error) ||
-        !checked_u32_count(req.state.size(), "state", error) || !checked_u32_count(req.task.size(), "task", error)) {
+        !checked_u32_count(req.state.size(), "state", error) ||
+        !checked_u32_count(req.initial_noise.size(), "initial noise", error) ||
+        !checked_u32_count(req.task.size(), "task", error)) {
+        return false;
+    }
+    if (!validate_f32_array(req.state, "state", error) ||
+        !validate_f32_array(req.initial_noise, "initial noise", error)) {
         return false;
     }
     for (size_t i = 0; i < req.images.size(); ++i) {
@@ -228,6 +246,7 @@ bool encode_predict_request(const predict_request & req, std::vector<uint8_t> & 
 
     put_u32(out, (uint32_t)req.images.size());
     put_u32(out, (uint32_t)req.state.size());
+    put_u32(out, (uint32_t)req.initial_noise.size());
     put_u32(out, (uint32_t)req.task.size());
     for (const image_payload & image : req.images) {
         put_u32(out, image.image_format);
@@ -240,6 +259,9 @@ bool encode_predict_request(const predict_request & req, std::vector<uint8_t> & 
     }
 
     for (float v : req.state) {
+        put_f32(out, v);
+    }
+    for (float v : req.initial_noise) {
         put_f32(out, v);
     }
     out.insert(out.end(), req.task.begin(), req.task.end());
@@ -255,14 +277,21 @@ bool decode_predict_request(const std::vector<uint8_t> & payload, predict_reques
     reader r(payload.data(), payload.size());
     uint32_t image_count = 0;
     uint32_t state_dim   = 0;
+    uint32_t noise_dim   = 0;
     uint32_t task_len    = 0;
 
-    if (!r.u32(image_count) || !r.u32(state_dim) || !r.u32(task_len)) {
+    if (!r.u32(image_count) || !r.u32(state_dim) || !r.u32(noise_dim) ||
+        !r.u32(task_len)) {
         error = "short predict request";
         return false;
     }
     if (image_count == 0) {
         error = "predict request requires at least one image";
+        return false;
+    }
+    constexpr size_t image_metadata_size = 6 * sizeof(uint32_t) + sizeof(uint64_t);
+    if (image_count > r.remaining() / image_metadata_size) {
+        error = "image count exceeds predict request metadata";
         return false;
     }
 
@@ -286,12 +315,32 @@ bool decode_predict_request(const std::vector<uint8_t> & payload, predict_reques
         }
     }
 
+    const uint64_t scalar_bytes =
+        (static_cast<uint64_t>(state_dim) + static_cast<uint64_t>(noise_dim)) * sizeof(float);
+    if (scalar_bytes > r.remaining() || task_len > r.remaining() - scalar_bytes) {
+        error = "predict request fields exceed payload";
+        return false;
+    }
+
     req.state.assign(state_dim, 0.0f);
     for (uint32_t i = 0; i < state_dim; ++i) {
         if (!r.f32(req.state[i])) {
             error = "short state array";
             return false;
         }
+    }
+    if (!validate_f32_array(req.state, "state", error)) {
+        return false;
+    }
+    req.initial_noise.assign(noise_dim, 0.0f);
+    for (uint32_t i = 0; i < noise_dim; ++i) {
+        if (!r.f32(req.initial_noise[i])) {
+            error = "short initial noise array";
+            return false;
+        }
+    }
+    if (!validate_f32_array(req.initial_noise, "initial noise", error)) {
+        return false;
     }
     if (!r.string(req.task, task_len)) {
         error = "short task string";
