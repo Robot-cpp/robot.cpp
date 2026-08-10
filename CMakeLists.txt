@@ -222,25 +222,24 @@ if(BUILD_TESTING)
     endforeach()
 
     if(ROBOT_CPP_BUILD_STARVLA)
-    foreach(test_name IN ITEMS oft_prompt groot_prompt oft_image_preprocess qwen_vl_profile fast_runtime)
-        string(REPLACE "_" "-" target_name "${test_name}")
-        add_executable(robotcpp-starvla-${target_name}-test
-            tests/starvla/${test_name}_test.cpp)
-        target_link_libraries(robotcpp-starvla-${target_name}-test
-            PRIVATE starvla_runtime)
-        target_compile_features(robotcpp-starvla-${target_name}-test
-            PRIVATE cxx_std_17)
-        add_test(NAME robotcpp-starvla-${target_name}-test
-            COMMAND robotcpp-starvla-${target_name}-test)
-    endforeach()
+        foreach(test_name IN ITEMS oft_prompt groot_prompt oft_image_preprocess qwen_vl_profile fast_runtime)
+            string(REPLACE "_" "-" target_name "${test_name}")
+            add_executable(robotcpp-starvla-${target_name}-test
+                tests/starvla/${test_name}_test.cpp)
+            target_link_libraries(robotcpp-starvla-${target_name}-test
+                PRIVATE starvla_runtime)
+            target_compile_features(robotcpp-starvla-${target_name}-test
+                PRIVATE cxx_std_17)
+            add_test(NAME robotcpp-starvla-${target_name}-test
+                COMMAND robotcpp-starvla-${target_name}-test)
+        endforeach()
 
-    add_executable(robotcpp-starvla-fast-codec-test
-        tests/starvla/fast_codec_test.cpp)
-    target_link_libraries(robotcpp-starvla-fast-codec-test PRIVATE starvla_runtime)
-    target_compile_features(robotcpp-starvla-fast-codec-test PRIVATE cxx_std_17)
-    add_test(NAME robotcpp-starvla-fast-codec-test
-        COMMAND robotcpp-starvla-fast-codec-test)
-
+        add_executable(robotcpp-starvla-fast-codec-test
+            tests/starvla/fast_codec_test.cpp)
+        target_link_libraries(robotcpp-starvla-fast-codec-test PRIVATE starvla_runtime)
+        target_compile_features(robotcpp-starvla-fast-codec-test PRIVATE cxx_std_17)
+        add_test(NAME robotcpp-starvla-fast-codec-test
+            COMMAND robotcpp-starvla-fast-codec-test)
     endif()
 endif()
 

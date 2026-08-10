@@ -164,10 +164,9 @@ CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-cli \
   --n-batch 2048
 ```
 
-GR00T, PI_v3, and PI accept `--noise-seed`. To compare Python and C++ exactly,
-save the Python noise tensor and pass it to the C++ test runner instead of
-expecting the two random-number generators to produce the same values. FAST
-accepts one RGB `image_0` and no robot state.
+GR00T, PI_v3, and PI accept `--noise-seed`. Paired Bridge rollouts send the
+same explicit noise to the Python and C++ servers. FAST accepts one RGB
+`image_0` and no robot state.
 
 The server uses the same model type and policy file:
 
@@ -196,7 +195,8 @@ uv run python tools/hf2gguf/starvla/compare_starvla_actions.py \
 
 By default, the arrays must have the same non-empty 2D shape, contain only
 finite values, and have no more than 3% global relative-L2 error after action
-unnormalization. Normalized actions are also reported for debugging.
+unnormalization. The command reports the shape, relative-L2 value, limit, and
+pass status.
 
 ## Run Bridge rollouts
 

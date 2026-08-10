@@ -174,6 +174,4 @@ class Qwen3VLBridge {
     std::unique_ptr<Impl> impl_;
 };
 
-// Neutral aliases for new callers. The original names remain the ABI/source
-// compatibility surface for the completed Qwen3 integrations.
 } // namespace robotcpp::starvla
