@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "targets": {
+    "qwen3_vl": [
+      "oft",
+      "groot",
+      "pi_v3"
+    ],
+    "qwen2_5_vl": [
+      "qwen25_oft",
+      "qwen25_groot"
+    ]
+  },
+  "experimental": {
+    "qwen3_vl": [],
+    "qwen2_5_vl": [
+      "qwen25_pi",
+      "qwen25_fast"
+    ]
+  }
+}

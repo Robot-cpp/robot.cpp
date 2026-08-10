@@ -4,6 +4,7 @@
 #include "model_adapter.h"
 
 #include "llama.h"
+#include "models/argument_parse.h"
 #include "models/model.h"
 
 #include <cstdio>
@@ -26,6 +27,8 @@ struct server_args {
     std::string action_decoder_path;
     std::string state_proj_path;
     std::string action_expert_path;
+    std::string policy_path;
+    std::string unnorm_key;
     std::string task   = "grab the block.";
     std::string host   = "127.0.0.1";
     int port           = 5555;
@@ -36,18 +39,6 @@ struct server_args {
     int64_t noise_seed = -1;
     int verbosity      = 0;
 };
-
-static bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
-    if (value == "smolvla") {
-        out = robotcpp::model_type::smolvla;
-        return true;
-    }
-    if (value == "pi0") {
-        out = robotcpp::model_type::pi0;
-        return true;
-    }
-    return false;
-}
 
 static bool parse_noise_mode(const std::string & value, int & out_mode) {
     if (value == "gaussian") {
@@ -74,9 +65,11 @@ static void print_usage(const char * prog) {
                  "<path> [options]\n"
                  "       %s --model-type pi0 --vit <path> --mmproj <path> --llm <path> --tokenizer <path> --state-gguf "
                  "<path> --action-decoder <path> [options]\n"
+                 "       %s --model-type starvla --policy <path> [options]\n"
                  "\n"
                  "Common options:\n"
-                 "  --model-type <type>      Model type (default: smolvla)\n"
+                 "  --model-type <type>      smolvla|pi0|starvla\n"
+                 "                           (default: smolvla)\n"
                  "\n"
                  "SmolVLA options:\n"
                  "  --llm <path>             LLM GGUF path\n"
@@ -93,6 +86,12 @@ static void print_usage(const char * prog) {
                  "  --state-gguf <path>      State projector GGUF path\n"
                  "  --action-decoder <path>  Action decoder GGUF path\n"
                  "\n"
+                 "StarVLA options:\n"
+                 "  --policy <path>          StarVLA policy GGUF path (required)\n"
+                 "  --unnorm-key <key>       Default normalization profile (optional for single-profile policy)\n"
+                 "  --llm <path>             Qwen text GGUF override (optional)\n"
+                 "  --mmproj <path>          Qwen vision GGUF override (optional)\n"
+                 "\n"
                  "Runtime options:\n"
                  "  --host <ip>              Listen host (default: 127.0.0.1)\n"
                  "  --port <n>               Listen port (default: 5555)\n"
@@ -103,7 +102,7 @@ static void print_usage(const char * prog) {
                  "  --noise-seed <n>         RNG seed, <0 means auto (default: -1)\n"
                  "  --verbosity <n>          Log verbosity (default: 0)\n"
                  "  -h, --help               Show this help\n",
-                 prog, prog);
+                 prog, prog, prog);
 }
 
 // TODO: may need to be cleaned up and optimized
@@ -116,10 +115,14 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         } else if (arg == "--llm" && i + 1 < argc) {
             args.llm_path = argv[++i];
         } else if (arg == "--model-type" && i + 1 < argc) {
-            if (!parse_model_type(argv[++i], args.model_type)) {
+            if (!robotcpp::parse_model_type(argv[++i], args.model_type)) {
                 std::fprintf(stderr, "Error: unsupported model type '%s'\n", argv[i]);
                 return false;
             }
+        } else if (arg == "--policy" && i + 1 < argc) {
+            args.policy_path = argv[++i];
+        } else if (arg == "--unnorm-key" && i + 1 < argc) {
+            args.unnorm_key = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
         } else if (arg == "--vit" && i + 1 < argc) {
@@ -139,22 +142,46 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         } else if (arg == "--host" && i + 1 < argc) {
             args.host = argv[++i];
         } else if (arg == "--port" && i + 1 < argc) {
-            args.port = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.port)) {
+                std::fprintf(stderr, "Error: invalid --port value '%s'\n", value);
+                return false;
+            }
         } else if (arg == "--threads" && i + 1 < argc) {
-            args.threads = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.threads)) {
+                std::fprintf(stderr, "Error: invalid --threads value '%s'\n", value);
+                return false;
+            }
         } else if (arg == "--n-batch" && i + 1 < argc) {
-            args.n_batch = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.n_batch)) {
+                std::fprintf(stderr, "Error: invalid --n-batch value '%s'\n", value);
+                return false;
+            }
         } else if (arg == "--n-ctx" && i + 1 < argc) {
-            args.n_ctx = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.n_ctx)) {
+                std::fprintf(stderr, "Error: invalid --n-ctx value '%s'\n", value);
+                return false;
+            }
         } else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], args.noise_mode)) {
                 std::fprintf(stderr, "Error: invalid noise mode '%s'\n", argv[i]);
                 return false;
             }
         } else if (arg == "--noise-seed" && i + 1 < argc) {
-            args.noise_seed = (int64_t)std::atoll(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.noise_seed)) {
+                std::fprintf(stderr, "Error: invalid --noise-seed value '%s'\n", value);
+                return false;
+            }
         } else if (arg == "--verbosity" && i + 1 < argc) {
-            args.verbosity = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.verbosity)) {
+                std::fprintf(stderr, "Error: invalid --verbosity value '%s'\n", value);
+                return false;
+            }
         } else {
             std::fprintf(stderr, "Error: unknown argument '%s'\n", arg.c_str());
             return false;
@@ -168,15 +195,37 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         std::fprintf(stderr, "Error: model-server only listens on 127.0.0.1 in this phase\n");
         return false;
     }
+    if (args.threads < 0 || args.n_batch <= 0 || args.n_ctx <= 0 || args.verbosity < 0) {
+        std::fprintf(stderr,
+                     "Error: --threads/--verbosity must be non-negative and --n-batch/--n-ctx must be positive\n");
+        return false;
+    }
+    if (robotcpp::is_starvla_model_type(args.model_type) &&
+        args.noise_mode != SMOLVLA_NOISE_MODE_GAUSSIAN) {
+        std::fprintf(stderr,
+                     "Error: StarVLA does not support --noise-mode debug-sin; use Gaussian noise\n");
+        return false;
+    }
     if (args.model_type == robotcpp::model_type::smolvla) {
         if (args.llm_path.empty() || args.mmproj_path.empty() || args.state_proj_path.empty() ||
             args.action_expert_path.empty()) {
             std::fprintf(stderr, "Error: smolvla requires --llm --mmproj --state-proj --action-expert\n");
             return false;
         }
-    } else if (args.vit_path.empty() || args.mmproj_path.empty() || args.llm_path.empty() ||
-               args.tokenizer_path.empty() || args.state_path.empty() || args.action_decoder_path.empty()) {
-        std::fprintf(stderr, "Error: pi0 requires --vit --mmproj --llm --tokenizer --state-gguf --action-decoder\n");
+    } else if (args.model_type == robotcpp::model_type::pi0) {
+        if (args.vit_path.empty() || args.mmproj_path.empty() || args.llm_path.empty() ||
+            args.tokenizer_path.empty() || args.state_path.empty() || args.action_decoder_path.empty()) {
+            std::fprintf(stderr,
+                         "Error: pi0 requires --vit --mmproj --llm --tokenizer --state-gguf --action-decoder\n");
+            return false;
+        }
+    } else if (robotcpp::is_starvla_model_type(args.model_type)) {
+        if (args.policy_path.empty()) {
+            std::fprintf(stderr, "Error: %s requires --policy\n", robotcpp::model_type_name(args.model_type));
+            return false;
+        }
+    } else {
+        std::fprintf(stderr, "Error: unsupported model type '%s'\n", robotcpp::model_type_name(args.model_type));
         return false;
     }
     return true;
@@ -195,6 +244,8 @@ static robotcpp::model_args make_model_args(const server_args & args) {
     model_args.action_decoder_path = args.action_decoder_path;
     model_args.state_proj_path     = args.state_proj_path;
     model_args.action_expert_path  = args.action_expert_path;
+    model_args.policy_path         = args.policy_path;
+    model_args.unnorm_key          = args.unnorm_key;
     model_args.n_batch             = args.n_batch;
     model_args.n_ctx               = args.n_ctx;
     model_args.noise_mode          = args.noise_mode;

@@ -2,6 +2,7 @@
 
 #include "models/pi0/pi0_model.h"
 #include "models/smolvla/smolvla_model.h"
+#include "models/starvla/starvla_model.h"
 
 namespace robotcpp {
 
@@ -13,8 +14,11 @@ bool make_model(const model_args & args, std::unique_ptr<Model> & out, std::stri
     if (args.type == model_type::pi0) {
         return make_pi0_model(args, out, error);
     }
+    if (args.type == model_type::starvla) {
+        return make_starvla_model(args, out, error);
+    }
 
-    error = "unsupported model type";
+    error = std::string("unsupported model type: ") + model_type_name(args.type);
     return false;
 }
 
