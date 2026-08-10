@@ -55,8 +55,6 @@ class FastPolicy {
                                             std::string & error);
 
     bool decode_generated(const std::vector<int32_t> & full_sequence,
-                          std::vector<int32_t> & action_token_ids,
-                          std::vector<int32_t> & fast_token_ids,
                           std::vector<float> & normalized_actions,
                           std::string & error) const;
 

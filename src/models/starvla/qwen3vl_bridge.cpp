@@ -1656,10 +1656,6 @@ const char * Qwen3VLBridge::backend_name() const {
     return impl_->backend_name.c_str();
 }
 
-const char * Qwen3VLBridge::text_attention_mode_name() const {
-    return impl_ != nullptr && impl_->config.flash_text_attention ? "flash" : "non_flash";
-}
-
 QwenVLArchitecture Qwen3VLBridge::architecture() const {
     return impl_ != nullptr ? impl_->architecture : QwenVLArchitecture::unknown;
 }

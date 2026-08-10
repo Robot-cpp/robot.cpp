@@ -388,26 +388,16 @@ std::unique_ptr<FastPolicy> FastPolicy::load(const std::string & path,
 
 bool FastPolicy::decode_generated(
     const std::vector<int32_t> & full_sequence,
-    std::vector<int32_t> & action_token_ids,
-    std::vector<int32_t> & fast_token_ids,
     std::vector<float> & normalized_actions,
     std::string & error) const {
-    action_token_ids.clear();
-    fast_token_ids.clear();
     normalized_actions.clear();
     error.clear();
     if (impl_ == nullptr || impl_->codec == nullptr) {
         error = "StarVLA FAST policy is not initialized";
         return false;
     }
-    if (!impl_->codec->extract_fast_tokens(full_sequence, fast_token_ids,
-                                           error) ||
-        !impl_->codec->map_fast_to_vlm(fast_token_ids, action_token_ids,
-                                      error)) {
-        return false;
-    }
     FastDecodeResult decoded;
-    if (!impl_->codec->decode_fast_tokens({fast_token_ids}, decoded, error)) {
+    if (!impl_->codec->decode_generated_tokens({full_sequence}, decoded, error)) {
         return false;
     }
     if (decoded.batch_size != 1 ||

@@ -36,10 +36,7 @@ bool StarVLAModel::predict(const observation & obs, model_result & out, std::str
     }
 
     starvla::StarVLAEngineResult result;
-    const bool predicted = obs.initial_noise.empty()
-                               ? engine_->predict(obs, result, error)
-                               : engine_->predict_with_noise(obs, obs.initial_noise, result, error);
-    if (!predicted) {
+    if (!engine_->predict(obs, result, error)) {
         return false;
     }
     out.actions = std::move(result.actions);

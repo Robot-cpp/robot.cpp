@@ -48,13 +48,6 @@ struct StarVLAStageTimings {
 
 struct StarVLAEngineResult {
     std::vector<float> actions;
-    std::vector<float> normalized_actions;
-    std::vector<float> action_queries;
-    std::vector<int32_t> generated_token_ids;
-    std::vector<int32_t> action_token_ids;
-    std::vector<int32_t> fast_token_ids;
-    std::string instruction;
-    std::string unnorm_key_used;
     int chunk_size = 0;
     int action_dim = 0;
     StarVLAStageTimings timings;
@@ -71,16 +64,12 @@ class StarVLAEngine {
                                                std::string & error);
 
     bool predict(const observation & obs, StarVLAEngineResult & result, std::string & error);
-    bool predict_with_noise(const observation & obs, const std::vector<float> & initial_noise,
-                            StarVLAEngineResult & result, std::string & error);
     void reset();
 
   private:
     struct Impl;
 
     explicit StarVLAEngine(std::unique_ptr<Impl> impl);
-    bool predict_impl(const observation & obs, const std::vector<float> * initial_noise,
-                      StarVLAEngineResult & result, std::string & error);
 
     std::unique_ptr<Impl> impl_;
 };

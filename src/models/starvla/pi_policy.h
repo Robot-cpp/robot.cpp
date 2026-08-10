@@ -80,7 +80,6 @@ class PIPolicy {
 
     const PIPolicyConfig & config() const;
     const char * backend_name() const;
-    size_t graph_build_count() const;
 
   private:
     struct Impl;

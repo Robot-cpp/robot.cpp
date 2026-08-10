@@ -105,15 +105,11 @@ void test_policy(const std::string & path) {
                     std::vector<int32_t>({151645, 151643}),
             "official FAST policy metadata must expose the pinned runtime");
 
-    std::vector<int32_t> action_ids;
-    std::vector<int32_t> fast_ids;
     std::vector<float> normalized;
     require(!policy->decode_generated(
-                {100, 151665, 200}, action_ids, fast_ids, normalized, error),
+                {100, 151665, 200}, normalized, error),
             "incomplete FAST output must fail");
-    require(action_ids == std::vector<int32_t>({151665}) &&
-                fast_ids == std::vector<int32_t>({0}) && normalized.empty(),
-            "failed FAST decode must not return actions");
+    require(normalized.empty(), "failed FAST decode must not return actions");
 }
 
 } // namespace

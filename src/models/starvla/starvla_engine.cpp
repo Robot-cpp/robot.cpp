@@ -507,8 +507,8 @@ std::unique_ptr<StarVLAEngine> StarVLAEngine::load(const StarVLAEngineConfig & c
         normalization = &policy.normalization;
         if (config.n_ctx <
             static_cast<int>(policy.generation_max_length)) {
-            error =
-                "StarVLA FAST --n-ctx must be at least the official max_length=2048";
+            error = "StarVLA FAST --n-ctx must be at least max_length=" +
+                    std::to_string(policy.generation_max_length);
             return nullptr;
         }
     }
@@ -620,34 +620,11 @@ std::unique_ptr<StarVLAEngine> StarVLAEngine::load(const StarVLAEngineConfig & c
 
 bool StarVLAEngine::predict(const observation & obs, StarVLAEngineResult & result,
                             std::string & error) {
-    return predict_impl(obs, nullptr, result, error);
-}
-
-bool StarVLAEngine::predict_with_noise(const observation & obs,
-                                       const std::vector<float> & initial_noise,
-                                       StarVLAEngineResult & result,
-                                       std::string & error) {
-    return predict_impl(obs, &initial_noise, result, error);
-}
-
-bool StarVLAEngine::predict_impl(const observation & obs,
-                                 const std::vector<float> * initial_noise,
-                                 StarVLAEngineResult & result,
-                                 std::string & error) {
     result = StarVLAEngineResult{};
     error.clear();
     const Clock::time_point total_start = Clock::now();
     const auto fail = [&]() {
         result.actions.clear();
-        result.normalized_actions.clear();
-        result.action_queries.clear();
-        result.generated_token_ids.clear();
-        result.action_token_ids.clear();
-        result.fast_token_ids.clear();
-        result.instruction.clear();
-        result.unnorm_key_used.clear();
-        result.chunk_size = 0;
-        result.action_dim = 0;
         result.timings.total_ms = elapsed_ms(total_start, Clock::now());
         return false;
     };
@@ -670,17 +647,18 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         error = "failed to select StarVLA normalization profile: " + profile_error;
         return fail();
     }
-    result.unnorm_key_used = profile->key;
+    std::vector<float> normalized_actions;
+    std::string instruction;
 
     const auto make_noise = [&](size_t count, std::vector<float> & noise) {
-        if (initial_noise != nullptr) {
-            if (initial_noise->size() != count ||
-                !std::all_of(initial_noise->begin(), initial_noise->end(),
+        if (!obs.initial_noise.empty()) {
+            if (obs.initial_noise.size() != count ||
+                !std::all_of(obs.initial_noise.begin(), obs.initial_noise.end(),
                              [](float value) { return std::isfinite(value); })) {
                 error = "initial noise has an incompatible shape or non-finite value";
                 return false;
             }
-            noise = *initial_noise;
+            noise = obs.initial_noise;
             return true;
         }
         noise.resize(count);
@@ -693,7 +671,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
     };
 
     if (impl_->variant == StarVLAVariant::qwen25_fast) {
-        if (initial_noise != nullptr) {
+        if (!obs.initial_noise.empty()) {
             error = "StarVLA FAST does not use diffusion noise";
             return fail();
         }
@@ -714,8 +692,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
             elapsed_ms(stage_start, Clock::now());
 
         stage_start = Clock::now();
-        if (!build_fast_instruction(config.cot_template, obs.task,
-                                    result.instruction, error)) {
+        if (!build_fast_instruction(config.cot_template, obs.task, instruction, error)) {
             error = "failed to build the StarVLA FAST prompt: " + error;
             return fail();
         }
@@ -730,8 +707,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         QwenVLGenerationResult generated;
         stage_start = Clock::now();
         if (!impl_->qwen->generate_autoregressive(
-                qwen_images, result.instruction, generation, generated,
-                error)) {
+                qwen_images, instruction, generation, generated, error)) {
             error = "StarVLA FAST Qwen2.5-VL generation failed: " + error;
             return fail();
         }
@@ -745,12 +721,9 @@ bool StarVLAEngine::predict_impl(const observation & obs,
                 "StarVLA FAST Qwen2.5-VL returned an incompatible generated sequence";
             return fail();
         }
-        result.generated_token_ids = std::move(generated.full_sequence);
-
         stage_start = Clock::now();
         if (!impl_->fast_policy->decode_generated(
-                result.generated_token_ids, result.action_token_ids,
-                result.fast_token_ids, result.normalized_actions, error)) {
+                generated.full_sequence, normalized_actions, error)) {
             error = "StarVLA FAST codec decode failed: " + error;
             return fail();
         }
@@ -758,8 +731,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
 
         stage_start = Clock::now();
         if (!impl_->fast_policy->unnormalize(
-                result.normalized_actions, result.unnorm_key_used,
-                result.actions, error)) {
+                normalized_actions, profile->key, result.actions, error)) {
             error = "StarVLA FAST action unnormalization failed: " + error;
             return fail();
         }
@@ -768,7 +740,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         const size_t expected_actions =
             static_cast<size_t>(config.horizon) * config.action_dim;
         if (result.actions.size() != expected_actions ||
-            result.normalized_actions.size() != expected_actions ||
+            normalized_actions.size() != expected_actions ||
             !std::all_of(
                 result.actions.begin(), result.actions.end(),
                 [](float action) { return std::isfinite(action); })) {
@@ -807,8 +779,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
             elapsed_ms(stage_start, Clock::now());
 
         stage_start = Clock::now();
-        if (!build_pi_v3_instruction(config.cot_template, obs.task,
-                                     result.instruction, error)) {
+        if (!build_pi_v3_instruction(config.cot_template, obs.task, instruction, error)) {
             error = "failed to build the StarVLA PI prompt: " + error;
             return fail();
         }
@@ -818,7 +789,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         std::vector<uint8_t> attention_mask;
         stage_start = Clock::now();
         if (!impl_->qwen->extract_layer_hidden_states(
-                qwen_images, result.instruction,
+                qwen_images, instruction,
                 config.qwen_hidden_tuple_indices, hidden_states,
                 attention_mask, error)) {
             error = "StarVLA PI Qwen2.5-VL inference failed: " + error;
@@ -845,7 +816,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
                 hidden_states.data(), hidden_states.size(),
                 obs.state.empty() ? nullptr : obs.state.data(),
                 obs.state.size(), noise.data(), noise.size(),
-                result.normalized_actions, error)) {
+                normalized_actions, error)) {
             error = "StarVLA PI policy inference failed: " + error;
             return fail();
         }
@@ -853,8 +824,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
 
         stage_start = Clock::now();
         if (!impl_->pi_policy->unnormalize(
-                result.normalized_actions, result.unnorm_key_used,
-                result.actions, error)) {
+                normalized_actions, profile->key, result.actions, error)) {
             error = "StarVLA PI action unnormalization failed: " + error;
             return fail();
         }
@@ -891,7 +861,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         result.timings.image_preprocess_ms = elapsed_ms(stage_start, Clock::now());
 
         stage_start = Clock::now();
-        if (!build_pi_v3_instruction(config.cot_template, obs.task, result.instruction, error)) {
+        if (!build_pi_v3_instruction(config.cot_template, obs.task, instruction, error)) {
             error = "failed to build the StarVLA PI_v3 prompt: " + error;
             return fail();
         }
@@ -901,7 +871,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         std::vector<uint8_t> attention_mask;
         stage_start = Clock::now();
         if (!impl_->qwen->extract_layer_hidden_states(
-                qwen_images, result.instruction, config.qwen_hidden_tuple_indices,
+                qwen_images, instruction, config.qwen_hidden_tuple_indices,
                 hidden_states, attention_mask, error)) {
             error = "StarVLA PI_v3 Qwen3-VL inference failed: " + error;
             return fail();
@@ -923,7 +893,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         stage_start = Clock::now();
         if (!impl_->pi_v3_policy->evaluate(
                 hidden_states.data(), hidden_states.size(), attention_mask.data(),
-                attention_mask.size(), noise.data(), noise.size(), result.normalized_actions,
+                attention_mask.size(), noise.data(), noise.size(), normalized_actions,
                 error)) {
             error = "StarVLA PI_v3 policy inference failed: " + error;
             return fail();
@@ -931,8 +901,8 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         result.timings.policy_ms = elapsed_ms(stage_start, Clock::now());
 
         stage_start = Clock::now();
-        if (!impl_->pi_v3_policy->unnormalize(result.normalized_actions,
-                                              result.unnorm_key_used, result.actions,
+        if (!impl_->pi_v3_policy->unnormalize(normalized_actions,
+                                              profile->key, result.actions,
                                               error)) {
             error = "StarVLA PI_v3 action unnormalization failed: " + error;
             return fail();
@@ -969,7 +939,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         result.timings.image_preprocess_ms = elapsed_ms(stage_start, Clock::now());
 
         stage_start = Clock::now();
-        if (!build_groot_instruction(config.cot_template, obs.task, result.instruction, error)) {
+        if (!build_groot_instruction(config.cot_template, obs.task, instruction, error)) {
             error = "failed to build the StarVLA GR00T prompt: " + error;
             return fail();
         }
@@ -978,7 +948,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         std::vector<float> hidden_states;
         std::vector<uint8_t> attention_mask;
         stage_start = Clock::now();
-        if (!impl_->qwen->extract_full_hidden_states(qwen_images, result.instruction,
+        if (!impl_->qwen->extract_full_hidden_states(qwen_images, instruction,
                                                      hidden_states, attention_mask, error)) {
             error = "StarVLA GR00T Qwen3-VL inference failed: " + error;
             return fail();
@@ -1001,7 +971,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         stage_start = Clock::now();
         if (!impl_->groot_policy->evaluate(
                 hidden_states.data(), hidden_states.size(), attention_mask.data(),
-                attention_mask.size(), noise.data(), noise.size(), result.normalized_actions,
+                attention_mask.size(), noise.data(), noise.size(), normalized_actions,
                 error)) {
             error = "StarVLA GR00T policy inference failed: " + error;
             return fail();
@@ -1009,8 +979,8 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         result.timings.policy_ms = elapsed_ms(stage_start, Clock::now());
 
         stage_start = Clock::now();
-        if (!impl_->groot_policy->unnormalize(result.normalized_actions,
-                                              result.unnorm_key_used, result.actions,
+        if (!impl_->groot_policy->unnormalize(normalized_actions,
+                                              profile->key, result.actions,
                                               error)) {
             error = "StarVLA GR00T action unnormalization failed: " + error;
             return fail();
@@ -1030,7 +1000,7 @@ bool StarVLAEngine::predict_impl(const observation & obs,
         return true;
     }
 
-    if (initial_noise != nullptr) {
+    if (!obs.initial_noise.empty()) {
         error = "StarVLA OFT does not use diffusion noise";
         return fail();
     }
@@ -1048,36 +1018,37 @@ bool StarVLAEngine::predict_impl(const observation & obs,
     result.timings.image_preprocess_ms = elapsed_ms(stage_start, Clock::now());
 
     stage_start = Clock::now();
-    if (!build_oft_instruction(config.prompt, obs.task, obs.state, result.instruction, error)) {
+    if (!build_oft_instruction(config.prompt, obs.task, obs.state, instruction, error)) {
         error = "failed to build the StarVLA OFT prompt: " + error;
         return fail();
     }
     result.timings.prompt_ms = elapsed_ms(stage_start, Clock::now());
 
+    std::vector<float> action_queries;
     stage_start = Clock::now();
     if (!impl_->qwen->extract_token_embeddings(
-            qwen_images, result.instruction, config.action_token_id,
-            static_cast<size_t>(config.horizon), result.action_queries, error)) {
+            qwen_images, instruction, config.action_token_id,
+            static_cast<size_t>(config.horizon), action_queries, error)) {
         error = "StarVLA OFT Qwen3-VL inference failed: " + error;
         return fail();
     }
     result.timings.qwen3vl_ms = elapsed_ms(stage_start, Clock::now());
     const size_t expected_queries = static_cast<size_t>(config.horizon) * config.input_dim;
-    if (result.action_queries.size() != expected_queries) {
+    if (action_queries.size() != expected_queries) {
         error = "StarVLA OFT Qwen3-VL returned an incompatible action-query shape";
         return fail();
     }
 
     stage_start = Clock::now();
-    if (!impl_->oft_policy->evaluate(result.action_queries.data(), result.action_queries.size(),
-                                     result.normalized_actions, error)) {
+    if (!impl_->oft_policy->evaluate(action_queries.data(), action_queries.size(),
+                                     normalized_actions, error)) {
         error = "StarVLA OFT policy inference failed: " + error;
         return fail();
     }
     result.timings.policy_ms = elapsed_ms(stage_start, Clock::now());
 
     stage_start = Clock::now();
-    if (!impl_->oft_policy->unnormalize(result.normalized_actions, result.unnorm_key_used,
+    if (!impl_->oft_policy->unnormalize(normalized_actions, profile->key,
                                         result.actions, error)) {
         error = "StarVLA OFT action unnormalization failed: " + error;
         return fail();

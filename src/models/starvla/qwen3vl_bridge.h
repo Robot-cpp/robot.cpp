@@ -164,7 +164,6 @@ class Qwen3VLBridge {
 
     void reset();
     const char * backend_name() const;
-    const char * text_attention_mode_name() const;
     QwenVLArchitecture architecture() const;
 
   private:

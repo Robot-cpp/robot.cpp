@@ -583,7 +583,6 @@ struct PIPolicy::Impl {
     ggml_tensor * output = nullptr;
     size_t conditioning_token_count = 0;
     bool graph_uses_state = false;
-    size_t graph_builds = 0;
     std::vector<float> timestep_table;
     std::vector<float> action_table;
 
@@ -884,7 +883,6 @@ struct PIPolicy::Impl {
         }
         conditioning_token_count = token_count;
         graph_uses_state = include_state;
-        ++graph_builds;
     }
 };
 
@@ -1072,10 +1070,6 @@ const PIPolicyConfig & PIPolicy::config() const {
 
 const char * PIPolicy::backend_name() const {
     return impl_ != nullptr ? mode_name(impl_->mode) : "unknown";
-}
-
-size_t PIPolicy::graph_build_count() const {
-    return impl_ != nullptr ? impl_->graph_builds : 0;
 }
 
 } // namespace robotcpp::starvla
