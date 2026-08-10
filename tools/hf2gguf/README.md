@@ -8,6 +8,7 @@ This directory contains tools for converting checkpoints to GGUF.
 
 - `smolvla/`: converts LeRobot-style SmolVLA checkpoints into four GGUF components.
 - `pi0/`: converts LeRobot-style pi0 checkpoints into six split GGUF components.
+- `starvla/`: pinned Qwen3-VL and Qwen2.5-VL conversion plus a shared 3% CUDA action parity gate for seven StarVLA variants. No official finetuned Qwen3 FAST policy checkpoint is available.
 - `environment.yaml`: conda environment for the converters.
 
 ## Usage

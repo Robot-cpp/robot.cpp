@@ -1,4 +1,4 @@
-name: gguf_converter
+name: starvla_gguf_converter
 channels:
   - conda-forge
 dependencies:
@@ -8,8 +8,7 @@ dependencies:
       - torch
       - numpy
       - safetensors
-      - huggingface_hub>=0.36.0
       - sentencepiece
-      - transformers==4.53.2
-      - pillow==12.1.1
+      - transformers==4.57.0
+      - huggingface_hub>=0.36.0
       - pyyaml

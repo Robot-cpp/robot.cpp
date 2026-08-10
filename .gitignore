@@ -20,6 +20,9 @@ dist/
 checkpoint/
 checkpoints/
 *.safetensors
+eval/results/
+/goldens/
+/Testing/
 
 # macOS resource forks
 ._*

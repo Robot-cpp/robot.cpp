@@ -1,0 +1,36 @@
+diff --git a/tools/mtmd/models/qwen3vl.cpp b/tools/mtmd/models/qwen3vl.cpp
+index fa1100d..5119df6 100644
+--- a/tools/mtmd/models/qwen3vl.cpp
++++ b/tools/mtmd/models/qwen3vl.cpp
+@@ -43,8 +43,11 @@ ggml_cgraph * clip_graph_qwen3vl::build() {
+         cb(inp, "patch_bias", -1);
+     }
+ 
+-    // calculate absolute position embedding and apply
+-    ggml_tensor * learned_pos_embd = resize_position_embeddings();
++    // Qwen3-VL constructs interpolation coordinates with torch.linspace(0,
++    // num_grid_per_side - 1, size), which is bilinear align_corners=True
++    // without antialiasing.
++    ggml_tensor * learned_pos_embd = resize_position_embeddings(
++        GGML_SCALE_MODE_BILINEAR | GGML_SCALE_FLAG_ALIGN_CORNERS);
+     learned_pos_embd = ggml_cont_4d(
+         ctx0, learned_pos_embd,
+         n_embd * 2, n_patches_x / 2, n_patches_y, batch_size);
+@@ -154,7 +157,7 @@ ggml_cgraph * clip_graph_qwen3vl::build() {
+                 layer.deepstack_fc1_w, layer.deepstack_fc1_b,
+                 nullptr, nullptr,
+                 layer.deepstack_fc2_w, layer.deepstack_fc2_b,
+-                ffn_op_type::FFN_GELU, il);
++                ffn_op_type::FFN_GELU_ERF, il);
+ 
+             if(!deepstack_features) {
+                 deepstack_features = feat;
+@@ -180,7 +183,7 @@ ggml_cgraph * clip_graph_qwen3vl::build() {
+         model.mm_0_w, model.mm_0_b,
+         nullptr, nullptr,
+         model.mm_1_w, model.mm_1_b,
+-        ffn_op_type::FFN_GELU, -1);
++        ffn_op_type::FFN_GELU_ERF, -1);
+ 
+     if (deepstack_features) {
+         embeddings = ggml_concat(ctx0, embeddings, deepstack_features, 0);

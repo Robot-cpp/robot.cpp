@@ -8,6 +8,7 @@
 
 - `smolvla/`：将 SmolVLA的lerobot-style的checkpoint 转成四个 GGUF component。
 - `pi0/`：将 pi0的lerobot-style的checkpoint 转成六个 split GGUF component。
+- `starvla/`：固定版本的 Qwen3-VL/Qwen2.5-VL 转换与共享的 3% CUDA action parity gate，覆盖七种 StarVLA variant；上游尚无官方 finetuned Qwen3 FAST policy checkpoint。
 - `environment.yaml`：converter conda 环境。
 
 ## 使用说明
