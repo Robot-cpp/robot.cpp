@@ -177,8 +177,4 @@ class Qwen3VLBridge {
 
 // Neutral aliases for new callers. The original names remain the ABI/source
 // compatibility surface for the completed Qwen3 integrations.
-using QwenVLImageView = Qwen3VLImageView;
-using QwenVLBridgeConfig = Qwen3VLBridgeConfig;
-using QwenVLBridge = Qwen3VLBridge;
-
 } // namespace robotcpp::starvla

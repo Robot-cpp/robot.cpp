@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
 import sys
@@ -16,7 +15,6 @@ import numpy as np
 
 from convert_starvla_policy_to_gguf import (
     GROOT_BLOCK_COUNT,
-    GROOT_OFFICIAL_DIMENSIONS,
     GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE,
     GROOT_POLICY_TENSOR_COUNT,
     GROOT_TENSOR_MAP,

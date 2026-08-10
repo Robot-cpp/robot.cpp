@@ -342,7 +342,6 @@ bool prepare_pi_qwen_images(
 } // namespace
 
 struct StarVLAEngine::Impl {
-    StarVLAEngineConfig options;
     StarVLAVariant variant = StarVLAVariant::qwen3_oft;
     std::filesystem::path policy_path;
     std::filesystem::path text_path;
@@ -376,7 +375,6 @@ std::unique_ptr<StarVLAEngine> StarVLAEngine::load(const StarVLAEngineConfig & c
     }
 
     std::unique_ptr<Impl> impl(new Impl());
-    impl->options = config;
     const int effective_threads = config.n_threads > 0 ? config.n_threads : kDefaultThreadCount;
     impl->policy_path = std::filesystem::path(config.policy_path);
     if (!require_regular_file(impl->policy_path, "policy GGUF", error)) {

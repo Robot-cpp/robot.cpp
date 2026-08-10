@@ -9,7 +9,6 @@ import gc
 import hashlib
 import importlib.metadata
 import json
-import os
 import platform
 import random
 import shutil
@@ -25,7 +24,7 @@ TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from generate_starvla_pi_v3_golden import (  # noqa: E402
+from generate_starvla_pi_v3_golden import (  # noqa: E402,F401
     EXPECTED_ACCELERATE_VERSION,
     EXPECTED_DIFFUSERS_VERSION,
     EXPECTED_NUMPY_VERSION,

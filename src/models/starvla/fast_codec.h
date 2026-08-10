@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <utility>
@@ -38,12 +37,6 @@ public:
         FastCodecConfig config, std::vector<int32_t> token_offsets,
         std::vector<uint8_t> token_bytes,
         std::vector<int32_t> fast_to_vlm_id, std::string & error);
-
-    static std::unique_ptr<FastCodec> load_hf_assets(
-        const std::filesystem::path & tokenizer_json,
-        const std::filesystem::path & processor_config_json,
-        const std::filesystem::path & action_token_map_json,
-        size_t time_horizon, size_t action_dim, std::string & error);
 
     const FastCodecConfig & config() const;
     const std::vector<int32_t> & fast_to_vlm_ids() const;
