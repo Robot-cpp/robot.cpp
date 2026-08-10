@@ -4,10 +4,9 @@
 
 # SimplerEnv WidowX Bridge Eval
 
-This integration compares StarVLA on SimplerEnv WidowX / BridgeData v2. The
-local original Python `.pt` checkpoint is the conversion reference; the
-robot.cpp CUDA GGUF runtime is the candidate. Published model-zoo scores are
-not used as the local conversion reference.
+This directory runs StarVLA on the SimplerEnv WidowX Bridge tasks. It can run
+the original Python `.pt` checkpoint and the robot.cpp CUDA GGUF build with the
+same rollout settings, then compare their results.
 
 ## Protocol
 
@@ -17,23 +16,45 @@ not used as the local conversion reference.
   OpenCV `INTER_AREA`.
 - A new action chunk each step and the official seven-prediction FP32 adaptive
   ensemble.
-- Identical task, episode, seed, prompt, image, action postprocessing, and
-  termination contract on both backends.
+- The Python and C++ runs use the same task, episode, seed, prompt, image,
+  action postprocessing, and termination conditions.
 - Diffusion variants receive the same BF16-rounded initial noise for every
   episode and policy step through protocol v4.
 
-The paired profile contains 96 rollouts per backend: 4 tasks x 24 object
-episodes. A subset is marked `partial`. Bridge success rate has no implicit
-pass threshold and does not replace the 3% full-action relative-L2 gate.
+The full comparison contains 96 rollouts per runtime: 4 tasks x 24 object
+episodes. A smaller run is marked `partial`. The comparison reports success
+rates but does not assign a pass threshold. Action differences can be checked
+separately with `compare_starvla_actions.py`, whose default relative-L2 limit is
+3%.
 
 ## Setup
 
-Pinned revisions:
+First download and convert the checkpoint as described in the
+[StarVLA conversion guide](../../tools/hf2gguf/starvla/README.md), and build the
+CUDA runtime. Paired evaluation also needs the catalog-pinned StarVLA checkout
+and a local Python reference environment:
+
+```bash
+STARVLA_REV="$(python -c 'import json; print(json.load(open("tools/hf2gguf/starvla/checkpoint_catalog.json"))["source_revisions"]["starvla"])')"
+git clone https://github.com/starVLA/starVLA.git ckpts/starvla/source/starvla
+git -C ckpts/starvla/source/starvla checkout "${STARVLA_REV}"
+
+python3.11 -m venv ckpts/starvla/.venv-official
+ckpts/starvla/.venv-official/bin/pip install \
+  -c tools/hf2gguf/starvla/reference_constraints.txt \
+  -r ckpts/starvla/source/starvla/requirements.txt
+ckpts/starvla/.venv-official/bin/pip install -e ckpts/starvla/source/starvla
+```
+
+Override these locations with `CHECKPOINT_ROOT`, `STARVLA_SOURCE`,
+`REFERENCE_PYTHON`, or `SIMPLER_ENV_ROOT`. The FAST reference also requires the
+retained `ckpts/starvla/work/qwen25_fast` staging directory.
+
+SimplerEnv uses these pinned revisions:
 
 ```text
 SimplerEnv:              06accaca93535902d408da4855f21cece12bceb7
 ManiSkill2_real2sim:     ef7a4d4fdf4b69f2c2154db5b15b9ac8dfe10682
-StarVLA eval reference:  631aae02afe6d95876e923ff518e8ff2ab9a2f88
 ```
 
 ```bash
@@ -57,11 +78,15 @@ before starting rollouts:
 python ckpts/starvla/source/starvla/examples/simBenchmarks/SimplerEnv/eval_files/test_your_simplerEnv.py
 ```
 
+The paired runner uses the system Vulkan loader by default. Set
+`VULKAN_LIBRARY_PATH` and `VULKAN_ICD` only when a custom loader directory or
+ICD JSON file is required.
+
 ## Run
 
 `VARIANT` accepts `oft`, `groot`, `pi_v3`, `qwen25_oft`, `qwen25_groot`,
-`qwen25_pi`, and `qwen25_fast`. The scripts select each pinned checkpoint,
-Qwen asset, GGUF bundle, Python reference, and normalization profile.
+`qwen25_pi`, and `qwen25_fast`. The scripts select the checkpoint, Qwen files,
+GGUF files, Python server, and normalization profile for the chosen variant.
 
 Inspect the full command without running it:
 
@@ -70,7 +95,7 @@ VARIANT=oft DRY_RUN=1 \
 bash eval/simpler_env/scripts/run_paired_local.sh
 ```
 
-Run the 96-rollout paired profile on four GPUs:
+Run all 96 rollouts on four GPUs:
 
 ```bash
 VARIANT=oft \
@@ -80,8 +105,8 @@ SIMPLER_ENV_ROOT=ckpts/simpler_env/source/SimplerEnv \
 bash eval/simpler_env/scripts/run_paired_local.sh
 ```
 
-The runner completes four Python reference shards, then four C++ candidate
-shards with the same task/GPU/port mapping, and writes:
+The runner completes four Python shards, then four C++ shards with the same
+task/GPU/port mapping, and writes:
 
 ```text
 ckpts/starvla/results/<variant>/bridge-local-paired-<comparison-id>/comparison.json
@@ -95,19 +120,16 @@ COMPARISON_ID=groot-smoke-001 \
 bash eval/simpler_env/scripts/run_paired_local.sh
 ```
 
-The result is marked `status=partial` and is not complete success-rate
-evidence. Use `run_python_reference.sh` for a standalone Python reference
-shard and `run_model_server.sh` for a standalone C++ shard or official-style
-run.
+The result is marked `status=partial`. Use `run_python_reference.sh` for a
+standalone Python shard and `run_model_server.sh` for a standalone C++ shard or
+a full run.
 
-## Result contract
+## Output
 
 Each `(task, repeat)` gets a fresh backend server. Results record the StarVLA
-`variant`, checkpoint identity, action shape, and one row per rollout. The
-candidate script verifies the conversion manifest and all three GGUF hashes;
-the comparator requires matching model, execution, and rollout contracts.
+`variant`, checkpoint, action shape, and one row per rollout. Before running,
+the C++ script verifies the conversion manifest and the GGUF file hashes. The
+comparison rejects results produced with different models or rollout settings.
 
-`comparison.json` reports successes, success rates, percentage-point delta,
-episode agreement, and the contingency table. Complete measurements for all
-seven checkpoints, including paths and SHA256 values, are in
-[`docs/STARVLA_BRIDGE_RESULTS_ZH.md`](../../docs/STARVLA_BRIDGE_RESULTS_ZH.md).
+`comparison.json` contains the success counts and rates, percentage-point
+difference, per-episode agreement, and contingency table.

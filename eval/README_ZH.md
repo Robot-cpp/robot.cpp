@@ -34,7 +34,7 @@ eval/
 | 目录                                             | 场景   | 说明                                                                                         |
 | ---------------------------------------------- | ---- | ------------------------------------------------------------------------------------------ |
 | `[libero/](libero/README_ZH.md)`               | 仿真评测 | 面向 LIBERO benchmark，含 C++ policy rollout 与 LeRobot baseline 对比。[English](libero/README.md) |
-| `[simpler_env/](simpler_env/README_ZH.md)`     | 仿真评测 | StarVLA GGUF 的 SimplerEnv WidowX / Bridge 官方任务协议及本地 `.pt` paired conversion reference。[English](simpler_env/README.md) |
+| `[simpler_env/](simpler_env/README_ZH.md)`     | 仿真评测 | 在 SimplerEnv WidowX Bridge 任务上运行并比较 StarVLA Python 与 GGUF。[English](simpler_env/README.md) |
 | `[lerobot_so101/](lerobot_so101/README_ZH.md)` | 真机闭环 | SO-101 follower + 单相机的 observe → predict → act 同步控制。[English](lerobot_so101/README.md)     |
 
 
@@ -42,7 +42,7 @@ eval/
 
 - **SO-101** 走标准 `BasePlatform` + `RobotPolicy` + `SyncControlLoop` 路径，适合作为新增真机 platform 的模板。
 - **LIBERO** 在 `eval/libero/policy/` 里实现了专用的 observation 适配（多相机、state 拼接、仿真 rollout），不继承 `BasePlatform`，适合作为新增 **仿真 benchmark** 的参考。
-- **SimplerEnv** 沿用专用 runner 结构，并加入 WidowX action 变换、时序集成、normalization profile、官方任务协议和本地原始 Python `.pt` paired conversion reference。
+- **SimplerEnv** 沿用专用 runner 结构，为 Python 和 C++ 实现相同的 WidowX action 变换、时序集成、normalization profile 与 Bridge 任务设置。
 
 ## 标准闭环数据流
 

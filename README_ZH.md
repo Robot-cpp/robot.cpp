@@ -138,9 +138,10 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### 🧪 model-server在仿真平台上的使用（以LIBERO为例）
 
-详见 [LIBERO 仿真评测说明](eval/libero/README_ZH.md)。StarVLA 的 WidowX / BridgeData v2
-官方任务协议、本地原始 Python `.pt` reference 与 GGUF 闭环成功率对照见
-[SimplerEnv Bridge 说明](eval/simpler_env/README_ZH.md)。
+详见 [LIBERO 仿真评测说明](eval/libero/README_ZH.md)。在 WidowX Bridge 任务上运行
+StarVLA，并比较 Python checkpoint 与 GGUF 的方法见
+[SimplerEnv Bridge 说明](eval/simpler_env/README_ZH.md)；实现结构和扩展流程见
+[StarVLA 开发文档](docs/STARVLA_DEVELOPMENT_ZH.md)。
 
 ### 🦾 model-server在真机平台上的使用（以SO-101为例）
 

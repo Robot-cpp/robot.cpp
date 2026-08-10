@@ -138,10 +138,9 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### 🧪 Using model-server in simulation, using LIBERO as the example
 
-See the [LIBERO simulation evaluation guide](eval/libero/README.md). StarVLA's
-WidowX / BridgeData v2 task protocol and closed-loop comparison between the
-local original Python `.pt` reference and GGUF are documented in the
-[SimplerEnv Bridge guide](eval/simpler_env/README.md).
+See the [LIBERO simulation evaluation guide](eval/libero/README.md). To run
+StarVLA on the WidowX Bridge tasks and compare the Python checkpoint with GGUF,
+see the [SimplerEnv Bridge guide](eval/simpler_env/README.md).
 
 ### 🦾 Using model-server on real hardware, using SO-101 as the example
 
