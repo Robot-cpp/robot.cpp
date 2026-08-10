@@ -9,7 +9,7 @@ namespace robotcpp::starvla {
 namespace {
 
 constexpr const char * kInstructionPlaceholder = "{instruction}";
-constexpr const char * kMtmdMediaMarker = "<__media__>";
+constexpr const char * kMtmdMediaMarker        = "<__media__>";
 
 std::string repeat(const std::string & value, int count) {
     std::string result;
@@ -28,8 +28,8 @@ void replace_all(std::string & value, const std::string & needle, const std::str
     }
 }
 
-bool discretize_state(const OFTPromptConfig & config, const std::vector<float> & state,
-                      std::string & output, std::string & error) {
+bool discretize_state(const OFTPromptConfig & config, const std::vector<float> & state, std::string & output,
+                      std::string & error) {
     if (state.empty()) {
         output.clear();
         return true;
@@ -38,7 +38,7 @@ bool discretize_state(const OFTPromptConfig & config, const std::vector<float> &
     std::ostringstream stream;
     const double minimum = static_cast<double>(config.state_bin_min);
     const double maximum = static_cast<double>(config.state_bin_max);
-    const double step = (maximum - minimum) / static_cast<double>(config.state_bins);
+    const double step    = (maximum - minimum) / static_cast<double>(config.state_bins);
     for (size_t i = 0; i < state.size(); ++i) {
         double value = static_cast<double>(state[i]);
         if (!std::isfinite(value)) {
@@ -77,8 +77,8 @@ bool validate_oft_prompt_config(const OFTPromptConfig & config, std::string & er
         return false;
     }
     const std::string expected_suffix = " Please predict the next " + std::to_string(config.horizon) +
-                                        " robot actions: <action>" +
-                                        repeat(config.action_token, config.horizon) + "<action>.";
+                                        " robot actions: <action>" + repeat(config.action_token, config.horizon) +
+                                        "<action>.";
     if (config.action_suffix != expected_suffix) {
         error = "StarVLA OFT action suffix does not match its horizon/token contract";
         return false;
@@ -87,8 +87,7 @@ bool validate_oft_prompt_config(const OFTPromptConfig & config, std::string & er
         error = "StarVLA OFT CoT template is missing {instruction}";
         return false;
     }
-    if (config.state_bins <= 0 ||
-        !std::isfinite(config.state_bin_min) || !std::isfinite(config.state_bin_max) ||
+    if (config.state_bins <= 0 || !std::isfinite(config.state_bin_min) || !std::isfinite(config.state_bin_max) ||
         config.state_bin_max <= config.state_bin_min) {
         error = "StarVLA OFT state prompt metadata is incompatible";
         return false;
@@ -96,9 +95,8 @@ bool validate_oft_prompt_config(const OFTPromptConfig & config, std::string & er
     return true;
 }
 
-bool build_oft_instruction(const OFTPromptConfig & config, const std::string & task,
-                           const std::vector<float> & state, std::string & instruction,
-                           std::string & error) {
+bool build_oft_instruction(const OFTPromptConfig & config, const std::string & task, const std::vector<float> & state,
+                           std::string & instruction, std::string & error) {
     instruction.clear();
     if (!validate_oft_prompt_config(config, error)) {
         return false;
@@ -127,8 +125,7 @@ bool build_oft_instruction(const OFTPromptConfig & config, const std::string & t
     return true;
 }
 
-std::string build_qwen_media_content(size_t image_count, const std::string & instruction,
-                                     const char * media_marker) {
+std::string build_qwen_media_content(size_t image_count, const std::string & instruction, const char * media_marker) {
     const std::string marker = media_marker == nullptr ? std::string() : std::string(media_marker);
     std::string content;
     content.reserve(marker.size() * image_count + instruction.size());
@@ -139,9 +136,8 @@ std::string build_qwen_media_content(size_t image_count, const std::string & ins
     return content;
 }
 
-bool find_last_token_positions(const std::vector<int32_t> & token_ids, int32_t token_id,
-                               size_t count, std::vector<size_t> & positions,
-                               std::string & error) {
+bool find_last_token_positions(const std::vector<int32_t> & token_ids, int32_t token_id, size_t count,
+                               std::vector<size_t> & positions, std::string & error) {
     positions.clear();
     error.clear();
     if (count == 0) {

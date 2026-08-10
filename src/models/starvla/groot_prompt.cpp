@@ -6,14 +6,13 @@ namespace robotcpp::starvla {
 namespace {
 
 constexpr const char * kInstructionPlaceholder = "{instruction}";
-constexpr const char * kMtmdMediaMarker = "<__media__>";
+constexpr const char * kMtmdMediaMarker        = "<__media__>";
 
 bool contains_nul(const std::string & value) {
     return value.find('\0') != std::string::npos;
 }
 
-void replace_all(std::string & value, const std::string & needle,
-                 const std::string & replacement) {
+void replace_all(std::string & value, const std::string & needle, const std::string & replacement) {
     size_t offset = 0;
     while ((offset = value.find(needle, offset)) != std::string::npos) {
         value.replace(offset, needle.size(), replacement);
@@ -21,9 +20,8 @@ void replace_all(std::string & value, const std::string & needle,
     }
 }
 
-bool build_instruction(const char * framework, const std::string & cot_template,
-                       const std::string & task, std::string & instruction,
-                       std::string & error) {
+bool build_instruction(const char * framework, const std::string & cot_template, const std::string & task,
+                       std::string & instruction, std::string & error) {
     instruction.clear();
     error.clear();
 
@@ -32,19 +30,15 @@ bool build_instruction(const char * framework, const std::string & cot_template,
         return false;
     }
     if (contains_nul(task) || contains_nul(cot_template)) {
-        error = std::string("StarVLA ") + framework +
-                " prompt contains an embedded NUL byte";
+        error = std::string("StarVLA ") + framework + " prompt contains an embedded NUL byte";
         return false;
     }
-    if (task.find(kMtmdMediaMarker) != std::string::npos ||
-        cot_template.find(kMtmdMediaMarker) != std::string::npos) {
-        error = std::string("StarVLA ") + framework +
-                " prompt contains the reserved mtmd media marker";
+    if (task.find(kMtmdMediaMarker) != std::string::npos || cot_template.find(kMtmdMediaMarker) != std::string::npos) {
+        error = std::string("StarVLA ") + framework + " prompt contains the reserved mtmd media marker";
         return false;
     }
     if (cot_template.find(kInstructionPlaceholder) == std::string::npos) {
-        error = std::string("StarVLA ") + framework +
-                " CoT template is missing {instruction}";
+        error = std::string("StarVLA ") + framework + " CoT template is missing {instruction}";
         return false;
     }
 
@@ -56,19 +50,18 @@ bool build_instruction(const char * framework, const std::string & cot_template,
 
 } // namespace
 
-bool build_groot_instruction(const std::string & cot_template, const std::string & task,
-                             std::string & instruction, std::string & error) {
+bool build_groot_instruction(const std::string & cot_template, const std::string & task, std::string & instruction,
+                             std::string & error) {
     return build_instruction("GR00T", cot_template, task, instruction, error);
 }
 
-bool build_pi_v3_instruction(const std::string & cot_template, const std::string & task,
-                             std::string & instruction, std::string & error) {
+bool build_pi_v3_instruction(const std::string & cot_template, const std::string & task, std::string & instruction,
+                             std::string & error) {
     return build_instruction("PI_v3", cot_template, task, instruction, error);
 }
 
-bool build_fast_instruction(const std::string & cot_template,
-                            const std::string & task,
-                            std::string & instruction, std::string & error) {
+bool build_fast_instruction(const std::string & cot_template, const std::string & task, std::string & instruction,
+                            std::string & error) {
     return build_instruction("FAST", cot_template, task, instruction, error);
 }
 

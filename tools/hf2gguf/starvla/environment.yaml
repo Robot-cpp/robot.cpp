@@ -5,10 +5,19 @@ dependencies:
   - python=3.11
   - pip
   - pip:
-      - torch
-      - numpy
-      - safetensors
+      - torch==2.6.0
+      - torchvision==0.21.0
+      - numpy==1.26.4
+      - safetensors==0.7.0
       - sentencepiece
       - transformers==4.57.0
+      - tokenizers==0.22.2
+      - accelerate==1.5.2
+      - diffusers==0.37.1
+      - omegaconf==2.3.0
+      - pillow==12.1.1
+      - qwen-vl-utils==0.0.14
+      - rich
+      - scipy
       - huggingface_hub>=0.36.0
       - pyyaml

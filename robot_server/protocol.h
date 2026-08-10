@@ -9,7 +9,7 @@ namespace robot_server {
 namespace protocol {
 
 static constexpr uint32_t k_magic               = 0x414c5653u; // "SVLA" in little-endian bytes.
-static constexpr uint16_t k_version             = 3;
+static constexpr uint16_t k_version             = 4;
 static constexpr uint16_t k_header_size         = 32;
 static constexpr uint64_t k_default_max_payload = 256ull * 1024ull * 1024ull;
 
@@ -63,6 +63,7 @@ struct metric {
 struct predict_request {
     std::vector<image_payload> images;
     std::vector<float> state;
+    std::vector<float> initial_noise;
     std::string task;
 };
 

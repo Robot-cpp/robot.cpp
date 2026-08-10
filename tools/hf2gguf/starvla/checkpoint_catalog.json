@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "source_revisions": {
+    "starvla": "631aae02afe6d95876e923ff518e8ff2ab9a2f88",
+    "llama_cpp": "3e941b813b1acbbf06c2203a94ceb33d84748c1e"
+  },
+  "shared_assets": {
+    "qwen3_vl_4b_instruct": {
+      "directory": "qwen3-vl-4b-instruct",
+      "repo_id": "Qwen/Qwen3-VL-4B-Instruct",
+      "revision": "ebb281ec70b05090aa6165b016eac8ec08e71b17",
+      "files": [
+        "chat_template.json",
+        "config.json",
+        "generation_config.json",
+        "merges.txt",
+        "preprocessor_config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "video_preprocessor_config.json",
+        "vocab.json"
+      ],
+      "file_hashes": {
+        "chat_template.json": {"size": 5502, "sha256": "6f8a6a55027e3da5160105556cda5dd69f6423f1c32645f6730d32de7773d0c4"},
+        "config.json": {"size": 1505, "sha256": "edac7703329133edfc53e46ac0081835144c99d7eebf28b71c732694d435224d"},
+        "generation_config.json": {"size": 269, "sha256": "8469742d1fce0de951c8909b26a2c0c0d8490837ce476efb114da9e0cefc4d44"},
+        "merges.txt": {"size": 1671839, "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3"},
+        "preprocessor_config.json": {"size": 390, "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516"},
+        "tokenizer.json": {"size": 7032403, "sha256": "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7"},
+        "tokenizer_config.json": {"size": 10868, "sha256": "c2da771801886ad9ae98181793ffd3dfb7f1af30f6f7c6a4e15d7dbba52e2399"},
+        "video_preprocessor_config.json": {"size": 385, "sha256": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13"},
+        "vocab.json": {"size": 2776833, "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"}
+      },
+      "staged_overrides": {
+        "config.json": {"size": 1507, "sha256": "ef6ec5fd4c5a80b549208f2352d88c480436db2cf9983359f23260c36e4ae38d"}
+      }
+    },
+    "qwen2_5_vl_3b_instruct": {
+      "directory": "qwen2.5-vl-3b-instruct",
+      "repo_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "files": [
+        "chat_template.json",
+        "config.json",
+        "generation_config.json",
+        "merges.txt",
+        "model.safetensors.index.json",
+        "preprocessor_config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "vocab.json"
+      ],
+      "file_hashes": {
+        "chat_template.json": {"size": 1050, "sha256": "ad60d90252ed0b0705ba14e2d0ad0fec0beac1ea955642b54059b36052d8bc96"},
+        "config.json": {"size": 1373, "sha256": "7ed3eed5be6924cc800e8a5e53fc405c1aab1aaf36bad65c33403b36c56827f5"},
+        "generation_config.json": {"size": 216, "sha256": "533f191cc257b7de37a4fccd0a7a1706d75e1aa660f93efaa54e5a2a9f9aace9"},
+        "merges.txt": {"size": 1671839, "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3"},
+        "model.safetensors.index.json": {"size": 65448, "sha256": "c7dd78a4c6bea60b51332f1baf37b8f8124ecab2c35395a29a29825bf2619768"},
+        "preprocessor_config.json": {"size": 350, "sha256": "f2058c716eef96ccaed1cc1e2d0c08306b62586d535b28d9d08e691b2fab7ca0"},
+        "tokenizer.json": {"size": 7031645, "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"},
+        "tokenizer_config.json": {"size": 5702, "sha256": "4abd3520120e266da84c0864fee064d1fb10806f02225911a47253dd38dc5f56"},
+        "vocab.json": {"size": 2776833, "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"}
+      },
+      "staged_overrides": {
+        "config.json": {"size": 1375, "sha256": "9c22fba5261a8e47aa66be0e4ef22473190168859dc3bbe7f283fbc4f161b0eb"}
+      },
+      "optional_weight_files": [
+        "model-00001-of-00002.safetensors",
+        "model-00002-of-00002.safetensors"
+      ],
+      "optional_weight_hashes": {
+        "model-00001-of-00002.safetensors": {"size": 3982649232, "sha256": "41a8895c164b4d32bae6b302f4603fcbc1797f32dafa45c7e9bcda23c6755df8"},
+        "model-00002-of-00002.safetensors": {"size": 3526688744, "sha256": "365531ff8752420e89dee707b79d021fb2d6e25abafe486f080555a4fe6972e4"}
+      }
+    },
+    "qwen2_5_vl_3b_instruct_action": {
+      "directory": "qwen2.5-vl-3b-instruct-action",
+      "repo_id": "StarVLA/Qwen2.5-VL-3B-Instruct-Action",
+      "revision": "ce86bd9a53416527b8361e8dfc47316288ffa110",
+      "files": [
+        "README.md",
+        "added_token_id_map.json",
+        "added_tokens.json",
+        "chat_template.jinja",
+        "config.json",
+        "generation_config.json",
+        "merges.txt",
+        "model.safetensors.index.json",
+        "preprocessor_config.json",
+        "special_tokens_map.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "video_preprocessor_config.json",
+        "vocab.json"
+      ],
+      "file_hashes": {
+        "README.md": {"size": 482, "sha256": "cef1e9f3b90d50d1b6274fed603140127de9441bd6d8425811225d00a290f46f"},
+        "added_token_id_map.json": {"size": 66476, "sha256": "a774a771870979578111a9f083e03e421bc3e6c0c7070d81e775acc21c74a21a"},
+        "added_tokens.json": {"size": 67079, "sha256": "fcca65c62c6da071c4046abbc18b8287c51030e62febec408bac498a03652eaa"},
+        "chat_template.jinja": {"size": 1017, "sha256": "a0bc6f6fc7a29a80017a433e8f03a1cc1236e838a944a2d034295a60c4f2fddb"},
+        "config.json": {"size": 3317, "sha256": "5c30acf44442bbdd863b87a6f61b6879616a2933271bf62841de14037f6c0f7d"},
+        "generation_config.json": {"size": 244, "sha256": "76001fd927297f839d96c5a52dd09de3406a4c28822fba4f525d13c5a1e2c8d7"},
+        "merges.txt": {"size": 1671853, "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5"},
+        "model.safetensors.index.json": {"size": 65484, "sha256": "e6ce326cff552529deb7ca2e05616b9b79fba9d26632309564744c3731fbb644"},
+        "preprocessor_config.json": {"size": 829, "sha256": "dfc7263fe735989c65c290d394198c4724d5afc58bf15c815d5e2e25b00b51b1"},
+        "special_tokens_map.json": {"size": 312563, "sha256": "707f14d06c06e20212dbe5c118873f1c024f28ffac4b07c52bd2840ba0c34290"},
+        "tokenizer.json": {"size": 11822194, "sha256": "07da2a694acc4f6e63d67da9926817ee35b0354b1e570a6a73d325760a1c2ed2"},
+        "tokenizer_config.json": {"size": 438450, "sha256": "7cd59c7a865d2989c0d9b18bf485a5ee212f8ff333acd305a1bf560b75c16575"},
+        "video_preprocessor_config.json": {"size": 913, "sha256": "15bb7c2f2bc95fe9cc3749a4b287872b4886a15e9fcf550a4122a46ae26150bd"},
+        "vocab.json": {"size": 2776833, "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"}
+      },
+      "staged_overrides": {
+        "config.json": {"size": 3350, "sha256": "782edd73d2c9584d65350a6410780b96bef658437cbd9d8e0ed7006a1e3fcaed"}
+      },
+      "optional_weight_files": [
+        "model-00001-of-00002.safetensors",
+        "model-00002-of-00002.safetensors"
+      ],
+      "optional_weight_hashes": {
+        "model-00001-of-00002.safetensors": {"size": 4959940464, "sha256": "0abe459fc004959698441fd706b7721ec4633e963284b1b260df31ed5f765960"},
+        "model-00002-of-00002.safetensors": {"size": 2556676080, "sha256": "a7a84f03ce697eddedc3abba904e2a110104fe78d6be9a0067f5b8f45c358e1c"}
+      }
+    },
+    "fast_codec": {
+      "directory": "fast-codec",
+      "repo_id": "physical-intelligence/fast",
+      "revision": "ec4d7aa71691cac0b8bed6942be45684db2110f4",
+      "files": [
+        "processing_action_tokenizer.py",
+        "processor_config.json",
+        "special_tokens_map.json",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ],
+      "file_hashes": {
+        "processing_action_tokenizer.py": {"size": 6145, "sha256": "6f021ca1f4c1b194ab6fa399d80baf3d642eadb17efb8f73301e4ac401522c20"},
+        "processor_config.json": {"size": 253, "sha256": "f40cfbb1020858fe1d48c0f946b0c1315a90d6e84aa82710036f24f4c167706a"},
+        "special_tokens_map.json": {"size": 3, "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"},
+        "tokenizer.json": {"size": 686974, "sha256": "6507dd709287fd018882120c0071787f1f62bad9f180f1e8c5235bda1b71fa78"},
+        "tokenizer_config.json": {"size": 322, "sha256": "b4030e2a13a0dea22e99d54c086fb320c71e66ad034ac4eba4301a0a27d5e5cd"}
+      }
+    }
+  },
+  "variants": {
+    "oft": {
+      "model_type": "starvla",
+      "framework": "oft",
+      "backbone": "qwen3_vl",
+      "qwen_asset": "qwen3_vl_4b_instruct",
+      "default_unnorm_key": "oxe_bridge",
+      "directory": "oft-bridge-rt1",
+      "repo_id": "StarVLA/Qwen3VL-OFT-Bridge-RT-1",
+      "revision": "c3fc8f028429ba14819bf3b16e098776b670c889",
+      "files": [
+        "config.json",
+        "config.yaml",
+        "dataset_statistics.json"
+      ],
+      "file_hashes": {
+        "config.json": {"size": 3920, "sha256": "6a6b0dd11ec26f88aca711a8886ecb619bbb895846a6353df53f04ece682b318"},
+        "config.yaml": {"size": 3207, "sha256": "6c074974697115284b1624dda5230f3dd27e1d9a373db73006467004ed859c2a"},
+        "dataset_statistics.json": {"size": 5990, "sha256": "83aa32682dd0b600e570936bfb63fd5d30b51d165e3d174a7ff3fc69d9fc276b"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_5000_pytorch_model.pt",
+        "size": 9785060316,
+        "sha256": "371cb744227687bb99bcad7f9ff2250cf06da75631359ad3eba4c6bc52570607"
+      },
+      "policy_prefixes": [
+        "action_model."
+      ],
+      "expected": {
+        "total_tensors": 730,
+        "vlm_tensors": 714,
+        "policy_tensors": 16,
+        "visual_tensors": 315,
+        "text_tensors": 398,
+        "lm_head_tensors": 1,
+        "total_numel": 4892395015,
+        "vlm_numel": 4826771968,
+        "policy_numel": 65623047,
+        "dtypes": {
+          "bfloat16": 730
+        },
+        "storage_alias_groups": 0
+      },
+      "required_shapes": {
+        "model.language_model.embed_tokens.weight": [151936, 2560],
+        "lm_head.weight": [151936, 2560],
+        "action_model.model.fc1.weight": [5120, 2560],
+        "action_model.model.fc2.weight": [7, 5120]
+      }
+    },
+    "groot": {
+      "model_type": "starvla",
+      "framework": "groot",
+      "backbone": "qwen3_vl",
+      "qwen_asset": "qwen3_vl_4b_instruct",
+      "default_unnorm_key": "oxe_bridge",
+      "directory": "groot-bridge-rt1",
+      "repo_id": "StarVLA/Qwen3VL-GR00T-Bridge-RT-1",
+      "revision": "12acc0b0f1f6230df21c479934a67a930b52f878",
+      "files": [
+        "config.json",
+        "config.yaml",
+        "dataset_statistics.json"
+      ],
+      "file_hashes": {
+        "config.json": {"size": 3926, "sha256": "9efddc3c21039fa473823080a939dfa686050a8a2d4a4cb1b01b1a06913fccf5"},
+        "config.yaml": {"size": 3174, "sha256": "01e092e9a3a9380885f1a27953048e7ed1ef7f6c99ea1984d289d1358e4ba85f"},
+        "dataset_statistics.json": {"size": 5990, "sha256": "83aa32682dd0b600e570936bfb63fd5d30b51d165e3d174a7ff3fc69d9fc276b"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_20000_pytorch_model.pt",
+        "size": 9976845210,
+        "sha256": "769d6c400d582a86ae8df8b0b445240ab679dbe77eeb72a4db71e43cd129c7c3"
+      },
+      "policy_prefixes": [
+        "action_model."
+      ],
+      "expected": {
+        "total_tensors": 962,
+        "vlm_tensors": 714,
+        "policy_tensors": 248,
+        "visual_tensors": 315,
+        "text_tensors": 398,
+        "lm_head_tensors": 1,
+        "total_numel": 4988244743,
+        "vlm_numel": 4826771968,
+        "policy_numel": 161472775,
+        "dtypes": {
+          "bfloat16": 962
+        },
+        "storage_alias_groups": 0
+      },
+      "required_shapes": {
+        "model.language_model.embed_tokens.weight": [151936, 2560],
+        "lm_head.weight": [151936, 2560]
+      }
+    },
+    "pi_v3": {
+      "model_type": "starvla",
+      "framework": "pi_v3",
+      "backbone": "qwen3_vl",
+      "qwen_asset": "qwen3_vl_4b_instruct",
+      "default_unnorm_key": "oxe_bridge",
+      "directory": "pi-v3-bridge-rt1",
+      "repo_id": "StarVLA/Qwen3VL-PI_v3-Bridge-RT_1",
+      "revision": "99a3c01b3977e6442871a1fb62ce178279c5c3ed",
+      "files": [
+        "config.full.yaml",
+        "config.yaml",
+        "dataset_statistics.json"
+      ],
+      "file_hashes": {
+        "config.full.yaml": {"size": 3087, "sha256": "85ff9fba2c9426d35f12efabfd52b9ef4633d91d084421952b391809ea73b33f"},
+        "config.yaml": {"size": 1915, "sha256": "f266bd2de5b9fb7078c8314954e98f72476a36a8944e3f380096ba5b1256901b"},
+        "dataset_statistics.json": {"size": 5987, "sha256": "9925e884e37ca807061b5d41206bcf72814300e7effb5b4edc067dc821fca004"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_50000_pytorch_model.pt",
+        "size": 10922634912,
+        "sha256": "7f59a5d0fa9c167fabd941bca8e606bdf5597bfb4f99ca83e345672dd9c345ed"
+      },
+      "policy_prefixes": [
+        "action_model.",
+        "project_layers."
+      ],
+      "expected": {
+        "total_tensors": 1386,
+        "vlm_tensors": 714,
+        "policy_tensors": 672,
+        "visual_tensors": 315,
+        "text_tensors": 398,
+        "lm_head_tensors": 1,
+        "total_numel": 5461066247,
+        "vlm_numel": 4826771968,
+        "policy_numel": 634294279,
+        "dtypes": {
+          "bfloat16": 1386
+        },
+        "storage_alias_groups": 0
+      },
+      "required_shapes": {
+        "model.language_model.embed_tokens.weight": [151936, 2560],
+        "lm_head.weight": [151936, 2560]
+      }
+    },
+    "qwen25_oft": {
+      "model_type": "starvla",
+      "framework": "oft",
+      "backbone": "qwen2_5_vl",
+      "qwen_asset": "qwen2_5_vl_3b_instruct",
+      "default_unnorm_key": "bridge_dataset",
+      "directory": "qwen25-oft-bridge-rt1",
+      "repo_id": "StarVLA/Qwen-OFT-Bridge-RT-1",
+      "revision": "11fa6440835ba3e912de43cfe8521043360ffc02",
+      "files": [
+        "config.yaml",
+        "dataset_statistics.json",
+        "summary.jsonl"
+      ],
+      "file_hashes": {
+        "config.yaml": {"size": 2876, "sha256": "2f0362a1c0ae1eafba90d0feadf34652515c1d8a0c956db8f97e532492f2cdab"},
+        "dataset_statistics.json": {"size": 6007, "sha256": "d2c4803c94d3b6eb1b8e8e100280e16a53b6058c8c2a7e747d27ecf9fcf9a4de"},
+        "summary.jsonl": {"size": 33, "sha256": "a352646601877394e54b68ce09697098866d5904b825d7932826decaef0b2f8f"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_10000_pytorch_model.pt",
+        "size": 8215912766,
+        "sha256": "51fe8d22c8d57116c2f59c5fdb24323fa3411149e888b807edba99b8354e0861"
+      },
+      "policy_prefixes": [
+        "action_model."
+      ],
+      "expected": {
+        "total_tensors": 841,
+        "vlm_tensors": 825,
+        "policy_tensors": 16,
+        "visual_tensors": 390,
+        "text_tensors": 434,
+        "lm_head_tensors": 1,
+        "total_numel": 4107800583,
+        "vlm_numel": 4065787904,
+        "policy_numel": 42012679,
+        "total_nbytes": 8215601166,
+        "vlm_nbytes": 8131575808,
+        "policy_nbytes": 84025358,
+        "dtypes": {
+          "bfloat16": 841
+        },
+        "storage_alias_groups": 0
+      },
+      "required_shapes": {
+        "model.embed_tokens.weight": [151936, 2048],
+        "lm_head.weight": [151936, 2048]
+      }
+    },
+    "qwen25_groot": {
+      "model_type": "starvla",
+      "framework": "groot",
+      "backbone": "qwen2_5_vl",
+      "qwen_asset": "qwen2_5_vl_3b_instruct_action",
+      "default_unnorm_key": "oxe_bridge",
+      "directory": "qwen25-groot-bridge-rt1",
+      "repo_id": "StarVLA/Qwen-GR00T-Bridge-RT-1",
+      "revision": "5ebc661ba38b29c28f20fff6574801e6f49f3466",
+      "files": [
+        "config.yaml",
+        "dataset_statistics.json",
+        "summary.jsonl"
+      ],
+      "file_hashes": {
+        "config.yaml": {"size": 3175, "sha256": "80d36dd087bd8d0feff246be94a7edcb296161823bce6340f76cc253724fbf1d"},
+        "dataset_statistics.json": {"size": 5990, "sha256": "83aa32682dd0b600e570936bfb63fd5d30b51d165e3d174a7ff3fc69d9fc276b"},
+        "summary.jsonl": {"size": 51, "sha256": "1fcbf58d35ac56b969410719240d507f91ce4ccbcf9c68540f30c8adf225b439"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_30000_pytorch_model.pt",
+        "size": 8456891339,
+        "sha256": "9646da2ae0b32589a75c8cc88fae96c93c5d269b69fd7a29200744936e01d96f"
+      },
+      "policy_prefixes": [
+        "action_model."
+      ],
+      "expected": {
+        "total_tensors": 1073,
+        "vlm_tensors": 825,
+        "policy_tensors": 248,
+        "visual_tensors": 390,
+        "text_tensors": 434,
+        "lm_head_tensors": 1,
+        "total_numel": 4228247815,
+        "vlm_numel": 4073066496,
+        "policy_numel": 155181319,
+        "dtypes": {
+          "bfloat16": 1073
+        },
+        "storage_alias_groups": 0
+      },
+      "required_shapes": {
+        "model.embed_tokens.weight": [153713, 2048],
+        "lm_head.weight": [153713, 2048],
+        "action_model.model.timestep_encoder.timestep_embedder.linear_1.weight": [768, 256],
+        "action_model.model.transformer_blocks.0.attn1.to_k.weight": [768, 2048],
+        "action_model.model.transformer_blocks.1.attn1.to_k.weight": [768, 768],
+        "action_model.model.proj_out_2.weight": [1024, 768],
+        "action_model.action_decoder.layer2.weight": [7, 1024]
+      }
+    },
+    "qwen25_pi": {
+      "model_type": "starvla",
+      "framework": "pi",
+      "backbone": "qwen2_5_vl",
+      "qwen_asset": "qwen2_5_vl_3b_instruct_action",
+      "default_unnorm_key": "oxe_bridge",
+      "directory": "qwen25-pi-bridge-rt1",
+      "repo_id": "StarVLA/Qwen-PI-Bridge-RT-1",
+      "revision": "26d0e079fbe3bc3fc62301f44f0025ef7c64ee22",
+      "files": [
+        "config.yaml",
+        "dataset_statistics.json",
+        "summary.jsonl"
+      ],
+      "file_hashes": {
+        "config.yaml": {"size": 3154, "sha256": "a7bdbde311bc910ee81e673a899199035d372641562824570c4dbaba4ea99ee2"},
+        "dataset_statistics.json": {"size": 5990, "sha256": "83aa32682dd0b600e570936bfb63fd5d30b51d165e3d174a7ff3fc69d9fc276b"},
+        "summary.jsonl": {"size": 169, "sha256": "9051086fe35e01366062e6e3eee43c54b081af37f12f7b132446b22bef129d70"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_30000_pytorch_model.pt",
+        "size": 10103104403,
+        "sha256": "8a0e47858921924d5038f7c4393dee6682b83175a85546e35e357e8f74ce8343"
+      },
+      "policy_prefixes": [
+        "action_model."
+      ],
+      "expected": {
+        "total_tensors": 1073,
+        "vlm_tensors": 825,
+        "policy_tensors": 248,
+        "visual_tensors": 390,
+        "text_tensors": 434,
+        "lm_head_tensors": 1,
+        "total_numel": 5051354119,
+        "vlm_numel": 4073066496,
+        "policy_numel": 978287623,
+        "total_nbytes": 10102708238,
+        "vlm_nbytes": 8146132992,
+        "policy_nbytes": 1956575246,
+        "dtypes": {
+          "bfloat16": 1073
+        },
+        "storage_alias_groups": 0
+      },
+      "required_shapes": {
+        "model.embed_tokens.weight": [153713, 2048],
+        "lm_head.weight": [153713, 2048],
+        "action_model.model.timestep_encoder.timestep_embedder.linear_1.weight": [2048, 256],
+        "action_model.model.transformer_blocks.0.attn1.to_k.weight": [2048, 2048],
+        "action_model.model.transformer_blocks.15.attn1.to_k.weight": [2048, 2048],
+        "action_model.model.proj_out_2.weight": [1024, 2048],
+        "action_model.action_decoder.layer2.weight": [7, 2048]
+      }
+    },
+    "qwen25_fast": {
+      "model_type": "starvla",
+      "framework": "fast",
+      "backbone": "qwen2_5_vl",
+      "qwen_asset": "qwen2_5_vl_3b_instruct_action",
+      "default_unnorm_key": "bridge_dataset",
+      "directory": "qwen25-fast-bridge-rt1",
+      "repo_id": "StarVLA/Qwen-FAST-Bridge-RT-1",
+      "revision": "d9e2977d21755e78a0dd5f9a61586075a636d669",
+      "files": [
+        "config.yaml",
+        "dataset_statistics.json",
+        "summary.jsonl"
+      ],
+      "file_hashes": {
+        "config.yaml": {"size": 2841, "sha256": "c0520794c8e5a15841b09fc1d9fb43216394674510d60e1f6d27dec149fa34f2"},
+        "dataset_statistics.json": {"size": 6007, "sha256": "d2c4803c94d3b6eb1b8e8e100280e16a53b6058c8c2a7e747d27ecf9fcf9a4de"},
+        "summary.jsonl": {"size": 34, "sha256": "2e927f0dd6524ec7cad6bb3023153142ee1c1f8015ba3712fcb0581dbf8c95e0"}
+      },
+      "checkpoint": {
+        "path": "checkpoints/steps_10000_pytorch_model.pt",
+        "size": 8146439050,
+        "sha256": "f30e89a6b2a166fa3f48af42d5cffde07be44074b861abc7b57e1ccdb734e81e"
+      },
+      "policy_prefixes": [],
+      "expected": null,
+      "required_shapes": {
+        "model.embed_tokens.weight": [153713, 2048],
+        "lm_head.weight": [153713, 2048]
+      }
+    }
+  }
+}

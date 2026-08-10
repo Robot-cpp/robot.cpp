@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 project(robotcpp VERSION 0.1.0 LANGUAGES C CXX)
 
+include(CTest)
+
 option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-server target" ON)
 option(ROBOT_CPP_BUILD_MODEL_CLI "Build model-cli target" OFF)
 option(ROBOT_CPP_BUILD_ROBOT_CLIENT "Build C++ robot client targets" OFF)
+option(ROBOT_CPP_BUILD_STARVLA "Build the StarVLA runtime (requires llama.cpp overlay)" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,6 +14,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/CMakeLists.txt")
     message(FATAL_ERROR "third_party/llama.cpp is required; run `git submodule update --init --recursive`")
+endif()
+if(ROBOT_CPP_BUILD_STARVLA)
+    file(READ
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/tools/mtmd/models/qwen3vl.cpp"
+        ROBOT_CPP_QWEN3VL_MTMD_SOURCE)
+    file(READ
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include/llama.h"
+        ROBOT_CPP_LLAMA_PUBLIC_HEADER)
+    string(FIND "${ROBOT_CPP_QWEN3VL_MTMD_SOURCE}"
+        "FFN_GELU_ERF" ROBOT_CPP_QWEN3VL_PARITY_PATCH_INDEX)
+    string(FIND "${ROBOT_CPP_LLAMA_PUBLIC_HEADER}"
+        "llama_set_backend_native_graphs_enabled" ROBOT_CPP_LLAMA_GRAPH_PATCH_INDEX)
+    if(ROBOT_CPP_QWEN3VL_PARITY_PATCH_INDEX EQUAL -1 OR
+       ROBOT_CPP_LLAMA_GRAPH_PATCH_INDEX EQUAL -1)
+        message(FATAL_ERROR
+            "StarVLA requires the pinned llama.cpp overlay. Run "
+            "`./tools/apply_patches.sh` from the repository root, "
+            "then configure again.")
+    endif()
+    unset(ROBOT_CPP_QWEN3VL_MTMD_SOURCE)
+    unset(ROBOT_CPP_LLAMA_PUBLIC_HEADER)
 endif()
 set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
@@ -20,7 +44,16 @@ add_subdirectory(third_party/llama.cpp EXCLUDE_FROM_ALL)
 if(NOT TARGET ggml OR NOT TARGET llama)
     message(FATAL_ERROR "llama.cpp must provide ggml and llama targets")
 endif()
-
+if(ROBOT_CPP_BUILD_STARVLA)
+    # mtmd normally inherits this variable when llama.cpp builds all tools.
+    if(NOT LLAMA_INSTALL_VERSION)
+        set(LLAMA_INSTALL_VERSION ${PROJECT_VERSION})
+    endif()
+    add_subdirectory(third_party/llama.cpp/tools/mtmd EXCLUDE_FROM_ALL)
+    if(NOT TARGET mtmd)
+        message(FATAL_ERROR "llama.cpp must provide the mtmd target for Qwen-VL")
+    endif()
+endif()
 set(ROBOT_CPP_LLAMA_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
@@ -30,14 +63,29 @@ set(ROBOT_CPP_LLAMA_INCLUDE_DIRS
 )
 
 set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
+set(STARVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/starvla)
 set(ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
 set(ROBOT_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_client)
 
-add_library(smolvla_runtime STATIC
+add_library(robotcpp_model_common STATIC
     src/models/ggml_backend.cpp
     src/models/ggml_backend.h
     src/models/gguf_loader.cpp
     src/models/gguf_loader.h
+    src/models/model_type.cpp
+)
+target_include_directories(robotcpp_model_common
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
+)
+target_link_libraries(robotcpp_model_common PUBLIC ggml)
+target_compile_features(robotcpp_model_common PUBLIC cxx_std_17)
+if(NOT MSVC)
+    target_compile_options(robotcpp_model_common PRIVATE -Wno-cast-qual)
+endif()
+
+add_library(smolvla_runtime STATIC
     ${SMOLVLA_DIR}/smolvla_engine.cpp
     ${SMOLVLA_DIR}/smolvla_engine.h
     ${SMOLVLA_DIR}/state_proj.cpp
@@ -53,17 +101,13 @@ target_include_directories(smolvla_runtime
         ${SMOLVLA_DIR}
         ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
 )
-target_link_libraries(smolvla_runtime PUBLIC ggml llama)
+target_link_libraries(smolvla_runtime PUBLIC robotcpp_model_common llama)
 target_compile_features(smolvla_runtime PUBLIC cxx_std_17)
 if(NOT MSVC)
     target_compile_options(smolvla_runtime PRIVATE -Wno-cast-qual)
 endif()
 
 add_library(pi0_engine STATIC
-    src/models/ggml_backend.cpp
-    src/models/ggml_backend.h
-    src/models/gguf_loader.cpp
-    src/models/gguf_loader.h
     src/models/pi0/types.h
     src/models/pi0/action.cpp
     src/models/pi0/action.h
@@ -87,13 +131,65 @@ target_include_directories(pi0_engine
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
 )
-target_link_libraries(pi0_engine PUBLIC ggml llama)
+target_link_libraries(pi0_engine PUBLIC robotcpp_model_common llama)
 target_compile_features(pi0_engine PUBLIC cxx_std_17)
 if(NOT MSVC)
     target_compile_options(pi0_engine PRIVATE -Wno-cast-qual)
 endif()
 
+if(ROBOT_CPP_BUILD_STARVLA)
+add_library(starvla_runtime STATIC
+    ${STARVLA_DIR}/fast_codec.cpp
+    ${STARVLA_DIR}/fast_codec.h
+    ${STARVLA_DIR}/fast_policy.cpp
+    ${STARVLA_DIR}/fast_policy.h
+    ${STARVLA_DIR}/groot_policy.cpp
+    ${STARVLA_DIR}/groot_policy.h
+    ${STARVLA_DIR}/groot_prompt.cpp
+    ${STARVLA_DIR}/groot_prompt.h
+    ${STARVLA_DIR}/normalization.cpp
+    ${STARVLA_DIR}/normalization.h
+    ${STARVLA_DIR}/oft_image_preprocess.cpp
+    ${STARVLA_DIR}/oft_image_preprocess.h
+    ${STARVLA_DIR}/oft_prompt.cpp
+    ${STARVLA_DIR}/oft_prompt.h
+    ${STARVLA_DIR}/oft_policy.cpp
+    ${STARVLA_DIR}/oft_policy.h
+    ${STARVLA_DIR}/pi_policy.cpp
+    ${STARVLA_DIR}/pi_policy.h
+    ${STARVLA_DIR}/pi_v3_policy.cpp
+    ${STARVLA_DIR}/pi_v3_policy.h
+    ${STARVLA_DIR}/policy_gguf.h
+    ${STARVLA_DIR}/qwen3vl_bridge.cpp
+    ${STARVLA_DIR}/qwen3vl_bridge.h
+    ${STARVLA_DIR}/starvla_engine.cpp
+    ${STARVLA_DIR}/starvla_engine.h
+    third_party/llama.cpp/examples/gguf-hash/deps/sha256/sha256.c
+)
+target_include_directories(starvla_runtime
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/vendor
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/examples/gguf-hash/deps
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/examples/gguf-hash/deps/sha256
+)
+target_link_libraries(starvla_runtime PUBLIC robotcpp_model_common llama mtmd)
+target_compile_features(starvla_runtime PUBLIC cxx_std_17)
+if(GGML_CUDA)
+    enable_language(CUDA)
+    target_sources(starvla_runtime PRIVATE ${STARVLA_DIR}/qwen_bf16_round_cuda.cu)
+    target_compile_definitions(starvla_runtime PRIVATE ROBOTCPP_STARVLA_CUDA=1)
+    set_property(TARGET starvla_runtime PROPERTY CUDA_STANDARD 17)
+endif()
+if(NOT MSVC)
+    target_compile_options(starvla_runtime PRIVATE -Wno-cast-qual)
+endif()
+endif()
+
 add_library(robotcpp STATIC
+    src/models/argument_parse.h
     src/models/model.h
     src/models/model_factory.cpp
     src/models/pi0/pi0_model.cpp
@@ -108,6 +204,19 @@ target_include_directories(robotcpp
 )
 target_link_libraries(robotcpp PUBLIC smolvla_runtime pi0_engine)
 target_compile_features(robotcpp PUBLIC cxx_std_17)
+if(ROBOT_CPP_BUILD_STARVLA)
+    target_sources(robotcpp PRIVATE
+        ${STARVLA_DIR}/starvla_model.cpp
+        ${STARVLA_DIR}/starvla_model.h)
+    target_link_libraries(robotcpp PUBLIC starvla_runtime)
+    target_compile_definitions(robotcpp PUBLIC ROBOT_CPP_BUILD_STARVLA=1)
+endif()
+
+if(BUILD_TESTING AND ROBOT_CPP_BUILD_STARVLA)
+    add_executable(robotcpp-starvla-model-test tests/starvla/model_test.cpp)
+    target_link_libraries(robotcpp-starvla-model-test PRIVATE robotcpp)
+    add_test(NAME robotcpp-starvla-model-test COMMAND robotcpp-starvla-model-test)
+endif()
 
 if(ROBOT_CPP_BUILD_ROBOT_SERVER OR ROBOT_CPP_BUILD_ROBOT_CLIENT)
     add_library(robot_server_common STATIC
@@ -139,6 +248,7 @@ if(ROBOT_CPP_BUILD_ROBOT_CLIENT)
     set_target_properties(model-cpp-client-example PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_link_libraries(model-cpp-client-example PRIVATE model_client_cpp)
     target_compile_features(model-cpp-client-example PRIVATE cxx_std_17)
+
 endif()
 
 if(ROBOT_CPP_BUILD_ROBOT_SERVER)
@@ -165,7 +275,6 @@ if(ROBOT_CPP_BUILD_ROBOT_SERVER)
     )
     target_link_libraries(model-server PRIVATE robot_server_core robotcpp)
     target_compile_features(model-server PRIVATE cxx_std_17)
-
     add_executable(smolvla-raw-predict ${ROBOT_SERVER_DIR}/test/smolvla_raw_predict.cpp)
     set_target_properties(smolvla-raw-predict PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     target_include_directories(smolvla-raw-predict PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${SMOLVLA_DIR})

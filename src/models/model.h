@@ -10,7 +10,12 @@ namespace robotcpp {
 enum class model_type {
     smolvla,
     pi0,
+    starvla,
 };
+
+const char * model_type_name(model_type type);
+bool parse_model_type(const std::string & value, model_type & out);
+bool is_starvla_model_type(model_type type);
 
 struct model_image {
     std::string name;
@@ -24,6 +29,7 @@ struct model_image {
 struct observation {
     std::vector<model_image> images;
     std::vector<float> state;
+    std::vector<float> initial_noise;
     std::string task;
 };
 
@@ -59,6 +65,9 @@ struct model_args {
     std::string tokenizer_path;
     std::string state_path;
     std::string action_decoder_path;
+
+    // starvla
+    std::string policy_path;
 };
 
 class Model {

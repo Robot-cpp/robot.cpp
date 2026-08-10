@@ -13,10 +13,10 @@ readonly PATCHES=(
 
 usage() {
     cat <<'EOF'
-Usage: tools/llama_cpp/apply_starvla_patches.sh [--check|--revert]
+Usage: tools/apply_patches.sh [--check|--revert]
 
-With no option, apply the StarVLA patches to third_party/llama.cpp.
-  --check   Validate the pinned revision and report patch state.
+With no option, apply the repository patches to third-party checkouts.
+  --check   Validate pinned revisions and report patch state.
   --revert  Remove an already applied complete patch set.
 
 Set LLAMA_CPP_DIR to validate or patch another checkout of the pinned revision.
@@ -77,7 +77,7 @@ fi
 
 if [[ "${mode}" == "apply" ]]; then
     if ${all_applied}; then
-        echo "StarVLA llama.cpp patches are already applied."
+        echo "Repository patches are already applied."
         exit 0
     fi
     if ! ${all_pending}; then
@@ -99,7 +99,7 @@ if [[ "${mode}" == "apply" ]]; then
 fi
 
 if ${all_pending}; then
-    echo "StarVLA llama.cpp patches are not applied."
+    echo "Repository patches are not applied."
     exit 0
 fi
 if ! ${all_applied}; then

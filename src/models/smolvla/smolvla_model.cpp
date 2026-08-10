@@ -72,6 +72,10 @@ bool SmolVLAModel::predict(const observation & obs, model_result & out, std::str
         error = "SmolVLA model is not initialized";
         return false;
     }
+    if (!obs.initial_noise.empty()) {
+        error = "SmolVLA does not accept explicit initial noise";
+        return false;
+    }
     if (obs.images.empty()) {
         error = "SmolVLA requires at least one image";
         return false;

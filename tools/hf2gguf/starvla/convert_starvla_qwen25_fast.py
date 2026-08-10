@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage and convert the official Qwen2.5-VL StarVLA FAST checkpoint."""
+"""Stage and convert a Qwen2.5-VL StarVLA FAST checkpoint."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
+from convert_starvla_policy_to_gguf import normalization_metadata
 from convert_starvla_qwen_to_gguf import build_commands, verify_llama_checkout
 from starvla_checkpoint import (
     DEFAULT_CATALOG,
@@ -26,7 +27,8 @@ from starvla_checkpoint import (
     inventory_summary,
     load_catalog,
     load_checkpoint_state,
-    official_bundle_uuid,
+    bundle_uuid,
+    portable_source_record,
     sha256_file,
     staged_qwen_asset_hashes,
     validate_qwen_vlm_destination_names,
@@ -105,17 +107,9 @@ TEXT_FILENAME = "qwen-qwen25-fast-bf16.gguf"
 MMPROJ_FILENAME = "mmproj-qwen25-fast-bf16.gguf"
 POLICY_FILENAME = "policy-qwen25-fast.gguf"
 STAGING_MANIFEST_FILENAME = "qwen25-fast-staging-manifest.json"
-BUNDLE_MANIFEST_FILENAME = "qwen25-fast-bundle-manifest.json"
+BUNDLE_MANIFEST_FILENAME = "conversion_manifest.json"
 
-COT_PROMPT = (
-    "Your task is {instruction}. To identify the key objects for your task. "
-    "Locate their bounding boxes in [x1,y1,x2,y2] format."
-)
 ACTION_NAMES = ["x", "y", "z", "roll", "pitch", "yaw", "gripper"]
-EXPECTED_NORMALIZATION_PROFILES = {
-    "bridge_dataset",
-    "fractal20220817_data",
-}
 
 ACTION_TOKEN_MAP_TENSOR = "starvla.policy.fast.action_token_map"
 CODEC_TOKEN_OFFSETS_TENSOR = "starvla.policy.fast.codec.token_offsets"
@@ -153,7 +147,6 @@ def validate_catalog_contract(
         "framework": FRAMEWORK,
         "backbone": BACKBONE,
         "model_type": MODEL_TYPE,
-        "status": "official_policy",
         "qwen_asset": QWEN_ASSET_KEY,
         "policy_prefixes": [],
     }
@@ -162,18 +155,9 @@ def validate_catalog_contract(
         for key, value in expected.items()
         if entry.get(key) != value
     ]
-    checkpoint = entry.get("checkpoint")
-    if (
-        not isinstance(checkpoint, Mapping)
-        or checkpoint.get("path") != "checkpoints/steps_10000_pytorch_model.pt"
-        or checkpoint.get("size") != 8_146_439_050
-        or checkpoint.get("sha256")
-        != "f30e89a6b2a166fa3f48af42d5cffde07be44074b861abc7b57e1ccdb734e81e"
-    ):
-        mismatches.append("checkpoint: not the reviewed steps_10000 source lock")
     if entry.get("policy_tensors") not in (None, []):
         mismatches.append("policy_tensors: FAST must not split a separate policy head")
-    official_bundle_uuid(entry, catalog)
+    bundle_uuid(entry, catalog)
 
     qwen_name, qwen_entry = get_qwen_asset(catalog, entry)
     if qwen_name != QWEN_ASSET_KEY:
@@ -557,88 +541,6 @@ def compile_fast_runtime_tensors(
     }
 
 
-def normalization_metadata(stats: dict[str, Any], action_dim: int) -> dict[str, Any]:
-    if set(stats) != EXPECTED_NORMALIZATION_PROFILES:
-        raise StarVLAError(
-            "unexpected official FAST normalization profiles: "
-            f"{sorted(stats)}"
-        )
-    metadata: dict[str, Any] = {
-        "starvla.normalization.profile_count": len(stats),
-        "starvla.normalization.profile_keys": sorted(stats),
-        "starvla.normalization.clip_actions": False,
-        "starvla.normalization.binary_threshold": 0.5,
-        "starvla.normalization.binary_comparison": "gt",
-    }
-    expected_mask = [True] * (action_dim - 1) + [False]
-    for index, key in enumerate(sorted(stats)):
-        profile = stats[key]
-        if not isinstance(profile, dict):
-            raise StarVLAError(f"normalization profile {key!r} must be an object")
-        action = profile.get("action")
-        if not isinstance(action, dict):
-            raise StarVLAError(f"normalization profile {key!r} has no action object")
-        for field in ("q01", "q99", "mask"):
-            values = action.get(field)
-            if not isinstance(values, list) or len(values) != action_dim:
-                raise StarVLAError(
-                    f"normalization profile {key!r} action.{field} must "
-                    f"have {action_dim} values"
-                )
-            metadata[f"starvla.normalization.profile.{index}.action_{field}"] = values
-        q01 = action["q01"]
-        q99 = action["q99"]
-        mask = action["mask"]
-        if any(type(value) is not bool for value in mask) or mask != expected_mask:
-            raise StarVLAError(
-                f"normalization profile {key!r} action.mask must be {expected_mask}"
-            )
-        if any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(value)
-            for value in [*q01, *q99]
-        ):
-            raise StarVLAError(
-                f"normalization profile {key!r} action quantiles must be finite"
-            )
-        if any(q99[axis] < q01[axis] for axis in range(action_dim - 1)):
-            raise StarVLAError(
-                f"normalization profile {key!r} has q99 below q01"
-            )
-        metadata[f"starvla.normalization.profile.{index}.key"] = key
-
-        state = profile.get("state")
-        if not isinstance(state, dict):
-            raise StarVLAError(
-                f"normalization profile {key!r} has no state statistics"
-            )
-        state_q01 = state.get("q01")
-        state_q99 = state.get("q99")
-        if (
-            not isinstance(state_q01, list)
-            or not isinstance(state_q99, list)
-            or not state_q01
-            or len(state_q01) != len(state_q99)
-            or any(
-                isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or not math.isfinite(value)
-                for value in [*state_q01, *state_q99]
-            )
-            or any(upper < lower for lower, upper in zip(state_q01, state_q99))
-        ):
-            raise StarVLAError(
-                f"normalization profile {key!r} has invalid state q01/q99"
-            )
-        metadata[f"starvla.normalization.profile.{index}.state_dimension"] = len(
-            state_q01
-        )
-        metadata[f"starvla.normalization.profile.{index}.state_q01"] = state_q01
-        metadata[f"starvla.normalization.profile.{index}.state_q99"] = state_q99
-    return metadata
-
-
 def _normalize_gguf_metadata_value(value: Any) -> Any:
     if isinstance(value, bool) or isinstance(value, str) or value is None:
         return value
@@ -671,7 +573,6 @@ def build_fast_runtime_policy(
     qwen_dir: Path,
     codec_dir: Path,
 ) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
-    del entry
     source = manifest.get("source")
     bundle_uuid = manifest.get("bundle_uuid")
     if not isinstance(source, Mapping) or not isinstance(bundle_uuid, str):
@@ -687,8 +588,7 @@ def build_fast_runtime_policy(
     offsets = arrays[CODEC_TOKEN_OFFSETS_TENSOR]
     token_bytes = arrays[CODEC_TOKEN_BYTES_TENSOR]
     if (
-        effective.get("cot_prompt") != COT_PROMPT
-        or effective.get("image_count") != 1
+        effective.get("image_count") != 1
         or effective.get("action_dim") != ACTION_DIM
         or effective.get("action_horizon") != ACTION_HORIZON
     ):
@@ -715,7 +615,7 @@ def build_fast_runtime_policy(
         "starvla.action.continuous_dimensions": list(range(ACTION_DIM - 1)),
         "starvla.action.binary_dimensions": [ACTION_DIM - 1],
         "starvla.image.count": effective["image_count"],
-        "starvla.image.names": ["image_0"],
+        "starvla.image.names": effective["image_names"],
         "starvla.image.processor_min_pixels": processor["min_pixels"],
         "starvla.image.processor_max_pixels": processor["max_pixels"],
         "starvla.image.patch_size": processor["patch_size"],
@@ -735,7 +635,9 @@ def build_fast_runtime_policy(
         "starvla.fast.codec.token_offsets_count": int(offsets.size),
         "starvla.fast.codec.token_bytes_count": int(token_bytes.size),
     }
-    metadata.update(normalization_metadata(stats, ACTION_DIM))
+    metadata.update(
+        normalization_metadata(stats, ACTION_DIM, str(entry["default_unnorm_key"]))
+    )
     return {
         key: _normalize_gguf_metadata_value(value)
         for key, value in metadata.items()
@@ -935,6 +837,7 @@ def validate_fast_runtime_policy_gguf(
 def build_bundle_manifest(
     *,
     manifest: Mapping[str, Any],
+    entry: Mapping[str, Any],
     codec: Mapping[str, Any],
     text_component: Mapping[str, Any],
     mmproj_component: Mapping[str, Any],
@@ -944,13 +847,13 @@ def build_bundle_manifest(
         raise StarVLAError("FAST policy component has an unexpected filename")
     return {
         "schema_version": 1,
-        "kind": "starvla_qwen25_fast_official_gguf_bundle",
+        "kind": "starvla_qwen25_fast_gguf_bundle",
         "variant": VARIANT_KEY,
         "framework": FRAMEWORK,
         "backbone": BACKBONE,
         "model_type": MODEL_TYPE,
         "bundle_uuid": manifest["bundle_uuid"],
-        "source": manifest["source"],
+        "source": portable_source_record(manifest["source"], entry),
         "generation": dict(GENERATION_CONTRACT),
         "action_token_mapping": manifest["action_token_mapping"],
         "fast_codec": {
@@ -1052,32 +955,46 @@ def effective_fast_config(source_dir: Path) -> dict[str, Any]:
         raise StarVLAError(f"failed to load FAST config.yaml: {exc}") from exc
     if not isinstance(source, dict):
         raise StarVLAError("FAST config.yaml must contain an object")
+    framework = source.get("framework")
+    datasets = source.get("datasets")
+    if not isinstance(framework, dict) or not isinstance(datasets, dict):
+        raise StarVLAError("FAST config.yaml is missing framework or datasets")
+    action = framework.get("action_model")
+    vla = datasets.get("vla_data")
+    if not isinstance(action, dict) or not isinstance(vla, dict):
+        raise StarVLAError("FAST config.yaml is missing action_model or vla_data")
+    action_dim = action.get("action_dim")
+    future_window = action.get("future_action_window_size")
+    cot_prompt = vla.get("CoT_prompt")
+    image_names = vla.get("obs")
+    image_size = vla.get("image_size")
+    if type(action_dim) is not int or type(future_window) is not int:
+        raise StarVLAError("FAST action dimensions must be integers")
+    if not isinstance(cot_prompt, str) or not cot_prompt:
+        raise StarVLAError("FAST CoT_prompt must be a non-empty string")
+    if not isinstance(image_names, list) or not image_names or any(
+        not isinstance(name, str) or not name for name in image_names
+    ):
+        raise StarVLAError("FAST obs must be a non-empty list of image names")
+    if (
+        not isinstance(image_size, list)
+        or len(image_size) != 2
+        or any(type(value) is not int or value <= 0 for value in image_size)
+    ):
+        raise StarVLAError("FAST image_size must contain two positive integers")
     return {
         "schema_version": 1,
-        "framework": "QwenFast",
+        "framework": str(framework.get("framework_py", "QwenFast")),
         "backbone": BACKBONE,
         "action_model": "autoregressive_vlm_lm_head",
-        "action_dim": ACTION_DIM,
-        "action_horizon": ACTION_HORIZON,
-        "cot_prompt": COT_PROMPT,
-        "image_count": 1,
-        "image_size": [224, 224],
+        "action_dim": action_dim,
+        "action_horizon": future_window + 1,
+        "cot_prompt": cot_prompt,
+        "image_count": len(image_names),
+        "image_names": image_names,
+        "image_size": image_size,
         "generation": dict(GENERATION_CONTRACT),
         "source_config_sha256": sha256_file(source_dir / "config.yaml"),
-        "resolved_overrides": {
-            "framework.action_model.action_model_type": {
-                "source": source.get("framework", {})
-                .get("action_model", {})
-                .get("action_model_type"),
-                "effective": "FAST",
-                "authority": "pinned_QwenFast_factory",
-            },
-            "framework.action_model.action_horizon": {
-                "source": None,
-                "effective": ACTION_HORIZON,
-                "authority": "future_action_window_size_plus_current_step",
-            },
-        },
     }
 
 
@@ -1090,12 +1007,10 @@ def stage_checkpoint(
     staging_dir: Path,
     catalog: Mapping[str, Any],
     max_shard_size: int,
-    verify_hash: bool,
 ) -> dict[str, Any]:
     entry, qwen_entry, codec_entry = validate_catalog_contract(catalog)
     report = preflight(catalog, source_dir, qwen_dir, codec_dir)
-    if verify_hash:
-        verify_checkpoint_file(checkpoint, entry)
+    verify_checkpoint_file(checkpoint, entry)
     if staging_dir.exists():
         raise StarVLAError(f"refusing to overwrite staging directory: {staging_dir}")
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -1136,20 +1051,18 @@ def stage_checkpoint(
         codec = validate_fast_codec(codec_dir, codec_entry)
         manifest = {
             "schema_version": 1,
-            "kind": "starvla_qwen25_fast_official_checkpoint_staging",
+            "kind": "starvla_qwen25_fast_checkpoint_staging",
             "variant": VARIANT_KEY,
             "framework": FRAMEWORK,
             "backbone": BACKBONE,
             "model_type": MODEL_TYPE,
-            "bundle_uuid": official_bundle_uuid(entry, catalog),
+            "bundle_uuid": bundle_uuid(entry, catalog),
             "source": {
                 "repo_id": entry["repo_id"],
                 "revision": entry["revision"],
                 "checkpoint": str(checkpoint.resolve()),
                 "checkpoint_size": checkpoint.stat().st_size,
-                "checkpoint_sha256": entry["checkpoint"]["sha256"]
-                if verify_hash
-                else sha256_file(checkpoint),
+                "checkpoint_sha256": entry["checkpoint"]["sha256"],
                 "starvla_revision": catalog["source_revisions"]["starvla"],
                 "llama_cpp_revision": catalog["source_revisions"]["llama_cpp"],
                 "qwen_repo_id": qwen_entry["repo_id"],
@@ -1189,12 +1102,12 @@ def validate_staging_manifest(
     entry, qwen_entry, codec_entry = validate_catalog_contract(catalog)
     expected = {
         "schema_version": 1,
-        "kind": "starvla_qwen25_fast_official_checkpoint_staging",
+        "kind": "starvla_qwen25_fast_checkpoint_staging",
         "variant": VARIANT_KEY,
         "framework": FRAMEWORK,
         "backbone": BACKBONE,
         "model_type": MODEL_TYPE,
-        "bundle_uuid": official_bundle_uuid(entry, catalog),
+        "bundle_uuid": bundle_uuid(entry, catalog),
     }
     mismatches = [
         f"{key}: expected {value!r}, got {manifest.get(key)!r}"
@@ -1399,6 +1312,7 @@ def convert_staging(
         )
         bundle = build_bundle_manifest(
             manifest=manifest,
+            entry=entry,
             codec=validate_fast_codec(codec_dir, codec_entry),
             text_component={
                 "path": TEXT_FILENAME,
@@ -1444,7 +1358,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--stage-only", action="store_true")
-    parser.add_argument("--skip-hash-check", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -1462,7 +1375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
             return 0
         if args.dry_run:
-            output_dir = args.output_dir or Path("ckpts/starvla/gguf/qwen25-fast")
+            output_dir = args.output_dir or Path("ckpts/starvla/gguf/qwen25_fast")
             commands = build_commands(
                 args.python,
                 args.staging_dir / "hf",
@@ -1506,7 +1419,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             staging_dir=args.staging_dir,
             catalog=catalog,
             max_shard_size=args.max_shard_size,
-            verify_hash=not args.skip_hash_check,
         )
         print(f"staging manifest: {args.staging_dir / STAGING_MANIFEST_FILENAME}")
         if args.stage_only:

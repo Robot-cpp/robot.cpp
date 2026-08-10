@@ -1,7 +1,9 @@
 // model-cli.cpp — common robotcpp::Model CLI frontend
 
 #include "models/model.h"
+#include "models/argument_parse.h"
 #include "models/smolvla/smolvla_engine.h"
+#include "llama.h"
 #include "stb_image.h"
 
 #include <algorithm>
@@ -26,16 +28,11 @@ struct loaded_image {
     int stride_bytes = 0;
 };
 
-bool parse_model_type(const std::string & value, robotcpp::model_type & out) {
-    if (value == "smolvla") {
-        out = robotcpp::model_type::smolvla;
-        return true;
+void quiet_llama_log_callback(ggml_log_level level, const char * text, void * user_data) {
+    (void)user_data;
+    if (level == GGML_LOG_LEVEL_ERROR) {
+        std::fputs(text, stderr);
     }
-    if (value == "pi0") {
-        out = robotcpp::model_type::pi0;
-        return true;
-    }
-    return false;
 }
 
 bool parse_noise_mode(const std::string & value, int & out_mode) {
@@ -54,13 +51,14 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "\nModel CLI - robotcpp::Model frontend\n\n");
     std::fprintf(stderr, "Usage:\n");
     std::fprintf(stderr, "  %s --model-type smolvla [options]\n", prog);
-    std::fprintf(stderr, "  %s --model-type pi0 [options]\n\n", prog);
+    std::fprintf(stderr, "  %s --model-type pi0 [options]\n", prog);
+    std::fprintf(stderr, "  %s --model-type starvla --llm <path> --mmproj <path> --policy <path> [options]\n\n", prog);
     std::fprintf(stderr, "Common options:\n");
-    std::fprintf(stderr, "  --model-type <type>      Model type (default: smolvla)\n");
+    std::fprintf(stderr, "  --model-type <type>      smolvla|pi0|starvla\n"
+                         "                           (default: smolvla)\n");
     std::fprintf(stderr, "  --image <path>           Input image (repeatable; order matches --image-name)\n");
-    std::fprintf(
-        stderr,
-        "  --image-name <name>      Observation image name (repeatable; default: image for single-image input)\n");
+    std::fprintf(stderr,
+                 "  --image-name <name>      Observation image name (default: image_0 for StarVLA, image otherwise)\n");
     std::fprintf(stderr, "  --state <csv>            Proprio/state values (comma-separated)\n");
     std::fprintf(stderr, "  --task <str>             Task instruction (default: \"grab the block.\")\n");
     std::fprintf(stderr, "  --threads <n>            Number of threads (default: auto)\n");
@@ -82,6 +80,13 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "  --tokenizer <path>       Tokenizer GGUF path\n");
     std::fprintf(stderr, "  --state-gguf <path>      State projector GGUF path\n");
     std::fprintf(stderr, "  --action-decoder <path>  Action decoder GGUF path\n");
+    std::fprintf(stderr, "\nStarVLA options:\n");
+    std::fprintf(stderr, "  --policy <path>          StarVLA policy GGUF path (required)\n");
+    std::fprintf(stderr, "  --llm <path>             Qwen text GGUF path (required)\n");
+    std::fprintf(stderr, "  --mmproj <path>          Qwen vision GGUF path (required)\n");
+    std::fprintf(stderr, "  --n-batch <n>            Qwen batch size (default: 512)\n");
+    std::fprintf(stderr, "  --n-ctx <n>              Qwen context size (default: 2048)\n");
+    std::fprintf(stderr, "  --noise-seed <n>         GR00T/PI/PI_v3 noise seed, <0 means auto (default: -1)\n");
 }
 
 bool parse_state(const char * csv, std::vector<float> & out) {
@@ -128,7 +133,7 @@ int main(int argc, char ** argv) {
     std::vector<std::string> image_paths;
     std::vector<std::string> image_names;
     std::string state_csv;
-    std::string task;
+    std::string task = "grab the block.";
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -139,10 +144,12 @@ int main(int argc, char ** argv) {
         } else if (arg == "-v" || arg == "--verbose") {
             args.verbosity++;
         } else if (arg == "--model-type" && i + 1 < argc) {
-            if (!parse_model_type(argv[++i], args.type)) {
+            if (!robotcpp::parse_model_type(argv[++i], args.type)) {
                 std::fprintf(stderr, "Error: unsupported model type '%s'\n", argv[i]);
                 return 1;
             }
+        } else if (arg == "--policy" && i + 1 < argc) {
+            args.policy_path = argv[++i];
         } else if (arg == "--llm" && i + 1 < argc) {
             args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
@@ -168,21 +175,52 @@ int main(int argc, char ** argv) {
         } else if (arg == "--task" && i + 1 < argc) {
             task = argv[++i];
         } else if (arg == "--threads" && i + 1 < argc) {
-            args.threads = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.threads)) {
+                std::fprintf(stderr, "Error: invalid --threads value '%s'\n", value);
+                return 1;
+            }
         } else if (arg == "--n-batch" && i + 1 < argc) {
-            args.n_batch = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.n_batch)) {
+                std::fprintf(stderr, "Error: invalid --n-batch value '%s'\n", value);
+                return 1;
+            }
         } else if (arg == "--n-ctx" && i + 1 < argc) {
-            args.n_ctx = std::atoi(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.n_ctx)) {
+                std::fprintf(stderr, "Error: invalid --n-ctx value '%s'\n", value);
+                return 1;
+            }
         } else if (arg == "--noise-mode" && i + 1 < argc) {
             if (!parse_noise_mode(argv[++i], args.noise_mode)) {
                 std::fprintf(stderr, "Error: invalid noise mode '%s'\n", argv[i]);
                 return 1;
             }
         } else if (arg == "--noise-seed" && i + 1 < argc) {
-            args.noise_seed = std::atoll(argv[++i]);
+            const char * value = argv[++i];
+            if (!robotcpp::parse_integer_argument(value, args.noise_seed)) {
+                std::fprintf(stderr, "Error: invalid --noise-seed value '%s'\n", value);
+                return 1;
+            }
         } else {
             std::fprintf(stderr, "Error: unknown argument '%s'\n", arg.c_str());
             print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    if (args.threads < 0 || args.n_batch <= 0 || args.n_ctx <= 0) {
+        std::fprintf(stderr, "Error: --threads must be non-negative and --n-batch/--n-ctx must be positive\n");
+        return 1;
+    }
+    if (robotcpp::is_starvla_model_type(args.type)) {
+        if (args.llm_path.empty() || args.mmproj_path.empty() || args.policy_path.empty()) {
+            std::fprintf(stderr, "Error: %s requires --llm --mmproj --policy\n", robotcpp::model_type_name(args.type));
+            return 1;
+        }
+        if (args.noise_mode != SMOLVLA_NOISE_MODE_GAUSSIAN) {
+            std::fprintf(stderr, "Error: StarVLA does not support --noise-mode debug-sin; use Gaussian noise\n");
             return 1;
         }
     }
@@ -192,16 +230,24 @@ int main(int argc, char ** argv) {
         print_usage(argv[0]);
         return 1;
     }
+    if (robotcpp::is_starvla_model_type(args.type) && image_paths.size() != 1) {
+        std::fprintf(stderr, "Error: %s requires exactly one --image\n", robotcpp::model_type_name(args.type));
+        return 1;
+    }
     if (image_names.empty()) {
         if (image_paths.size() != 1) {
             std::fprintf(stderr, "Error: multiple --image inputs require one --image-name per image\n");
             return 1;
         }
-        image_names.push_back("image");
+        image_names.push_back(robotcpp::is_starvla_model_type(args.type) ? "image_0" : "image");
     }
     if (image_names.size() != image_paths.size()) {
         std::fprintf(stderr, "Error: --image count (%zu) must match --image-name count (%zu)\n", image_paths.size(),
                      image_names.size());
+        return 1;
+    }
+    if (robotcpp::is_starvla_model_type(args.type) && image_names[0] != "image_0") {
+        std::fprintf(stderr, "Error: %s image must be named 'image_0'\n", robotcpp::model_type_name(args.type));
         return 1;
     }
 
@@ -217,6 +263,8 @@ int main(int argc, char ** argv) {
             return 1;
         }
     }
+
+    llama_log_set(args.verbosity > 0 ? nullptr : quiet_llama_log_callback, nullptr);
 
     const auto init_start = std::chrono::high_resolution_clock::now();
     std::string error;

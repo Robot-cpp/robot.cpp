@@ -20,9 +20,8 @@ from starvla_checkpoint import (
     default_text_filename,
     get_variant,
     load_catalog,
-    validate_official_surgery_manifest,
+    validate_surgery_manifest,
     verify_staged_assets,
-    verify_staged_tensors_against_checkpoint,
 )
 
 
@@ -116,13 +115,13 @@ def verify_llama_checkout(path: Path, expected_revision: str) -> Path:
     if actual_revision != expected_revision:
         raise StarVLAError(
             f"llama.cpp revision mismatch: expected {expected_revision}, got {actual_revision}; "
-            "update the pinned catalog and regenerate golden data before converting"
+            "use the revision pinned by the checkpoint catalog"
         )
     worktree_changes = git_worktree_changes(root)
     if worktree_changes:
         raise StarVLAError(
             "llama.cpp has tracked or untracked worktree changes; "
-            f"use the clean pinned revision for official conversion:\n{worktree_changes}"
+            f"use the clean pinned revision for conversion:\n{worktree_changes}"
         )
     return root
 
@@ -172,7 +171,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--surgery-manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
-    parser.add_argument("--llama-root", type=Path, default=LLAMA_ROOT)
+    parser.add_argument("--llama-root", type=Path, required=True)
     parser.add_argument("--text-filename")
     parser.add_argument("--mmproj-filename")
     parser.add_argument(
@@ -203,16 +202,8 @@ def main() -> int:
         catalog = load_catalog(args.catalog)
         variant_name = str(manifest.get("variant", ""))
         variant = get_variant(catalog, variant_name)
-        validate_official_surgery_manifest(manifest, variant, catalog)
+        validate_surgery_manifest(manifest, variant, catalog)
         verify_staged_assets(args.hf_dir, manifest.get("qwen_assets", {}), component="Qwen")
-        verify_staged_tensors_against_checkpoint(
-            args.hf_dir,
-            manifest.get("vlm_output", {}),
-            manifest,
-            variant,
-            component="vlm",
-        )
-
         expected_revision = str(manifest.get("source", {}).get("llama_cpp_revision", ""))
         llama_root = verify_llama_checkout(args.llama_root, expected_revision)
 
@@ -227,7 +218,7 @@ def main() -> int:
         mmproj_metadata = args.output_dir / "mmproj-metadata.json"
         bundle_uuid = str(manifest["bundle_uuid"])
         source = manifest["source"]
-        backbone = str(manifest.get("backbone", variant.get("backbone", "qwen3_vl")))
+        backbone = str(manifest.get("backbone", variant["backbone"]))
         backbone_label = {
             "qwen3_vl": "Qwen3-VL",
             "qwen2_5_vl": "Qwen2.5-VL",

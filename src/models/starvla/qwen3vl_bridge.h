@@ -21,18 +21,15 @@ enum class QwenVLHiddenStateSourceKind {
 };
 
 struct QwenVLHiddenStateSource {
-    QwenVLHiddenStateSourceKind kind =
-        QwenVLHiddenStateSourceKind::decoder_output;
-    int layer = -1;
+    QwenVLHiddenStateSourceKind kind = QwenVLHiddenStateSourceKind::decoder_output;
+    int layer                        = -1;
 };
 
 // Resolve the paired llama.cpp text and mtmd projector profiles. StarVLA
 // supports Qwen2.5-VL and Qwen3-VL only; mismatched text/mmproj files fail
 // before either component is evaluated.
-bool qwen_vl_resolve_architecture(const std::string & text_architecture,
-                                  const std::string & projector_type,
-                                  QwenVLArchitecture & architecture,
-                                  std::string & error);
+bool qwen_vl_resolve_architecture(const std::string & text_architecture, const std::string & projector_type,
+                                  QwenVLArchitecture & architecture, std::string & error);
 
 const char * qwen_vl_architecture_name(QwenVLArchitecture architecture);
 
@@ -44,42 +41,37 @@ bool qwen_vl_is_final_norm_tensor_name(const char * name) noexcept;
 // Map one Transformers 4.57 hidden_states tuple index to the corresponding
 // llama.cpp graph output. Index zero (the embedding input) is intentionally not
 // exposed. Qwen2.5-VL has no DeepStack and its final tuple item is result_norm;
-// Qwen3-VL retains the recorder/alias behavior used by the existing parity
-// contract.
-bool qwen_vl_hidden_state_source(QwenVLArchitecture architecture,
-                                 int decoder_layer_count,
-                                 int deepstack_layer_count,
-                                 int32_t hidden_tuple_index,
-                                 QwenVLHiddenStateSource & source,
-                                 std::string & error);
+// Qwen3-VL additionally maps the DeepStack outputs exposed by llama.cpp.
+bool qwen_vl_hidden_state_source(QwenVLArchitecture architecture, int decoder_layer_count, int deepstack_layer_count,
+                                 int32_t hidden_tuple_index, QwenVLHiddenStateSource & source, std::string & error);
 
 struct Qwen3VLImageView {
     const uint8_t * data = nullptr;
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    int stride_bytes = 0;
+    int width            = 0;
+    int height           = 0;
+    int channels         = 0;
+    int stride_bytes     = 0;
 };
 
 struct Qwen3VLBridgeConfig {
     std::string text_path;
     std::string mmproj_path;
     std::string bundle_uuid;
-    int hidden_size = 0;
+    int hidden_size          = 0;
     int input_embedding_size = 0;
-    int vocab_size = 0;
+    int vocab_size           = 0;
     std::string action_token;
-    int32_t action_token_id = -1;
-    int expected_image_count = 0;
-    int image_min_tokens = 0;
-    int image_max_tokens = 0;
+    int32_t action_token_id      = -1;
+    int expected_image_count     = 0;
+    int image_min_tokens         = 0;
+    int image_max_tokens         = 0;
     int image_spatial_merge_size = 0;
-    int n_ctx = 2048;
-    int n_batch = 2048;
-    int n_threads = 0;
-    int verbosity = 0;
-    // OFT uses plain flash attention to meet its final-action parity profile.
-    // Other StarVLA variants retain non-flash text attention.
+    int n_ctx                    = 2048;
+    int n_batch                  = 2048;
+    int n_threads                = 0;
+    int verbosity                = 0;
+    // OFT uses flash attention; other variants require intermediate outputs
+    // that are only available on the non-flash path.
     bool flash_text_attention = false;
     // Round each F32 decoder residual output, plus DeepStack outputs when the
     // detected architecture has them, through BF16 RNE before it feeds the next
@@ -97,7 +89,7 @@ struct Qwen3VLBridgeConfig {
 struct QwenVLGenerationConfig {
     size_t max_length = 0;
     std::vector<int32_t> eos_token_ids;
-    int top_k = 0;
+    int top_k                = 0;
     float repetition_penalty = 0.0f;
 };
 
@@ -111,33 +103,28 @@ struct QwenVLGenerationResult {
 // generation profile: Hugging Face repetition penalty over the full sequence,
 // followed by top_k=1. Exposed so the generation contract can be tested
 // without loading a multi-gigabyte Qwen checkpoint.
-bool qwen_vl_select_repetition_penalized_top1(
-    const float * logits, size_t vocab_size,
-    const std::vector<int32_t> & full_sequence, float repetition_penalty,
-    int32_t & token, std::string & error);
+bool qwen_vl_select_repetition_penalized_top1(const float * logits, size_t vocab_size,
+                                              const std::vector<int32_t> & full_sequence, float repetition_penalty,
+                                              int32_t & token, std::string & error);
 
 class Qwen3VLBridge {
   public:
     ~Qwen3VLBridge();
 
-    Qwen3VLBridge(const Qwen3VLBridge &) = delete;
+    Qwen3VLBridge(const Qwen3VLBridge &)             = delete;
     Qwen3VLBridge & operator=(const Qwen3VLBridge &) = delete;
 
-    static std::unique_ptr<Qwen3VLBridge> load(const Qwen3VLBridgeConfig & config,
-                                               std::string & error);
+    static std::unique_ptr<Qwen3VLBridge> load(const Qwen3VLBridgeConfig & config, std::string & error);
 
-    bool extract_token_embeddings(const std::vector<Qwen3VLImageView> & images,
-                                  const std::string & instruction, int32_t token_id,
-                                  size_t token_count, std::vector<float> & embeddings,
+    bool extract_token_embeddings(const std::vector<Qwen3VLImageView> & images, const std::string & instruction,
+                                  int32_t token_id, size_t token_count, std::vector<float> & embeddings,
                                   std::string & error);
 
     // Full conditioning sequence. Qwen3 uses the outer recorder's raw final
     // decoder output (`l_out-(N-1)`); Qwen2.5 uses `result_norm`, matching its
     // Transformers hidden_states[-1]. Values are widened from BF16.
-    bool extract_full_hidden_states(const std::vector<Qwen3VLImageView> & images,
-                                    const std::string & instruction,
-                                    std::vector<float> & hidden_states,
-                                    std::vector<uint8_t> & attention_mask,
+    bool extract_full_hidden_states(const std::vector<Qwen3VLImageView> & images, const std::string & instruction,
+                                    std::vector<float> & hidden_states, std::vector<uint8_t> & attention_mask,
                                     std::string & error);
 
     // hidden_tuple_indices use the pinned Transformers 4.57 convention. Index
@@ -146,25 +133,20 @@ class Qwen3VLBridge {
     // entries, including N, are raw `l_out`. For Qwen2.5, indices 1..N-1 are
     // raw `l_out` and index N is `result_norm`. The result is layer-major
     // [requested states, tokens, hidden size].
-    bool extract_layer_hidden_states(const std::vector<Qwen3VLImageView> & images,
-                                     const std::string & instruction,
+    bool extract_layer_hidden_states(const std::vector<Qwen3VLImageView> & images, const std::string & instruction,
                                      const std::vector<int32_t> & hidden_tuple_indices,
-                                     std::vector<float> & hidden_states,
-                                     std::vector<uint8_t> & attention_mask,
+                                     std::vector<float> & hidden_states, std::vector<uint8_t> & attention_mask,
                                      std::string & error);
 
     // Runs a full multimodal prefill followed by incremental KV-cached text
     // decoding. The returned sequence includes the prompt, matching
     // Transformers generate(return_dict_in_generate=false).
-    bool generate_autoregressive(
-        const std::vector<Qwen3VLImageView> & images,
-        const std::string & instruction,
-        const QwenVLGenerationConfig & generation,
-        QwenVLGenerationResult & result, std::string & error);
+    bool generate_autoregressive(const std::vector<Qwen3VLImageView> & images, const std::string & instruction,
+                                 const QwenVLGenerationConfig & generation, QwenVLGenerationResult & result,
+                                 std::string & error);
 
     void reset();
     const char * backend_name() const;
-    const char * text_attention_mode_name() const;
     QwenVLArchitecture architecture() const;
 
   private:
@@ -174,11 +156,5 @@ class Qwen3VLBridge {
 
     std::unique_ptr<Impl> impl_;
 };
-
-// Neutral aliases for new callers. The original names remain the ABI/source
-// compatibility surface for the completed Qwen3 integrations.
-using QwenVLImageView = Qwen3VLImageView;
-using QwenVLBridgeConfig = Qwen3VLBridgeConfig;
-using QwenVLBridge = Qwen3VLBridge;
 
 } // namespace robotcpp::starvla

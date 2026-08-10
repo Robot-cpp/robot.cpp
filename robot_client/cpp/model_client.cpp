@@ -55,8 +55,9 @@ bool make_predict_request(const ModelObservation & obs, proto::predict_request &
         return false;
     }
 
-    req.task  = obs.prompt;
-    req.state = obs.state;
+    req.task          = obs.prompt;
+    req.state         = obs.state;
+    req.initial_noise = obs.initial_noise;
     req.images.clear();
     req.images.reserve(obs.images.size());
 

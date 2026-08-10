@@ -39,6 +39,10 @@ bool validate_normalization_config(const NormalizationConfig & config, int actio
         error = "StarVLA policy has no normalization profiles";
         return false;
     }
+    if (config.default_profile_key.empty()) {
+        error = "StarVLA policy has no default normalization profile";
+        return false;
+    }
 
     std::vector<uint8_t> dimension_kind(static_cast<size_t>(action_dim), 0);
     for (int32_t dim : config.continuous_dimensions) {
@@ -94,6 +98,10 @@ bool validate_normalization_config(const NormalizationConfig & config, int actio
             }
         }
     }
+    if (std::find(seen_keys.begin(), seen_keys.end(), config.default_profile_key) == seen_keys.end()) {
+        error = "StarVLA default normalization profile is not present: " + config.default_profile_key;
+        return false;
+    }
     return true;
 }
 
@@ -101,11 +109,7 @@ const NormalizationProfile * resolve_normalization_profile(const NormalizationCo
                                                            const std::string & profile_key, std::string & error) {
     error.clear();
     if (profile_key.empty()) {
-        if (config.profiles.size() == 1) {
-            return &config.profiles.front();
-        }
-        error = "StarVLA policy has multiple normalization profiles; select one of: " + profile_keys(config);
-        return nullptr;
+        return resolve_normalization_profile(config, config.default_profile_key, error);
     }
     for (const NormalizationProfile & profile : config.profiles) {
         if (profile.key == profile_key) {
@@ -141,27 +145,22 @@ bool denormalize_actions(const NormalizationConfig & config, const std::string &
     actions.resize(normalized.size());
     for (int step = 0; step < horizon; ++step) {
         for (int dim = 0; dim < action_dim; ++dim) {
-            const size_t index = static_cast<size_t>(step) * static_cast<size_t>(action_dim) +
-                                 static_cast<size_t>(dim);
+            const size_t index = static_cast<size_t>(step) * static_cast<size_t>(action_dim) + static_cast<size_t>(dim);
             const float input_value = normalized[index];
             if (!std::isfinite(input_value)) {
                 actions.clear();
                 error = "StarVLA normalized actions must be finite";
                 return false;
             }
-            const float value =
-                config.clip_actions ? std::clamp(input_value, -1.0f, 1.0f)
-                                    : input_value;
+            const float value = config.clip_actions ? std::clamp(input_value, -1.0f, 1.0f) : input_value;
             if (is_binary[static_cast<size_t>(dim)] != 0) {
-                const bool active =
-                    config.binary_comparison == "ge"
-                        ? value >= config.binary_threshold
-                        : value > config.binary_threshold;
-                actions[index] = active ? 1.0f : 0.0f;
+                const bool active = config.binary_comparison == "ge" ? value >= config.binary_threshold
+                                                                     : value > config.binary_threshold;
+                actions[index]    = active ? 1.0f : 0.0f;
             } else {
-                const float low = profile->action_q01[static_cast<size_t>(dim)];
+                const float low  = profile->action_q01[static_cast<size_t>(dim)];
                 const float high = profile->action_q99[static_cast<size_t>(dim)];
-                actions[index] = (value + 1.0f) * 0.5f * (high - low) + low;
+                actions[index]   = (value + 1.0f) * 0.5f * (high - low) + low;
             }
         }
     }
