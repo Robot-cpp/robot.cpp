@@ -1,0 +1,13 @@
+# Numeric runtime frozen by the official StarVLA checkpoint environment.
+# Apply this as constraints on top of the pinned StarVLA requirements when
+# generating the independent Qwen-GR00T fixed-noise oracle.
+torch==2.6.0
+torchvision==0.21.0
+transformers==4.57.0
+numpy==1.26.4
+diffusers==0.37.1
+tokenizers==0.22.2
+pillow==12.1.1
+omegaconf==2.3.0
+accelerate==1.5.2
+safetensors==0.7.0
