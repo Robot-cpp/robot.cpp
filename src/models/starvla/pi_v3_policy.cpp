@@ -210,10 +210,8 @@ class PIV3GGUFLoader final : public gguf_loader {
         }
 
         config_.qwen_hidden_dim = require_i32(gguf, "starvla.qwen.hidden_size");
-        const int embedding_key = gguf_find_key(gguf, "starvla.qwen.input_embedding_size");
         config_.qwen_input_embedding_dim =
-            embedding_key < 0 ? 4 * config_.qwen_hidden_dim
-                              : require_i32(gguf, "starvla.qwen.input_embedding_size");
+            require_i32(gguf, "starvla.qwen.input_embedding_size");
         config_.qwen_layer_count = require_i32(gguf, "starvla.qwen.layer_count");
         config_.qwen_vocab_size = require_i32(gguf, "starvla.qwen.vocab_size");
         config_.cot_template = require_string(gguf, "starvla.prompt.cot_template");

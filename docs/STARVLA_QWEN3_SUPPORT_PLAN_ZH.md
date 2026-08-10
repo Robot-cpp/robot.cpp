@@ -62,6 +62,9 @@ Correctness 基线固定为 text BF16、mmproj BF16、policy FP32。量化是独
 ./tools/llama_cpp/apply_starvla_patches.sh --revert
 ```
 
+StarVLA 默认不参与普通构建；配置时显式传入
+`-DROBOT_CPP_BUILD_STARVLA=ON` 才会校验补丁并构建 `mtmd` 与 StarVLA runtime。
+
 脚本只接受 catalog 固定的 llama.cpp revision。补丁范围和原因见
 [`patches/llama.cpp/README.md`](../patches/llama.cpp/README.md)。
 
@@ -91,7 +94,7 @@ Correctness 基线固定为 text BF16、mmproj BF16、policy FP32。量化是独
 - FAST：Qwen 自回归生成 action tokens，再经固定 token map、ByteLevel codec 和 IDCT 解码
   16x7 action chunk。
 
-所有图通过同一个 `model` API、CLI 和 protocol v3 server 暴露。调用方继续传 `image_0`、
+所有图通过同一个 `model` API、CLI 和 protocol v4 server 暴露。调用方继续传 `image_0`、
 task、可选 state/noise/seed 和 `unnorm_key`；不新增 variant-specific 公共接口。
 
 ## 验收

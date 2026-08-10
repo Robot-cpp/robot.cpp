@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
-import hashlib
 import json
 import math
 import os
@@ -271,7 +269,6 @@ GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE = {
         ("qwen2_5_vl", 2048, GROOT_QWEN25_POLICY_NUMEL),
     )
 }
-GROOT_OFFICIAL_DIMENSIONS = GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE["qwen3_vl"]
 
 PI_BLOCK_COUNT = 16
 PI_TENSOR_MAP = build_pi_tensor_map(PI_BLOCK_COUNT)
@@ -860,21 +857,9 @@ def load_variant_config(
         )
     stored_effective = _load_json(effective_path)
     if stored_effective != effective:
-        # Qwen3 bundles produced before Qwen2.5 support predate these two
-        # explicit annotations. Qwen3 was the only supported backbone then, so
-        # this is an unambiguous legacy spelling of the same effective config.
-        legacy_effective = copy.deepcopy(effective)
-        legacy_metadata = legacy_effective.get("_robotcpp_effective_config")
-        if (
-            surgery_manifest.get("backbone", "qwen3_vl") == "qwen3_vl"
-            and isinstance(legacy_metadata, dict)
-        ):
-            legacy_metadata.pop("backbone", None)
-            legacy_metadata.pop("framework", None)
-        if stored_effective != legacy_effective:
-            raise StarVLAError(
-                f"effective {variant_name.upper()} config does not match its canonical source/manifest"
-            )
+        raise StarVLAError(
+            f"effective {variant_name.upper()} config does not match its canonical source/manifest"
+        )
     return effective
 
 

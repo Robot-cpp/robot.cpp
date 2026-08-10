@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
-LLAMA_ROOT="${LLAMA_ROOT:-${ROOT_DIR}/third_party/llama.cpp}"
+LLAMA_ROOT="${LLAMA_ROOT:?set LLAMA_ROOT to an absolute clean checkout of the catalog-pinned llama.cpp revision}"
 source "${ROOT_DIR}/tools/hf2gguf/starvla/starvla_variant_config.sh"
 VARIANT="${VARIANT:?set VARIANT to oft, groot, pi_v3, qwen25_oft, qwen25_groot, or qwen25_pi}"
 load_starvla_variant "${VARIANT}"

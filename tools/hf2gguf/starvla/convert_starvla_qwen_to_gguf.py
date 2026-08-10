@@ -172,7 +172,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--surgery-manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
-    parser.add_argument("--llama-root", type=Path, default=LLAMA_ROOT)
+    parser.add_argument("--llama-root", type=Path, required=True)
     parser.add_argument("--text-filename")
     parser.add_argument("--mmproj-filename")
     parser.add_argument(

@@ -37,7 +37,6 @@ from convert_starvla_policy_to_gguf import (  # noqa: E402
     build_groot_metadata,
     build_oft_metadata,
     build_pi_metadata,
-    build_pi_v3_metadata,
     load_variant_config,
     normalization_metadata,
     parse_args as parse_policy_args,
@@ -689,7 +688,7 @@ class EffectiveConfigTest(unittest.TestCase):
         self.assertNotIn("num_vl_layers", effective["framework"]["qwenvl"])
         self.assertNotIn("action_dit_hidden_dim", dit)
 
-    def test_legacy_qwen3_effective_config_allows_only_missing_annotations(self) -> None:
+    def test_qwen3_effective_config_rejects_missing_annotations(self) -> None:
         effective = {
             "framework": {},
             "_robotcpp_effective_config": {
@@ -715,19 +714,6 @@ class EffectiveConfigTest(unittest.TestCase):
                     "size": effective_path.stat().st_size,
                     "sha256": sha256_file(effective_path),
                 },
-            }
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.resolve_effective_config",
-                return_value=effective,
-            ):
-                self.assertEqual(load_variant_config(root, manifest, "oft"), effective)
-
-            stored["unexpected"] = True
-            effective_path.write_text(json.dumps(stored), encoding="utf-8")
-            manifest["effective_config"] = {
-                "path": effective_path.name,
-                "size": effective_path.stat().st_size,
-                "sha256": sha256_file(effective_path),
             }
             with mock.patch(
                 "convert_starvla_policy_to_gguf.resolve_effective_config",
@@ -2293,6 +2279,8 @@ class ArtifactPrecisionDefaultsTest(unittest.TestCase):
             "surgery.json",
             "--output-dir",
             "out",
+            "--llama-root",
+            str(LLAMA_ROOT),
             *extra,
         ]
         with mock.patch.object(sys, "argv", argv):
@@ -2411,6 +2399,7 @@ fi
                 "OUTPUT_DIR": str(root / "output"),
                 "PYTHON": str(fake_python),
                 "CALL_LOG": str(calls),
+                "LLAMA_ROOT": str(root / "clean-llama.cpp"),
             }
         )
         if mmproj_dtype is not None:
@@ -2506,7 +2495,8 @@ fi
         calls = self.run_orchestrator()
         self.assertIn("--mmproj-filename mmproj-pi-v3-bf16.gguf", calls)
         self.assertIn("--mmproj-dtype bf16", calls)
-        self.assertIn(f"--llama-root {LLAMA_ROOT}", calls)
+        self.assertIn("--llama-root ", calls)
+        self.assertNotIn(f"--llama-root {LLAMA_ROOT}", calls)
         self.assertNotIn("mmproj-pi-v3-f16.gguf", calls)
 
     def test_orchestrator_passes_variant_to_bundle_validator(self) -> None:

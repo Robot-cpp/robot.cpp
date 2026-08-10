@@ -138,6 +138,7 @@ The StarVLA runtime needs the maintained llama.cpp overlay:
 cmake -S . -B build_cuda \
   -DGGML_CUDA=ON \
   -DBUILD_TESTING=ON \
+  -DROBOT_CPP_BUILD_STARVLA=ON \
   -DROBOT_CPP_BUILD_MODEL_CLI=ON
 cmake --build build_cuda -j
 ```
@@ -174,7 +175,8 @@ CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-server \
   --n-batch 2048
 ```
 
-StarVLA uses the existing protocol-v3 model API and server request shape. The
+StarVLA uses the protocol-v4 model API. Diffusion requests may carry an explicit
+initial-noise tensor so paired Python/GGUF rollouts use identical stochastic inputs. The
 normalization profile is selected once at startup with `--unnorm-key`.
 
 ## Parity and eval
