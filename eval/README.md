@@ -22,6 +22,7 @@ The repo root [README.md](../README.md) describes the three-layer layout:
 eval/
 ├── base_platform.py          # Shared base class for real-robot / sim platforms
 ├── libero/                   # LIBERO sim benchmark (multi-camera, batch rollout)
+├── simpler_env/              # SimplerEnv WidowX / Bridge closed-loop benchmark
 └── lerobot_so101/            # SO-101 real-robot sync closed-loop example
 ```
 
@@ -30,12 +31,16 @@ eval/
 | Directory | Scenario | Notes |
 |---|---|---|
 | [`libero/`](libero/README.md) | Sim eval | LIBERO benchmark with C++ policy rollout and LeRobot baseline. [中文](libero/README_ZH.md) |
+| [`simpler_env/`](simpler_env/README.md) | Sim eval | StarVLA GGUF on the SimplerEnv WidowX / Bridge task protocol with a local `.pt` paired conversion reference. [中文](simpler_env/README_ZH.md) |
 | [`lerobot_so101/`](lerobot_so101/README.md) | Real robot | SO-101 follower + single-camera observe → predict → act loop. [中文](lerobot_so101/README_ZH.md) |
 
 The two examples are organized slightly differently:
 
 - **SO-101** follows the standard `BasePlatform` + `RobotPolicy` + `SyncControlLoop` path—use it as the template for new real-robot platforms.
 - **LIBERO** implements a dedicated observation adapter under `eval/libero/policy/` (multi-camera, state packing, sim rollout) and does **not** inherit `BasePlatform`—use it as a reference for new **sim benchmarks**.
+- **SimplerEnv** follows the same dedicated runner pattern, adding the official
+  WidowX action transform, temporal ensemble, normalization profile and task
+  protocol, plus a paired local original Python `.pt` conversion reference.
 
 ## Standard closed-loop data flow
 
@@ -237,6 +242,7 @@ LIBERO’s [`ModelServerPolicy`](libero/policy/model_server.py) is an example of
 
 - [SO-101 real-robot guide](lerobot_so101/README.md) · [中文](lerobot_so101/README_ZH.md)
 - [LIBERO sim eval](libero/README.md) · [中文](libero/README_ZH.md)
+- [SimplerEnv Bridge eval](simpler_env/README.md) · [中文](simpler_env/README_ZH.md)
 - [robot_server launch and protocol](../robot_server/README.md)
 - [robot_client and policy](../robot_client/README.md)
 - [Adding a new model runtime](../src/README.md)

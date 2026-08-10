@@ -1,0 +1,19 @@
+name: robotcpp-simpler-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - ffmpeg
+  - pip:
+      - numpy==1.24.4
+      - scipy==1.11.4
+      - opencv-python==4.11.0.86
+      - opencv-python-headless==4.11.0.86
+      - setuptools<81
+      - transforms3d
+      - matplotlib
+      - mediapy
+      - tyro
+      - msgpack
+      - websockets

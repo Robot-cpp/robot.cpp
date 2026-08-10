@@ -138,7 +138,10 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### 🧪 Using model-server in simulation, using LIBERO as the example
 
-See the [LIBERO simulation evaluation guide](eval/libero/README.md).
+See the [LIBERO simulation evaluation guide](eval/libero/README.md). StarVLA's
+WidowX / BridgeData v2 task protocol and closed-loop comparison between the
+local original Python `.pt` reference and GGUF are documented in the
+[SimplerEnv Bridge guide](eval/simpler_env/README.md).
 
 ### 🦾 Using model-server on real hardware, using SO-101 as the example
 
@@ -269,6 +272,7 @@ robot.cpp/
 ├── eval/
 │   ├── base_platform.py           # Shared base class for real-robot platforms
 │   ├── libero/                    # LIBERO simulation evaluation
+│   ├── simpler_env/               # SimplerEnv WidowX / Bridge evaluation
 │   └── lerobot_so101/             # SO-101 real-robot scripts and examples
 └── third_party/
     ├── llama.cpp/                 # ggml / llama.cpp backend
@@ -325,6 +329,7 @@ Robot.cpp's design and implementation benefit from several excellent open-source
 * [llama.cpp](https://github.com/ggerganov/llama.cpp): provides lightweight local inference, the GGML/GGUF ecosystem, and cross-platform backend foundations. This project continues building robot model inference capabilities on top of its engineering philosophy and low-level runtime.
 * [LeRobot](https://github.com/huggingface/lerobot): provides reference implementations for robot data, policy training, and real-robot integration. The SO-101 real-robot example and parts of the evaluation flow in this project are inspired by the LeRobot ecosystem.
 * [LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO): provides robot simulation tasks and evaluation benchmarks. The LIBERO simulation evaluation flow in this project is based on its task environments and benchmark design.
+* [SimplerEnv](https://github.com/simpler-env/SimplerEnv): provides real-to-sim robot evaluation environments. The StarVLA Bridge success-rate evaluation uses its WidowX task suite and official visual-matching assets.
 * [OpenPI](https://github.com/Physical-Intelligence/openpi): provides the pi0 policy model and related open-source implementation. The pi0 runtime, conversion, and evaluation work in this project references OpenPI's model design.
 
 Thanks to these projects and communities for their contributions to robot learning and on-device inference.
