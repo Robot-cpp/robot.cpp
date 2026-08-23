@@ -68,6 +68,7 @@ from starvla_checkpoint import (  # noqa: E402
     load_catalog,
     load_checkpoint_state,
     official_bundle_uuid,
+    portable_source_record,
     resolve_effective_config,
     sha256_file,
     staged_qwen_asset_hashes,
@@ -273,10 +274,20 @@ class CatalogAndInventoryTest(unittest.TestCase):
         self.oft = get_variant(self.catalog, "oft")
 
     def test_public_model_type_mapping(self) -> None:
-        self.assertEqual(self.oft["model_type"], "starvla")
-        self.assertEqual(get_variant(self.catalog, "groot")["model_type"], "starvla")
-        self.assertEqual(get_variant(self.catalog, "pi_v3")["model_type"], "starvla")
-        self.assertEqual(get_variant(self.catalog, "fast")["model_type"], "starvla")
+        self.assertEqual(len(self.catalog["variants"]), 7)
+        for entry in self.catalog["variants"].values():
+            self.assertEqual(entry["model_type"], "starvla")
+            self.assertIn(entry["backbone"], {"qwen3_vl", "qwen2_5_vl"})
+            self.assertIn(entry["qwen_asset"], self.catalog["shared_assets"])
+            self.assertTrue((TOOLS_DIR / entry["reference_server"]).is_file())
+
+    def test_release_source_uses_catalog_relative_checkpoint_path(self) -> None:
+        source = {"checkpoint": "/private/checkpoint.pt", "revision": "test"}
+        portable = portable_source_record(source, self.oft)
+        self.assertEqual(
+            portable["checkpoint"], "checkpoints/steps_5000_pytorch_model.pt"
+        )
+        self.assertEqual(source["checkpoint"], "/private/checkpoint.pt")
 
     def test_pi_v3_catalog_pins_official_checkpoint_and_inventory(self) -> None:
         pi_v3 = get_variant(self.catalog, "pi_v3")
@@ -486,8 +497,10 @@ class CatalogAndInventoryTest(unittest.TestCase):
         entries = [*self.catalog["shared_assets"].values(), *self.catalog["variants"].values()]
         for entry in entries:
             self.assertEqual(set(entry["files"]), set(entry["file_hashes"]))
-        fast = get_variant(self.catalog, "fast")
-        self.assertEqual(set(fast["optional_weight_files"]), set(fast["optional_weight_hashes"]))
+            self.assertEqual(
+                set(entry.get("optional_weight_files", [])),
+                set(entry.get("optional_weight_hashes", {})),
+            )
 
     def test_modified_checkpoint_cannot_pass_as_official_manifest(self) -> None:
         manifest = {
@@ -1172,6 +1185,7 @@ class OFTPolicyTest(unittest.TestCase):
         }
         variant = {
             "model_type": "starvla",
+            "backbone": "qwen3_vl",
             "repo_id": "StarVLA/Qwen3VL-OFT-Bridge-RT-1",
             "revision": "d" * 40,
             "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},
@@ -1782,6 +1796,7 @@ class GR00TPolicyTest(unittest.TestCase):
             }
             variant = {
                 "model_type": "starvla",
+                "backbone": "qwen3_vl",
                 "repo_id": "StarVLA/Qwen3VL-GR00T-Bridge-RT-1",
                 "revision": "d" * 40,
                 "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},

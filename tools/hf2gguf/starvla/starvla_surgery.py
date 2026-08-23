@@ -224,7 +224,7 @@ def _run_surgery_in_owned_directory(
         base_assets,
         qwen_asset_entry,
         vlm_records,
-        backbone=str(variant.get("backbone", "qwen3_vl")),
+        backbone=str(variant["backbone"]),
     )
     qwen_assets = copy_qwen_assets(base_assets, hf_dir, qwen_asset_entry)
     policy_assets = copy_policy_assets(source_dir, policy_dir, variant)
@@ -261,7 +261,7 @@ def _run_surgery_in_owned_directory(
         "schema_version": 1,
         "variant": variant_name,
         "framework": variant["framework"],
-        "backbone": variant.get("backbone", "qwen3_vl"),
+        "backbone": variant["backbone"],
         "model_type": variant["model_type"],
         "bundle_uuid": bundle_uuid,
         "source": {

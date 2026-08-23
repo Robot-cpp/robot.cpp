@@ -13,10 +13,8 @@ DOWNLOADER = TOOLS_DIR / "download_starvla.py"
 sys.path.insert(0, str(TOOLS_DIR))
 
 from download_starvla import (  # noqa: E402
-    load_target_matrix,
     required_shared_assets,
     resolve_variant_keys,
-    validate_target_matrix,
 )
 from starvla_checkpoint import StarVLAError, load_catalog  # noqa: E402
 
@@ -134,15 +132,6 @@ class BackboneSelectionTest(unittest.TestCase):
         cls.catalog = load_catalog()
 
     def test_default_selection_remains_qwen3_oft(self) -> None:
-        matrix = load_target_matrix()
-        validate_target_matrix(self.catalog, matrix)
-        self.assertEqual(
-            matrix["targets"],
-            {
-                "qwen3_vl": ["oft", "groot", "pi_v3"],
-                "qwen2_5_vl": ["qwen25_oft", "qwen25_groot"],
-            },
-        )
         self.assertEqual(
             resolve_variant_keys(self.catalog, None, None),
             ("qwen3_vl", ["oft"]),
@@ -174,23 +163,13 @@ class BackboneSelectionTest(unittest.TestCase):
         )
         self.assertEqual(
             resolve_variant_keys(self.catalog, ["all"], "qwen2_5_vl")[1],
-            ["qwen25_oft", "qwen25_groot"],
-        )
-
-    def test_catalog_all_preserves_explicit_experimental_access(self) -> None:
-        self.assertEqual(
-            resolve_variant_keys(self.catalog, ["catalog-all"], "qwen3_vl")[1],
-            ["oft", "groot", "pi_v3", "fast"],
-        )
-        self.assertEqual(
-            resolve_variant_keys(self.catalog, ["catalog-all"], "qwen2_5_vl")[1],
             ["qwen25_oft", "qwen25_groot", "qwen25_pi", "qwen25_fast"],
         )
 
-    def test_qwen25_catalog_all_requires_both_bases_and_fast_codec(self) -> None:
+    def test_qwen25_all_requires_both_bases_and_fast_codec(self) -> None:
         variants = resolve_variant_keys(
             self.catalog,
-            ["catalog-all"],
+            ["all"],
             "qwen2_5_vl",
         )[1]
         self.assertEqual(
@@ -225,11 +204,19 @@ class DownloadCliDryRunTest(unittest.TestCase):
 
     def test_legacy_default_download_plan_is_unchanged(self) -> None:
         manifest = self.run_downloader("--metadata-only")
+        self.assertNotIn("catalog", manifest)
+        self.assertRegex(str(manifest["catalog_sha256"]), r"^[0-9a-f]{64}$")
         self.assertEqual(manifest["backbone"], "qwen3_vl")
         self.assertEqual(manifest["variants"], ["oft"])
         self.assertEqual(
             set(manifest["downloads"]),
             {"asset:qwen3_vl_4b_instruct", "variant:oft"},
+        )
+        self.assertTrue(
+            all(
+                not Path(str(entry["directory"])).is_absolute()
+                for entry in manifest["downloads"].values()
+            )
         )
 
     def test_qwen25_fast_plan_has_policy_action_base_codec_and_weights(self) -> None:

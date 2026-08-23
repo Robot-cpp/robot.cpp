@@ -12,8 +12,8 @@ REFERENCE_PYTHON="${REFERENCE_PYTHON:-${REPO_ROOT}/ckpts/starvla/.venv-official/
 SIMPLER_ENV_ROOT="${SIMPLER_ENV_ROOT:-${REPO_ROOT}/ckpts/simpler_env/source/SimplerEnv}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-${REPO_ROOT}/ckpts/starvla}"
 STARVLA_SOURCE="${STARVLA_SOURCE:-${CHECKPOINT_ROOT}/source/starvla}"
-NVIDIA_VULKAN_RUNTIME="${NVIDIA_VULKAN_RUNTIME:-${REPO_ROOT}/ckpts/simpler_env/nvidia-535.261.03-runtime}"
-NVIDIA_VULKAN_ICD="${NVIDIA_VULKAN_ICD:-${REPO_ROOT}/ckpts/simpler_env/nvidia-535.261.03/nvidia_icd.json}"
+VULKAN_LIBRARY_PATH="${VULKAN_LIBRARY_PATH:-}"
+VULKAN_ICD="${VULKAN_ICD:-}"
 CANDIDATE_BUILD_DIR="${BUILD_DIR:-${REPO_ROOT}/build_cuda}"
 CANDIDATE_SERVER_BIN="${SERVER_BIN:-${CANDIDATE_BUILD_DIR}/bin/model-server}"
 source "${REPO_ROOT}/tools/hf2gguf/starvla/starvla_variant_config.sh"
@@ -112,13 +112,15 @@ for path in \
     "${REFERENCE_QWEN_ASSETS}" \
     "${STARVLA_SOURCE}" \
     "${SIMPLER_ENV_ROOT}" \
-    "${NVIDIA_VULKAN_RUNTIME}" \
-    "${NVIDIA_VULKAN_ICD}" \
     "${CANDIDATE_LLM_GGUF}" \
     "${CANDIDATE_MMPROJ_GGUF}" \
     "${CANDIDATE_POLICY_GGUF}"; do
     [[ -e "${path}" ]] || die "required paired-eval input was not found: ${path}"
 done
+[[ -z "${VULKAN_LIBRARY_PATH}" || -d "${VULKAN_LIBRARY_PATH}" ]] \
+    || die "VULKAN_LIBRARY_PATH is not a directory: ${VULKAN_LIBRARY_PATH}"
+[[ -z "${VULKAN_ICD}" || -f "${VULKAN_ICD}" ]] \
+    || die "VULKAN_ICD is not a file: ${VULKAN_ICD}"
 [[ -f "${CANDIDATE_BUNDLE_MANIFEST}" ]] \
     || die "candidate conversion manifest was not found: ${CANDIDATE_BUNDLE_MANIFEST}"
 [[ ! -e "${REFERENCE_CHECKPOINT}.aria2" ]] \
@@ -148,10 +150,9 @@ if [[ "${DRY_RUN}" == "0" ]]; then
         "${OUTPUT_DIR}/logs"
 fi
 
-vulkan_ld_library_path="${NVIDIA_VULKAN_RUNTIME}"
-if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
-    vulkan_ld_library_path+="${vulkan_ld_library_path:+:}${LD_LIBRARY_PATH}"
-fi
+vulkan_ld_library_path="${VULKAN_LIBRARY_PATH}"
+[[ -z "${LD_LIBRARY_PATH:-}" ]] \
+    || vulkan_ld_library_path+="${vulkan_ld_library_path:+:}${LD_LIBRARY_PATH}"
 
 declare -a ACTIVE_PGIDS=()
 
@@ -201,8 +202,12 @@ build_shard_command() {
         "PYTHONUNBUFFERED=1"
         "CUDA_VISIBLE_DEVICES=${gpu}"
         "CUDA_DEVICE_ORDER=PCI_BUS_ID"
-        "LD_LIBRARY_PATH=${vulkan_ld_library_path}"
-        "VK_ICD_FILENAMES=${NVIDIA_VULKAN_ICD}"
+    )
+    [[ -z "${VULKAN_LIBRARY_PATH}" ]] \
+        || SHARD_COMMAND+=("LD_LIBRARY_PATH=${vulkan_ld_library_path}")
+    [[ -z "${VULKAN_ICD}" ]] \
+        || SHARD_COMMAND+=("VK_ICD_FILENAMES=${VULKAN_ICD}")
+    SHARD_COMMAND+=(
         "HOST=${HOST}"
         "PORT=${port}"
         "TASK_IDS=${task}"

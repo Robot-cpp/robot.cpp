@@ -70,9 +70,12 @@ FRAMEWORK = "oft"
 REFERENCE_BACKEND = "local-python-checkpoint-reference"
 REFERENCE_PURPOSE = "bridge-only"
 DEFAULT_IMAGE_NAME = "image_0"
-DEFAULT_UNNORM_KEY = "oxe_bridge"
-QWEN25_DEFAULT_UNNORM_KEY = "bridge_dataset"
-SUPPORTED_VARIANTS = ("oft", "qwen25_oft")
+_REFERENCE_VARIANTS = {
+    name: entry
+    for name, entry in load_catalog()["variants"].items()
+    if entry["reference_server"] == Path(__file__).name
+}
+SUPPORTED_VARIANTS = tuple(_REFERENCE_VARIANTS)
 
 STATUS_BAD_REQUEST = 1
 STATUS_BAD_VERSION = 3
@@ -253,13 +256,13 @@ def _git_tracked_index_sha256(source_dir: Path) -> str:
 
 
 def default_unnorm_key_for_variant(variant: str) -> str:
-    if variant == "oft":
-        return DEFAULT_UNNORM_KEY
-    if variant == "qwen25_oft":
-        return QWEN25_DEFAULT_UNNORM_KEY
-    raise StarVLAError(
-        f"unsupported OFT reference variant {variant!r}; expected one of {SUPPORTED_VARIANTS}"
-    )
+    try:
+        return str(_REFERENCE_VARIANTS[variant]["default_unnorm_key"])
+    except KeyError as exc:
+        raise StarVLAError(
+            f"unsupported OFT reference variant {variant!r}; "
+            f"expected one of {SUPPORTED_VARIANTS}"
+        ) from exc
 
 
 def validate_reference_inputs(
@@ -336,7 +339,7 @@ def build_preflight_record(paths: Mapping[str, Any]) -> dict[str, Any]:
         "variant": variant["_catalog_key"],
         "model_type": variant["model_type"],
         "framework": variant["framework"],
-        "backbone": variant.get("backbone", "qwen3_vl"),
+        "backbone": variant["backbone"],
         "checkpoint": {
             "repo_id": variant["repo_id"],
             "revision": variant["revision"],
@@ -422,7 +425,7 @@ def build_server_metadata(
     variant = paths["variant"]
     qwen = paths["qwen"]
     variant_name = str(variant["_catalog_key"])
-    backbone = str(variant.get("backbone", "qwen3_vl"))
+    backbone = str(variant["backbone"])
     profiles = [str(value) for value in framework.norm_stats.keys()]
     if not profiles or len(set(profiles)) != len(profiles):
         raise StarVLAError(f"invalid official normalization profiles: {profiles}")
@@ -1118,7 +1121,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=5555)
     parser.add_argument(
         "--unnorm-key",
-        help="Defaults to oxe_bridge for oft and bridge_dataset for qwen25_oft.",
+        help="Defaults to the selected variant's catalog value.",
     )
     parser.add_argument(
         "--preflight",

@@ -68,7 +68,6 @@ from starvla_checkpoint import (  # noqa: E402
 MODEL_TYPE = "starvla"
 FRAMEWORK = "groot"
 SUPPORTED_VARIANT = "groot"
-DEFAULT_UNNORM_KEY = "oxe_bridge"
 EXPECTED_PROFILES = ["oxe_bridge", "oxe_rt1"]
 
 
@@ -144,7 +143,7 @@ def build_preflight_record(paths: Mapping[str, Any]) -> dict[str, Any]:
         "variant": variant["_catalog_key"],
         "model_type": variant["model_type"],
         "framework": variant["framework"],
-        "backbone": variant.get("backbone", "qwen3_vl"),
+        "backbone": variant["backbone"],
         "checkpoint": {
             "repo_id": variant["repo_id"],
             "revision": variant["revision"],
@@ -405,13 +404,16 @@ def load_pinned_reference_policy(
     starvla_source: Path | None,
     device: str,
     noise_seed: int,
-    default_unnorm_key: str,
+    default_unnorm_key: str | None,
 ) -> PinnedGROOTReferencePolicy:
     source_dir = starvla_source or checkpoint_root / "source" / "starvla"
     paths = validate_available_inputs(
         checkpoint_root=checkpoint_root,
         source_dir=Path(source_dir),
         catalog_path=DEFAULT_CATALOG,
+    )
+    default_unnorm_key = (
+        default_unnorm_key or paths["variant"]["default_unnorm_key"]
     )
     try:
         import torch
@@ -459,7 +461,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5555)
-    parser.add_argument("--unnorm-key", default=DEFAULT_UNNORM_KEY)
+    parser.add_argument("--unnorm-key")
     parser.add_argument("--noise-seed", type=int, default=0)
     parser.add_argument("--metadata-output", type=Path)
     parser.add_argument("--preflight", action="store_true")

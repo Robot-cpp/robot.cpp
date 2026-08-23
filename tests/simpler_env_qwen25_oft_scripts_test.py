@@ -41,11 +41,6 @@ class Qwen25OFTBridgeScriptTest(unittest.TestCase):
         self.source.mkdir(parents=True)
         self.simpler = self.root / "SimplerEnv"
         self.simpler.mkdir()
-        self.vulkan_runtime = self.root / "vulkan-runtime"
-        self.vulkan_runtime.mkdir()
-        self.vulkan_icd = self.root / "nvidia_icd.json"
-        self.vulkan_icd.write_text("{}\n", encoding="utf-8")
-
         self.gguf = self.root / "gguf"
         self.gguf.mkdir()
         for name in (
@@ -68,8 +63,6 @@ class Qwen25OFTBridgeScriptTest(unittest.TestCase):
             "SIMPLER_ENV_ROOT": str(self.simpler),
             "SIMPLER_PYTHON": "/bin/true",
             "REFERENCE_PYTHON": "/bin/true",
-            "NVIDIA_VULKAN_RUNTIME": str(self.vulkan_runtime),
-            "NVIDIA_VULKAN_ICD": str(self.vulkan_icd),
             "GGUF_DIR": str(self.gguf),
             "SERVER_BIN": "/bin/true",
             "COMPARISON_ID": "qwen25-script-test",

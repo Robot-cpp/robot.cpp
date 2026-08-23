@@ -46,6 +46,7 @@ from starvla_checkpoint import (
     atomic_write_json,
     get_variant,
     load_catalog,
+    portable_source_record,
     sha256_file,
     validate_official_surgery_manifest,
     verify_staged_assets,
@@ -1086,7 +1087,7 @@ def main() -> int:
         catalog = load_catalog(args.catalog)
         variant = get_variant(catalog, args.variant)
         framework = str(variant["framework"])
-        backbone = str(variant.get("backbone", "qwen3_vl"))
+        backbone = str(variant["backbone"])
         validate_official_surgery_manifest(surgery_manifest, variant, catalog)
         verify_staged_assets(args.hf_dir, surgery_manifest.get("qwen_assets", {}), component="Qwen")
         verify_staged_assets(args.policy_dir, surgery_manifest.get("policy_assets", {}), component="policy")
@@ -1197,13 +1198,8 @@ def main() -> int:
             "variant": args.variant,
             "model_type": variant["model_type"],
             "bundle_uuid": bundle_uuid,
-            "source": surgery_manifest["source"],
+            "source": portable_source_record(surgery_manifest["source"], variant),
             "source_tensor_roles": dict(sorted(role_counts.items())),
-            "surgery_manifest": {
-                "filename": args.surgery_manifest.name,
-                "size": args.surgery_manifest.stat().st_size,
-                "sha256": sha256_file(args.surgery_manifest),
-            },
             "components": {
                 "text": component_record(args.text, text_validation),
                 "mmproj": component_record(args.mmproj, mmproj_validation),

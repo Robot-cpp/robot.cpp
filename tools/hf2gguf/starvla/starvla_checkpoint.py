@@ -29,7 +29,7 @@ STARVLA_ARTIFACT_STEMS = {
     "qwen25_fast": "qwen25-fast",
 }
 
-DEFAULT_QWEN_ASSET = "qwen3_vl_4b_instruct"
+LEGACY_QWEN3_ASSET = "qwen3_vl_4b_instruct"
 SUPPORTED_BACKBONES = {"qwen3_vl", "qwen2_5_vl"}
 SUPPORTED_FRAMEWORKS = {"oft", "groot", "pi", "pi_v3", "fast"}
 GENERATED_QWEN_ASSET_PATHS = {"model.safetensors.index.json"}
@@ -170,26 +170,36 @@ def load_catalog(path: Path | str = DEFAULT_CATALOG) -> dict[str, Any]:
             raise StarVLAError(
                 f"catalog variant {name!r} has unsupported framework={framework!r}"
             )
-        backbone = entry.get("backbone", "qwen3_vl")
+        if entry.get("model_type") != "starvla":
+            raise StarVLAError(f"catalog variant {name!r} must use model_type='starvla'")
+        backbone = entry.get("backbone")
         if backbone not in SUPPORTED_BACKBONES:
             raise StarVLAError(
                 f"catalog variant {name!r} has unsupported backbone={backbone!r}"
             )
-        qwen_asset = entry.get("qwen_asset", DEFAULT_QWEN_ASSET)
+        qwen_asset = entry.get("qwen_asset")
         if not isinstance(qwen_asset, str) or qwen_asset not in shared_assets:
             raise StarVLAError(
                 f"catalog variant {name!r} references unknown qwen_asset={qwen_asset!r}"
             )
         if not isinstance(entry.get("repo_id"), str) or not entry["repo_id"]:
             raise StarVLAError(f"catalog variant {name!r} is missing repo_id/revision")
+        if not isinstance(entry.get("default_unnorm_key"), str) or not entry["default_unnorm_key"]:
+            raise StarVLAError(f"catalog variant {name!r} has no default_unnorm_key")
+        reference_server = _safe_relative_path(
+            entry.get("reference_server"), field=f"variant {name}.reference_server"
+        )
+        if len(reference_server.parts) != 1 or reference_server.suffix != ".py":
+            raise StarVLAError(
+                f"catalog variant {name!r} has an invalid reference_server"
+            )
         _validate_revision(entry.get("revision"), field=f"variant {name}.revision")
         checkpoint = entry.get("checkpoint")
-        if checkpoint is not None:
-            if not isinstance(checkpoint, dict):
-                raise StarVLAError(f"catalog variant {name!r} checkpoint must be an object or null")
-            _safe_relative_path(checkpoint.get("path"), field=f"variant {name}.checkpoint.path")
-            _validate_positive_size(checkpoint.get("size"), field=f"variant {name}.checkpoint.size")
-            _validate_sha256(checkpoint.get("sha256"), field=f"variant {name}.checkpoint.sha256")
+        if not isinstance(checkpoint, dict):
+            raise StarVLAError(f"catalog variant {name!r} checkpoint must be an object")
+        _safe_relative_path(checkpoint.get("path"), field=f"variant {name}.checkpoint.path")
+        _validate_positive_size(checkpoint.get("size"), field=f"variant {name}.checkpoint.size")
+        _validate_sha256(checkpoint.get("sha256"), field=f"variant {name}.checkpoint.sha256")
     entries = {
         **{f"shared asset {name}": entry for name, entry in shared_assets.items()},
         **{f"variant {name}": entry for name, entry in variants.items()},
@@ -254,12 +264,26 @@ def get_variant(catalog: Mapping[str, Any], variant: str) -> dict[str, Any]:
     return entry
 
 
+def portable_source_record(
+    source: Mapping[str, Any], variant_entry: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Replace the staging checkpoint path with its catalog-relative path."""
+    checkpoint = variant_entry.get("checkpoint")
+    if not isinstance(checkpoint, Mapping):
+        raise StarVLAError("catalog variant has no policy checkpoint")
+    result = dict(source)
+    result["checkpoint"] = _safe_relative_path(
+        checkpoint.get("path"), field="variant checkpoint path"
+    ).as_posix()
+    return result
+
+
 def get_qwen_asset(
     catalog: Mapping[str, Any], variant_entry: Mapping[str, Any]
 ) -> tuple[str, dict[str, Any]]:
-    asset_name = str(variant_entry.get("qwen_asset", DEFAULT_QWEN_ASSET))
+    asset_name = variant_entry.get("qwen_asset")
     shared_assets = catalog.get("shared_assets", {})
-    if asset_name not in shared_assets:
+    if not isinstance(asset_name, str) or asset_name not in shared_assets:
         raise StarVLAError(
             f"variant {variant_entry.get('_catalog_key', variant_entry.get('framework'))!r} "
             f"references unknown Qwen asset {asset_name!r}"
@@ -424,11 +448,11 @@ def official_bundle_uuid(variant_entry: Mapping[str, Any], catalog: Mapping[str,
         },
     }
     catalog_variant = variant_entry.get("_catalog_key", variant_entry["framework"])
-    backbone = variant_entry.get("backbone", "qwen3_vl")
+    backbone = variant_entry["backbone"]
     if (
         catalog_variant != variant_entry["framework"]
         or backbone != "qwen3_vl"
-        or qwen_asset_name != DEFAULT_QWEN_ASSET
+        or qwen_asset_name != LEGACY_QWEN3_ASSET
     ):
         provenance["catalog_variant"] = catalog_variant
         provenance["backbone"] = backbone
@@ -480,7 +504,7 @@ def resolve_effective_config(
         str(variant_entry["framework"]) if variant_entry is not None else variant_name
     )
     backbone = (
-        str(variant_entry.get("backbone", "qwen3_vl"))
+        str(variant_entry["backbone"])
         if variant_entry is not None
         else "qwen3_vl"
     )
@@ -712,7 +736,7 @@ def load_checkpoint_state(path: Path) -> dict[str, Any]:
 
 
 def classify_tensor(name: str, variant_entry: Mapping[str, Any]) -> tuple[str, str, str]:
-    backbone = str(variant_entry.get("backbone", "qwen3_vl"))
+    backbone = str(variant_entry["backbone"])
     destination_prefixes = VLM_DESTINATION_PREFIXES.get(backbone)
     if destination_prefixes is None:
         raise StarVLAError(f"unsupported StarVLA Qwen backbone: {backbone!r}")

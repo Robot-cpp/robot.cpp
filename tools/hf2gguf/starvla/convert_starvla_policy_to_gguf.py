@@ -833,14 +833,18 @@ def load_variant_config(
     policy_dir: Path,
     surgery_manifest: dict[str, Any],
     variant_name: str,
+    backbone: str | None = None,
 ) -> dict[str, Any]:
     catalog_variant = str(surgery_manifest.get("variant", variant_name))
+    effective_backbone = backbone or surgery_manifest.get("backbone")
+    if not isinstance(effective_backbone, str):
+        raise StarVLAError("surgery manifest does not identify the Qwen backbone")
     effective = resolve_effective_config(
         policy_dir,
         catalog_variant,
         {
             "framework": surgery_manifest.get("framework", variant_name),
-            "backbone": surgery_manifest.get("backbone", "qwen3_vl"),
+            "backbone": effective_backbone,
         },
     )
     effective_path = policy_dir / "effective_config.json"
@@ -863,20 +867,28 @@ def load_variant_config(
     return effective
 
 
-def load_oft_config(policy_dir: Path, surgery_manifest: dict[str, Any]) -> dict[str, Any]:
-    return load_variant_config(policy_dir, surgery_manifest, "oft")
+def load_oft_config(
+    policy_dir: Path, surgery_manifest: dict[str, Any], backbone: str
+) -> dict[str, Any]:
+    return load_variant_config(policy_dir, surgery_manifest, "oft", backbone)
 
 
-def load_groot_config(policy_dir: Path, surgery_manifest: dict[str, Any]) -> dict[str, Any]:
-    return load_variant_config(policy_dir, surgery_manifest, "groot")
+def load_groot_config(
+    policy_dir: Path, surgery_manifest: dict[str, Any], backbone: str
+) -> dict[str, Any]:
+    return load_variant_config(policy_dir, surgery_manifest, "groot", backbone)
 
 
-def load_pi_config(policy_dir: Path, surgery_manifest: dict[str, Any]) -> dict[str, Any]:
-    return load_variant_config(policy_dir, surgery_manifest, "pi")
+def load_pi_config(
+    policy_dir: Path, surgery_manifest: dict[str, Any], backbone: str
+) -> dict[str, Any]:
+    return load_variant_config(policy_dir, surgery_manifest, "pi", backbone)
 
 
-def load_pi_v3_config(policy_dir: Path, surgery_manifest: dict[str, Any]) -> dict[str, Any]:
-    return load_variant_config(policy_dir, surgery_manifest, "pi_v3")
+def load_pi_v3_config(
+    policy_dir: Path, surgery_manifest: dict[str, Any], backbone: str
+) -> dict[str, Any]:
+    return load_variant_config(policy_dir, surgery_manifest, "pi_v3", backbone)
 
 
 def resolve_action_token_id(hf_dir: Path) -> int:
@@ -974,8 +986,8 @@ def build_oft_metadata(
     text_filename: str,
     mmproj_filename: str,
 ) -> dict[str, Any]:
-    backbone = str(variant.get("backbone", "qwen3_vl"))
-    config = load_oft_config(policy_dir, surgery_manifest)
+    backbone = str(variant["backbone"])
+    config = load_oft_config(policy_dir, surgery_manifest, backbone)
     framework = config.get("framework", {})
     action_config = framework.get("action_model", {})
     datasets = config.get("datasets", {})
@@ -1432,8 +1444,8 @@ def build_groot_metadata(
     mmproj_filename: str,
 ) -> dict[str, Any]:
     """Build the executable contract for a released Qwen-VL GR00T head."""
-    backbone = str(variant.get("backbone", "qwen3_vl"))
-    config = load_groot_config(policy_dir, surgery_manifest)
+    backbone = str(variant["backbone"])
+    config = load_groot_config(policy_dir, surgery_manifest, backbone)
     framework = config.get("framework", {})
     action_config = framework.get("action_model", {})
     diffusion_config = action_config.get("diffusion_model_cfg", {})
@@ -1641,7 +1653,7 @@ def build_pi_metadata(
     """Build the released Qwen2.5-VL legacy PI executable contract."""
     if variant.get("framework") != "pi" or variant.get("backbone") != "qwen2_5_vl":
         raise StarVLAError("legacy PI metadata requires the qwen25_pi catalog variant")
-    config = load_pi_config(policy_dir, surgery_manifest)
+    config = load_pi_config(policy_dir, surgery_manifest, str(variant["backbone"]))
     framework = config.get("framework", {})
     action_config = framework.get("action_model", {})
     diffusion_config = action_config.get("diffusion_model_cfg", {})
@@ -1862,7 +1874,9 @@ def build_pi_v3_metadata(
     text_filename: str,
     mmproj_filename: str,
 ) -> dict[str, Any]:
-    config = load_pi_v3_config(policy_dir, surgery_manifest)
+    config = load_pi_v3_config(
+        policy_dir, surgery_manifest, str(variant["backbone"])
+    )
     full_config = _load_yaml(policy_dir / "config.full.yaml")
     framework = config.get("framework", {})
     action = framework.get("action_model", {})

@@ -27,6 +27,7 @@ from starvla_checkpoint import (
     load_catalog,
     load_checkpoint_state,
     official_bundle_uuid,
+    portable_source_record,
     sha256_file,
     staged_qwen_asset_hashes,
     validate_qwen_vlm_destination_names,
@@ -153,7 +154,6 @@ def validate_catalog_contract(
         "framework": FRAMEWORK,
         "backbone": BACKBONE,
         "model_type": MODEL_TYPE,
-        "status": "official_policy",
         "qwen_asset": QWEN_ASSET_KEY,
         "policy_prefixes": [],
     }
@@ -162,15 +162,6 @@ def validate_catalog_contract(
         for key, value in expected.items()
         if entry.get(key) != value
     ]
-    checkpoint = entry.get("checkpoint")
-    if (
-        not isinstance(checkpoint, Mapping)
-        or checkpoint.get("path") != "checkpoints/steps_10000_pytorch_model.pt"
-        or checkpoint.get("size") != 8_146_439_050
-        or checkpoint.get("sha256")
-        != "f30e89a6b2a166fa3f48af42d5cffde07be44074b861abc7b57e1ccdb734e81e"
-    ):
-        mismatches.append("checkpoint: not the reviewed steps_10000 source lock")
     if entry.get("policy_tensors") not in (None, []):
         mismatches.append("policy_tensors: FAST must not split a separate policy head")
     official_bundle_uuid(entry, catalog)
@@ -935,6 +926,7 @@ def validate_fast_runtime_policy_gguf(
 def build_bundle_manifest(
     *,
     manifest: Mapping[str, Any],
+    entry: Mapping[str, Any],
     codec: Mapping[str, Any],
     text_component: Mapping[str, Any],
     mmproj_component: Mapping[str, Any],
@@ -950,7 +942,7 @@ def build_bundle_manifest(
         "backbone": BACKBONE,
         "model_type": MODEL_TYPE,
         "bundle_uuid": manifest["bundle_uuid"],
-        "source": manifest["source"],
+        "source": portable_source_record(manifest["source"], entry),
         "generation": dict(GENERATION_CONTRACT),
         "action_token_mapping": manifest["action_token_mapping"],
         "fast_codec": {
@@ -1399,6 +1391,7 @@ def convert_staging(
         )
         bundle = build_bundle_manifest(
             manifest=manifest,
+            entry=entry,
             codec=validate_fast_codec(codec_dir, codec_entry),
             text_component={
                 "path": TEXT_FILENAME,
@@ -1462,7 +1455,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
             return 0
         if args.dry_run:
-            output_dir = args.output_dir or Path("ckpts/starvla/gguf/qwen25-fast")
+            output_dir = args.output_dir or Path("ckpts/starvla/gguf/qwen25_fast")
             commands = build_commands(
                 args.python,
                 args.staging_dir / "hf",

@@ -227,7 +227,7 @@ def main() -> int:
         mmproj_metadata = args.output_dir / "mmproj-metadata.json"
         bundle_uuid = str(manifest["bundle_uuid"])
         source = manifest["source"]
-        backbone = str(manifest.get("backbone", variant.get("backbone", "qwen3_vl")))
+        backbone = str(manifest.get("backbone", variant["backbone"]))
         backbone_label = {
             "qwen3_vl": "Qwen3-VL",
             "qwen2_5_vl": "Qwen2.5-VL",

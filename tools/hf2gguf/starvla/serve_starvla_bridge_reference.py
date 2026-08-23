@@ -51,36 +51,11 @@ from starvla_checkpoint import (  # noqa: E402
 )
 
 
-VARIANTS = {
-    "pi_v3": {
-        "model_type": "starvla",
-        "framework": "pi_v3",
-        "backbone": "qwen3_vl",
-        "profiles": ["oxe_bridge", "oxe_rt1"],
-        "default_unnorm_key": "oxe_bridge",
-    },
-    "qwen25_groot": {
-        "model_type": "starvla",
-        "framework": "groot",
-        "backbone": "qwen2_5_vl",
-        "profiles": ["oxe_bridge", "oxe_rt1"],
-        "default_unnorm_key": "oxe_bridge",
-    },
-    "qwen25_pi": {
-        "model_type": "starvla",
-        "framework": "pi",
-        "backbone": "qwen2_5_vl",
-        "profiles": ["oxe_bridge", "oxe_rt1"],
-        "default_unnorm_key": "oxe_bridge",
-    },
-    "qwen25_fast": {
-        "model_type": "starvla",
-        "framework": "fast",
-        "backbone": "qwen2_5_vl",
-        "profiles": ["bridge_dataset", "fractal20220817_data"],
-        "default_unnorm_key": "bridge_dataset",
-    },
-}
+SUPPORTED_VARIANTS = tuple(
+    name
+    for name, entry in load_catalog()["variants"].items()
+    if entry["reference_server"] == Path(__file__).name
+)
 
 
 def _variant_paths(
@@ -131,7 +106,7 @@ def _variant_paths(
         validate_staging_manifest,
     )
 
-    staging_dir = checkpoint_root / "work" / "qwen25_fast"
+    staging_dir = checkpoint_root / "work" / variant_name
     manifest_path = staging_dir / STAGING_MANIFEST_FILENAME
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -178,17 +153,25 @@ def _metadata(
     default_unnorm_key: str,
     runtime: Mapping[str, Any],
 ) -> dict[str, Any]:
-    spec = VARIANTS[variant_name]
     variant = paths["variant"]
     qwen = paths["qwen"]
-    profiles = list(spec["profiles"])
+    statistics_path = Path(paths["policy_dir"]) / "dataset_statistics.json"
+    try:
+        statistics = json.loads(statistics_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise StarVLAError(
+            f"failed to load normalization profiles from {statistics_path}: {exc}"
+        ) from exc
+    if not isinstance(statistics, Mapping) or not statistics:
+        raise StarVLAError(f"invalid normalization profiles in {statistics_path}")
+    profiles = [str(key) for key in statistics]
     if default_unnorm_key not in profiles:
         raise StarVLAError(
             f"unnorm key {default_unnorm_key!r} is not available for {variant_name}"
         )
     model_info = {
-        "model_type": spec["model_type"],
-        "framework": spec["framework"],
+        "model_type": variant["model_type"],
+        "framework": variant["framework"],
         "bundle_uuid": official_bundle_uuid(variant, paths["catalog"]),
         "checkpoint_sha256": variant["checkpoint"]["sha256"],
         "checkpoint_revision": variant["revision"],
@@ -209,7 +192,7 @@ def _metadata(
         "backend": REFERENCE_BACKEND,
         "purpose": REFERENCE_PURPOSE,
         "catalog_variant": variant_name,
-        "backbone": spec["backbone"],
+        "backbone": variant["backbone"],
         "runtime": dict(runtime),
         "model_info": model_info,
         "action_contract": {"chunk_size": 16, "action_dim": 7},
@@ -498,7 +481,7 @@ def _load_fast_policy(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--variant", choices=tuple(VARIANTS), required=True)
+    parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, required=True)
     parser.add_argument("--checkpoint-root", type=Path, default=Path("ckpts/starvla"))
     parser.add_argument("--starvla-source", type=Path)
     parser.add_argument("--device", default="cuda:0")
@@ -561,9 +544,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     random.seed(args.noise_seed)
     _configure_determinism(torch, seed=args.noise_seed, device=args.device)
-    default_unnorm_key = (
-        args.unnorm_key or VARIANTS[args.variant]["default_unnorm_key"]
-    )
+    default_unnorm_key = args.unnorm_key or paths["variant"]["default_unnorm_key"]
     metadata = _metadata(
         args.variant,
         paths,

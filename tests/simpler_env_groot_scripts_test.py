@@ -66,8 +66,8 @@ class GROOTBridgeScriptTest(unittest.TestCase):
             "SIMPLER_ENV_ROOT": str(self.simpler),
             "SIMPLER_PYTHON": "/bin/true",
             "REFERENCE_PYTHON": "/bin/true",
-            "NVIDIA_VULKAN_RUNTIME": str(self.vulkan_runtime),
-            "NVIDIA_VULKAN_ICD": str(self.vulkan_icd),
+            "VULKAN_LIBRARY_PATH": str(self.vulkan_runtime),
+            "VULKAN_ICD": str(self.vulkan_icd),
             "GGUF_DIR": str(self.gguf),
             "SERVER_BIN": "/bin/true",
             "COMPARISON_ID": "groot-script-test",
@@ -105,6 +105,8 @@ class GROOTBridgeScriptTest(unittest.TestCase):
         self.assertIn("qwen-groot-bf16.gguf", result.stdout)
         self.assertIn("mmproj-groot-bf16.gguf", result.stdout)
         self.assertIn("starvla-groot-policy-fp32.gguf", result.stdout)
+        self.assertIn(str(self.vulkan_runtime), result.stdout)
+        self.assertIn(str(self.vulkan_icd), result.stdout)
         self.assertIn("--allow-partial", result.stdout)
 
 

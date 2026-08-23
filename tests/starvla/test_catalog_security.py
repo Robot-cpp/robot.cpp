@@ -57,10 +57,12 @@ class CatalogSecurityTest(unittest.TestCase):
         cases: tuple[Callable[[dict[str, Any]], None], ...] = (
             lambda catalog: catalog["variants"]["oft"]["files"].__setitem__(0, "../config.json"),
             lambda catalog: catalog["variants"]["oft"]["files"].__setitem__(0, 1),
-            lambda catalog: catalog["variants"]["fast"]["optional_weight_files"].__setitem__(
-                0, "/model.safetensors"
-            ),
-            lambda catalog: catalog["variants"]["fast"]["optional_weight_files"].__setitem__(0, None),
+            lambda catalog: catalog["shared_assets"]["qwen2_5_vl_3b_instruct_action"][
+                "optional_weight_files"
+            ].__setitem__(0, "/model.safetensors"),
+            lambda catalog: catalog["shared_assets"]["qwen2_5_vl_3b_instruct_action"][
+                "optional_weight_files"
+            ].__setitem__(0, None),
             lambda catalog: catalog["variants"]["oft"]["checkpoint"].__setitem__(
                 "path", "checkpoints\\model.pt"
             ),
