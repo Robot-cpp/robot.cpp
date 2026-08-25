@@ -159,6 +159,7 @@ add_library(starvla_runtime STATIC
     ${STARVLA_DIR}/pi_policy.h
     ${STARVLA_DIR}/pi_v3_policy.cpp
     ${STARVLA_DIR}/pi_v3_policy.h
+    ${STARVLA_DIR}/policy_gguf.h
     ${STARVLA_DIR}/qwen3vl_bridge.cpp
     ${STARVLA_DIR}/qwen3vl_bridge.h
     ${STARVLA_DIR}/starvla_engine.cpp

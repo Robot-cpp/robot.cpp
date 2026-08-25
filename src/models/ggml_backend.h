@@ -11,6 +11,8 @@ enum class backend_mode {
     metal,
 };
 
+const char * backend_mode_name(backend_mode mode);
+
 struct backend_buft_policy {
     ggml_backend_buffer_type_t model_buft   = nullptr;
     ggml_backend_buffer_type_t runtime_buft = nullptr;

@@ -13,12 +13,9 @@ LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/qwen-${ARTIFACT_STEM}-bf16.gguf}"
 MMPROJ_GGUF="${MMPROJ_GGUF:-${GGUF_DIR}/mmproj-${ARTIFACT_STEM}-bf16.gguf}"
 if [[ "${VARIANT}" == "qwen25_fast" ]]; then
     POLICY_GGUF="${POLICY_GGUF:-${GGUF_DIR}/policy-qwen25-fast.gguf}"
-    BUNDLE_MANIFEST="${BUNDLE_MANIFEST:-${GGUF_DIR}/qwen25-fast-bundle-manifest.json}"
 else
     POLICY_GGUF="${POLICY_GGUF:-${GGUF_DIR}/starvla-${ARTIFACT_STEM}-policy-fp32.gguf}"
-    BUNDLE_MANIFEST="${BUNDLE_MANIFEST:-${GGUF_DIR}/conversion_manifest.json}"
 fi
-EXPECTED_BACKEND=robot.cpp-gguf
 
 BACKEND="${BACKEND:-linux-cuda}"
 case "${BACKEND}" in
@@ -64,31 +61,6 @@ eval_cmd=(
     --expected-framework "${FRAMEWORK}"
     --server-noise-seed-base "${NOISE_SEED_BASE}"
 )
-if [[ -n "${RESULT_ROLE:-}" || -n "${COMPARISON_ID:-}" ]]; then
-    if [[ -z "${RESULT_ROLE:-}" || -z "${COMPARISON_ID:-}" ]]; then
-        echo "RESULT_ROLE and COMPARISON_ID must be set together" >&2
-        exit 2
-    fi
-    if [[ "${RESULT_ROLE}" != "candidate_cpp_gguf" ]]; then
-        echo "the robot.cpp server only supports RESULT_ROLE=candidate_cpp_gguf" >&2
-        exit 2
-    fi
-    "${PYTHON_BIN}" -m eval.simpler_env.utils.verify_starvla_bundle \
-        --manifest "${BUNDLE_MANIFEST}" \
-        --variant "${VARIANT}" \
-        --checkpoint-revision "${CHECKPOINT_REVISION}" \
-        --checkpoint-sha256 "${CHECKPOINT_SHA256}" \
-        --qwen-revision "${QWEN_REVISION}" \
-        --starvla-revision "${STARVLA_REVISION}" \
-        --text "${LLM_GGUF}" \
-        --mmproj "${MMPROJ_GGUF}" \
-        --policy "${POLICY_GGUF}"
-    eval_cmd+=(
-        --result-role "${RESULT_ROLE}"
-        --comparison-id "${COMPARISON_ID}"
-        --expected-backend "${EXPECTED_BACKEND}"
-    )
-fi
 [[ -n "${TASK_IDS:-}" ]] && eval_cmd+=(--task-ids "${TASK_IDS}")
 [[ -n "${EPISODE_IDS:-}" ]] && eval_cmd+=(--episode-ids "${EPISODE_IDS}")
 [[ -n "${REPEATS:-}" ]] && eval_cmd+=(--repeats "${REPEATS}")

@@ -15,6 +15,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
+from convert_starvla_policy_to_gguf import normalization_metadata
 from convert_starvla_qwen_to_gguf import build_commands, verify_llama_checkout
 from starvla_checkpoint import (
     DEFAULT_CATALOG,
@@ -106,7 +107,7 @@ TEXT_FILENAME = "qwen-qwen25-fast-bf16.gguf"
 MMPROJ_FILENAME = "mmproj-qwen25-fast-bf16.gguf"
 POLICY_FILENAME = "policy-qwen25-fast.gguf"
 STAGING_MANIFEST_FILENAME = "qwen25-fast-staging-manifest.json"
-BUNDLE_MANIFEST_FILENAME = "qwen25-fast-bundle-manifest.json"
+BUNDLE_MANIFEST_FILENAME = "conversion_manifest.json"
 
 COT_PROMPT = (
     "Your task is {instruction}. To identify the key objects for your task. "
@@ -548,88 +549,6 @@ def compile_fast_runtime_tensors(
     }
 
 
-def normalization_metadata(stats: dict[str, Any], action_dim: int) -> dict[str, Any]:
-    if set(stats) != EXPECTED_NORMALIZATION_PROFILES:
-        raise StarVLAError(
-            "unexpected official FAST normalization profiles: "
-            f"{sorted(stats)}"
-        )
-    metadata: dict[str, Any] = {
-        "starvla.normalization.profile_count": len(stats),
-        "starvla.normalization.profile_keys": sorted(stats),
-        "starvla.normalization.clip_actions": False,
-        "starvla.normalization.binary_threshold": 0.5,
-        "starvla.normalization.binary_comparison": "gt",
-    }
-    expected_mask = [True] * (action_dim - 1) + [False]
-    for index, key in enumerate(sorted(stats)):
-        profile = stats[key]
-        if not isinstance(profile, dict):
-            raise StarVLAError(f"normalization profile {key!r} must be an object")
-        action = profile.get("action")
-        if not isinstance(action, dict):
-            raise StarVLAError(f"normalization profile {key!r} has no action object")
-        for field in ("q01", "q99", "mask"):
-            values = action.get(field)
-            if not isinstance(values, list) or len(values) != action_dim:
-                raise StarVLAError(
-                    f"normalization profile {key!r} action.{field} must "
-                    f"have {action_dim} values"
-                )
-            metadata[f"starvla.normalization.profile.{index}.action_{field}"] = values
-        q01 = action["q01"]
-        q99 = action["q99"]
-        mask = action["mask"]
-        if any(type(value) is not bool for value in mask) or mask != expected_mask:
-            raise StarVLAError(
-                f"normalization profile {key!r} action.mask must be {expected_mask}"
-            )
-        if any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(value)
-            for value in [*q01, *q99]
-        ):
-            raise StarVLAError(
-                f"normalization profile {key!r} action quantiles must be finite"
-            )
-        if any(q99[axis] < q01[axis] for axis in range(action_dim - 1)):
-            raise StarVLAError(
-                f"normalization profile {key!r} has q99 below q01"
-            )
-        metadata[f"starvla.normalization.profile.{index}.key"] = key
-
-        state = profile.get("state")
-        if not isinstance(state, dict):
-            raise StarVLAError(
-                f"normalization profile {key!r} has no state statistics"
-            )
-        state_q01 = state.get("q01")
-        state_q99 = state.get("q99")
-        if (
-            not isinstance(state_q01, list)
-            or not isinstance(state_q99, list)
-            or not state_q01
-            or len(state_q01) != len(state_q99)
-            or any(
-                isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or not math.isfinite(value)
-                for value in [*state_q01, *state_q99]
-            )
-            or any(upper < lower for lower, upper in zip(state_q01, state_q99))
-        ):
-            raise StarVLAError(
-                f"normalization profile {key!r} has invalid state q01/q99"
-            )
-        metadata[f"starvla.normalization.profile.{index}.state_dimension"] = len(
-            state_q01
-        )
-        metadata[f"starvla.normalization.profile.{index}.state_q01"] = state_q01
-        metadata[f"starvla.normalization.profile.{index}.state_q99"] = state_q99
-    return metadata
-
-
 def _normalize_gguf_metadata_value(value: Any) -> Any:
     if isinstance(value, bool) or isinstance(value, str) or value is None:
         return value
@@ -674,6 +593,12 @@ def build_fast_runtime_policy(
     codec = validate_fast_codec(codec_dir, codec_entry)
     effective = effective_fast_config(source_dir)
     stats = load_json_object(source_dir / "dataset_statistics.json")
+    if set(stats) != EXPECTED_NORMALIZATION_PROFILES or any(
+        not isinstance(profile, dict)
+        or not isinstance(profile.get("state"), dict)
+        for profile in stats.values()
+    ):
+        raise StarVLAError("unexpected official FAST normalization profiles")
     arrays = compile_fast_runtime_tensors(qwen_dir, codec_dir)
     offsets = arrays[CODEC_TOKEN_OFFSETS_TENSOR]
     token_bytes = arrays[CODEC_TOKEN_BYTES_TENSOR]

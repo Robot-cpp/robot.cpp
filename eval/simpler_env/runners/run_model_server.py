@@ -26,7 +26,6 @@ from eval.simpler_env.policy.model_server import (
     DEFAULT_IMAGE_NAME,
     DEFAULT_IMAGE_SIZE,
     DEFAULT_UNNORM_KEY,
-    EXPLICIT_NOISE_CONTRACT,
     SimplerEnvModelServerPolicy,
 )
 from eval.simpler_env.utils.environment import (
@@ -45,10 +44,6 @@ from eval.simpler_env.utils.environment import (
     selected_tasks,
     simpler_env_root,
 )
-
-
-PAIRED_RESULT_ROLES = ("reference_python_ckpt", "candidate_cpp_gguf")
-DIFFUSION_FRAMEWORKS = frozenset({"groot", "pi", "pi_v3"})
 
 
 def _first_bool(value: Any) -> bool:
@@ -144,7 +139,6 @@ def run_episode(
     camera_name: str | None,
     video_path: Path | None,
     video_fps: int,
-    initial_noise_seed: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     observation, _ = reset_env(env, task_spec, episode_id)
     task = language_instruction(env)
@@ -152,7 +146,7 @@ def run_episode(
         raise RuntimeError(
             f"unexpected instruction for {task_spec.env_name}: {task!r}"
         )
-    policy.reset(task, reset_server=True, noise_seed=initial_noise_seed)
+    policy.reset(task, reset_server=True)
     image = observation_image(env, observation, camera_name)
     frames = [image] if video_path is not None else []
     start_predict_calls = policy.predict_calls
@@ -199,7 +193,6 @@ def run_episode(
         "steps": steps,
         "elapsed_s": time.perf_counter() - started,
         "predict_calls": policy.predict_calls - start_predict_calls,
-        "initial_noise_seed": list(initial_noise_seed) if initial_noise_seed else None,
         "server_timing_avg_ms": average_timing(records),
         "video": str(video_path) if video_path is not None else None,
     }
@@ -221,9 +214,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--expected-qwen-revision")
     parser.add_argument("--expected-starvla-revision")
     parser.add_argument("--expected-framework")
-    parser.add_argument("--expected-backend")
-    parser.add_argument("--result-role", choices=PAIRED_RESULT_ROLES)
-    parser.add_argument("--comparison-id")
     parser.add_argument("--task-ids", default="all")
     parser.add_argument("--episode-ids", default="0:24")
     parser.add_argument("--repeats", type=int, default=1)
@@ -265,23 +255,6 @@ def _validate_args(args: argparse.Namespace) -> tuple[list[int], list[int]]:
         raise ValueError("repeat, episode, timing, and ensemble values must be positive")
     if args.server_noise_seed_base < 0:
         raise ValueError("--server-noise-seed-base must be non-negative")
-    if (args.result_role is None) != (args.comparison_id is None):
-        raise ValueError("--result-role and --comparison-id must be set together")
-    if args.result_role is not None:
-        required = (
-            args.variant,
-            args.expected_model_type,
-            args.expected_framework,
-            args.expected_checkpoint_revision,
-            args.expected_checkpoint_sha256,
-            args.expected_qwen_revision,
-            args.expected_starvla_revision,
-            args.expected_backend,
-        )
-        if not all(required):
-            raise ValueError("paired Bridge results require explicit model identity")
-        if not args.launch_server:
-            raise ValueError("paired Bridge results require --launch-server")
     return parse_task_ids(args.task_ids), parse_episode_ids(args.episode_ids)
 
 
@@ -291,7 +264,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     video_dir = args.video_dir or output.with_suffix("").with_name(output.stem + "-videos")
     apply_runtime_env()
     root = simpler_env_root(args.simpler_env_root)
-    explicit_noise = args.expected_framework in DIFFUSION_FRAMEWORKS
     policy = SimplerEnvModelServerPolicy(
         host=args.host,
         port=args.port,
@@ -302,7 +274,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         action_ensemble=not args.no_action_ensemble,
         action_ensemble_horizon=args.action_ensemble_horizon,
         adaptive_ensemble_alpha=args.adaptive_ensemble_alpha,
-        initial_noise_shape=(16, 7) if explicit_noise else None,
     )
     episodes: list[dict[str, Any]] = []
     launches: list[dict[str, Any]] = []
@@ -327,7 +298,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                             "task_id": task_spec.task_id,
                             "repeat": repeat,
                             "noise_seed": noise_seed,
-                            "backend": args.expected_backend,
                         }
                     )
                 for episode_id in episode_ids:
@@ -358,7 +328,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                             camera_name=args.camera_name,
                             video_path=video_path,
                             video_fps=args.video_fps,
-                            initial_noise_seed=(derived_seed, episode_id) if explicit_noise else None,
                         )
                     finally:
                         close_env(env)
@@ -417,7 +386,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "rgb_overlay": not args.no_rgb_overlay,
             "camera_name": args.camera_name,
             "raytracing": args.enable_raytracing,
-            "initial_noise": EXPLICIT_NOISE_CONTRACT if explicit_noise else None,
         },
         "model": recorded_model,
         "episodes": episodes,
@@ -425,12 +393,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "timing_ms": timing_summary(policy.timing_records),
         **aggregate_episodes(episodes),
     }
-    if args.result_role is not None:
-        payload.update(
-            result_role=args.result_role,
-            comparison_id=args.comparison_id,
-            status="complete" if full_coverage else "partial",
-        )
     write_json(output, payload)
     print(f"wrote {output}")
     print(f"overall: {payload['overall']}")

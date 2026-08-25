@@ -52,11 +52,6 @@ public:
     bool extract_fast_tokens(const std::vector<int32_t> & generated_ids,
                              std::vector<int32_t> & fast_ids, std::string & error) const;
 
-    // Exposed for focused parity diagnostics. This is the Hugging Face ByteLevel
-    // decoder output before min_token adjustment and inverse DCT.
-    bool byte_level_decode(const std::vector<int32_t> & fast_ids,
-                           std::vector<uint32_t> & codepoints, std::string & error) const;
-
     bool decode_fast_tokens(const std::vector<std::vector<int32_t>> & batch_fast_ids,
                             FastDecodeResult & result, std::string & error) const;
 
@@ -73,6 +68,9 @@ public:
 private:
     FastCodec(FastCodecConfig config, std::vector<std::vector<uint8_t>> token_bytes,
               std::vector<int32_t> fast_to_vlm_id);
+
+    bool byte_level_decode(const std::vector<int32_t> & fast_ids,
+                           std::vector<uint32_t> & codepoints, std::string & error) const;
 
     FastCodecConfig config_;
     std::vector<std::vector<uint8_t>> token_bytes_;

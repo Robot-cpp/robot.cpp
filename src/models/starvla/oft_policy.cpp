@@ -5,10 +5,10 @@
 #include "gguf.h"
 #include "models/ggml_backend.h"
 #include "models/gguf_loader.h"
+#include "models/starvla/policy_gguf.h"
 
 #include <cmath>
 #include <cstdio>
-#include <initializer_list>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -37,120 +37,12 @@ struct OFTWeights {
     ggml_tensor * output_proj_bias = nullptr;
 };
 
-int require_key(gguf_context * gguf, const char * key, gguf_type type) {
-    const int index = gguf_find_key(gguf, key);
-    if (index < 0) {
-        throw std::runtime_error(std::string("missing required StarVLA GGUF metadata: ") + key);
-    }
-    if (gguf_get_kv_type(gguf, index) != type) {
-        throw std::runtime_error(std::string("invalid StarVLA GGUF metadata type: ") + key);
-    }
-    return index;
-}
-
-std::string require_string(gguf_context * gguf, const char * key) {
-    return gguf_get_val_str(gguf, require_key(gguf, key, GGUF_TYPE_STRING));
-}
-
-int require_i32(gguf_context * gguf, const char * key) {
-    return gguf_get_val_i32(gguf, require_key(gguf, key, GGUF_TYPE_INT32));
-}
-
-float require_f32(gguf_context * gguf, const char * key) {
-    return gguf_get_val_f32(gguf, require_key(gguf, key, GGUF_TYPE_FLOAT32));
-}
-
-bool require_bool(gguf_context * gguf, const char * key) {
-    return gguf_get_val_bool(gguf, require_key(gguf, key, GGUF_TYPE_BOOL));
-}
-
-int require_array(gguf_context * gguf, const char * key, gguf_type element_type) {
-    const int index = require_key(gguf, key, GGUF_TYPE_ARRAY);
-    if (gguf_get_arr_type(gguf, index) != element_type) {
-        throw std::runtime_error(std::string("invalid StarVLA GGUF array element type: ") + key);
-    }
-    return index;
-}
-
-std::vector<std::string> require_string_array(gguf_context * gguf, const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_STRING);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    std::vector<std::string> values;
-    values.reserve(count);
-    for (size_t i = 0; i < count; ++i) {
-        values.emplace_back(gguf_get_arr_str(gguf, index, i));
-    }
-    return values;
-}
-
-std::vector<int32_t> require_i32_array(gguf_context * gguf, const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_INT32);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    if (count == 0) {
-        return {};
-    }
-    const auto * data = static_cast<const int32_t *>(gguf_get_arr_data(gguf, index));
-    if (data == nullptr) {
-        throw std::runtime_error(std::string("missing StarVLA GGUF array data: ") + key);
-    }
-    return std::vector<int32_t>(data, data + count);
-}
-
-std::vector<float> require_f32_array(gguf_context * gguf, const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_FLOAT32);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    if (count == 0) {
-        return {};
-    }
-    const auto * data = static_cast<const float *>(gguf_get_arr_data(gguf, index));
-    if (data == nullptr) {
-        throw std::runtime_error(std::string("missing StarVLA GGUF array data: ") + key);
-    }
-    return std::vector<float>(data, data + count);
-}
-
-std::vector<uint8_t> require_bool_array(gguf_context * gguf, const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_BOOL);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    const auto * data = static_cast<const uint8_t *>(gguf_get_arr_data(gguf, index));
-    if (data == nullptr && count != 0) {
-        throw std::runtime_error(std::string("missing StarVLA GGUF array data: ") + key);
-    }
-    std::vector<uint8_t> values(count);
-    for (size_t i = 0; i < count; ++i) {
-        values[i] = data[i] != 0 ? 1 : 0;
-    }
-    return values;
-}
-
-std::string profile_key(int profile_index, const char * suffix) {
-    return "starvla.normalization.profile." + std::to_string(profile_index) + "." + suffix;
-}
-
-bool has_shape(const ggml_tensor * tensor, std::initializer_list<int64_t> expected) {
-    if (tensor == nullptr || static_cast<size_t>(ggml_n_dims(tensor)) != expected.size()) {
-        return false;
-    }
-    size_t dimension = 0;
-    for (int64_t value : expected) {
-        if (tensor->ne[dimension++] != value) {
-            return false;
-        }
-    }
-    return true;
-}
-
-const char * mode_name(backend_mode mode) {
-    switch (mode) {
-    case backend_mode::cpu:
-        return "cpu";
-    case backend_mode::cuda:
-        return "cuda";
-    case backend_mode::metal:
-        return "metal";
-    }
-    return "unknown";
-}
+using detail::has_shape;
+using detail::require_bool;
+using detail::require_f32;
+using detail::require_i32;
+using detail::require_string;
+using detail::require_string_array;
 
 class OFTGGUFLoader final : public gguf_loader {
   public:
@@ -238,41 +130,7 @@ class OFTGGUFLoader final : public gguf_loader {
             throw std::runtime_error("StarVLA OFT image metadata is incompatible");
         }
 
-        NormalizationConfig & normalization = config_.normalization;
-        normalization.clip_actions = require_bool(gguf, "starvla.normalization.clip_actions");
-        normalization.binary_threshold = require_f32(gguf, "starvla.normalization.binary_threshold");
-        normalization.binary_comparison = require_string(gguf, "starvla.normalization.binary_comparison");
-        normalization.continuous_dimensions =
-            require_i32_array(gguf, "starvla.action.continuous_dimensions");
-        normalization.binary_dimensions = require_i32_array(gguf, "starvla.action.binary_dimensions");
-
-        const int profile_count = require_i32(gguf, "starvla.normalization.profile_count");
-        const std::vector<std::string> keys =
-            require_string_array(gguf, "starvla.normalization.profile_keys");
-        if (profile_count <= 0 || keys.size() != static_cast<size_t>(profile_count)) {
-            throw std::runtime_error("StarVLA normalization profile count is inconsistent");
-        }
-        normalization.profiles.clear();
-        normalization.profiles.reserve(static_cast<size_t>(profile_count));
-        for (int i = 0; i < profile_count; ++i) {
-            NormalizationProfile profile;
-            const std::string key_field = profile_key(i, "key");
-            const std::string q01_field = profile_key(i, "action_q01");
-            const std::string q99_field = profile_key(i, "action_q99");
-            const std::string mask_field = profile_key(i, "action_mask");
-            profile.key = require_string(gguf, key_field.c_str());
-            profile.action_q01 = require_f32_array(gguf, q01_field.c_str());
-            profile.action_q99 = require_f32_array(gguf, q99_field.c_str());
-            profile.action_mask = require_bool_array(gguf, mask_field.c_str());
-            if (profile.key != keys[static_cast<size_t>(i)]) {
-                throw std::runtime_error("StarVLA normalization profile order is inconsistent");
-            }
-            normalization.profiles.push_back(std::move(profile));
-        }
-        std::string normalization_error;
-        if (!validate_normalization_config(normalization, config_.action_dim, normalization_error)) {
-            throw std::runtime_error(normalization_error);
-        }
+        config_.normalization = detail::require_normalization(gguf, config_.action_dim);
         return true;
     }
 
@@ -468,7 +326,7 @@ std::unique_ptr<OFTPolicy> OFTPolicy::load(const std::string & path, int n_threa
         if (verbosity >= 1) {
             std::fprintf(stderr,
                          "%s: backend=%s input=%d hidden=%d blocks=%d horizon=%d action_dim=%d profiles=%zu\n",
-                         __func__, mode_name(impl->mode), impl->config.input_dim, impl->config.hidden_dim,
+                         __func__, backend_mode_name(impl->mode), impl->config.input_dim, impl->config.hidden_dim,
                          impl->config.block_count, impl->config.horizon, impl->config.action_dim,
                          impl->config.normalization.profiles.size());
         }
@@ -533,7 +391,7 @@ const OFTPolicyConfig & OFTPolicy::config() const {
 }
 
 const char * OFTPolicy::backend_name() const {
-    return impl_ != nullptr ? mode_name(impl_->mode) : "unknown";
+    return impl_ != nullptr ? backend_mode_name(impl_->mode) : "unknown";
 }
 
 } // namespace robotcpp::starvla

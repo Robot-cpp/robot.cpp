@@ -37,7 +37,6 @@ values = {
     "MODEL_TYPE": variant["model_type"],
     "FRAMEWORK": variant["framework"],
     "CHECKPOINT_REVISION": variant["revision"],
-    "CHECKPOINT_SIZE": checkpoint["size"],
     "CHECKPOINT_SHA256": checkpoint["sha256"],
     "CHECKPOINT_DIRECTORY": variant["directory"],
     "CHECKPOINT_RELATIVE_PATH": checkpoint["path"],
@@ -45,7 +44,6 @@ values = {
     "QWEN_DIRECTORY": qwen["directory"],
     "DEFAULT_UNNORM_KEY": variant["default_unnorm_key"],
     "ARTIFACT_STEM": artifact_stem(sys.argv[2]),
-    "REFERENCE_SERVER_NAME": variant["reference_server"],
 }
 for name, value in values.items():
     print(f"{name}={shlex.quote(str(value))}")

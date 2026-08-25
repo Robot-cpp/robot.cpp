@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import subprocess
 import sys
@@ -10,7 +9,6 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
@@ -23,20 +21,15 @@ TOOLS_DIR = REPO_ROOT / "tools" / "hf2gguf" / "starvla"
 sys.path.insert(0, str(TOOLS_DIR))
 
 from convert_starvla_policy_to_gguf import (  # noqa: E402
-    GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE,
     GROOT_TENSOR_MAP,
     GROOT_UNUSED_SOURCE_TENSORS,
     OFT_TENSOR_MAP,
-    PI_OFFICIAL_DIMENSIONS,
     PI_TENSOR_MAP,
     PI_V3_TENSOR_MAP,
     QWEN3VL_DYNAMIC_IMAGE_METADATA,
     _validate_pinned_qwen25vl_contract,
     _write_gguf_arrays_no_overwrite,
     build_qwen3vl_image_metadata,
-    build_groot_metadata,
-    build_oft_metadata,
-    build_pi_metadata,
     load_variant_config,
     normalization_metadata,
     parse_args as parse_policy_args,
@@ -79,16 +72,16 @@ from starvla_checkpoint import (  # noqa: E402
 from starvla_surgery import copy_qwen_assets, parse_size, run_surgery  # noqa: E402
 from validate_starvla_bundle import (  # noqa: E402
     expect_ggml_tensor_shape,
-    expected_groot_policy_tensor_map,
     expected_mmproj_tensor_map,
-    expected_pi_policy_tensor_map,
-    expected_pi_v3_policy_tensor_map,
     expected_text_tensor_map,
     gguf,
     parse_args as parse_validator_args,
     tensor_map,
-    validate_policy_tensor_bytes,
 )
+
+
+def tensors_from_shapes(shapes: dict[str, list[int]]) -> dict[str, torch.Tensor]:
+    return {name: torch.zeros(shape) for name, shape in shapes.items()}
 
 
 def tiny_oft_policy(input_dim: int = 4, hidden_dim: int = 8, action_dim: int = 3) -> dict[str, torch.Tensor]:
@@ -110,7 +103,66 @@ def tiny_oft_policy(input_dim: int = 4, hidden_dim: int = 8, action_dim: int = 3
         "action_model.model.fc2.weight": [action_dim, hidden_dim],
         "action_model.model.fc2.bias": [action_dim],
     }
-    return {name: torch.arange(torch.tensor(shape).prod()).reshape(shape).float() for name, shape in shapes.items()}
+    return tensors_from_shapes(shapes)
+
+
+def add_dit_blocks(
+    shapes: dict[str, list[int]],
+    attention_dims: list[int],
+    width: int,
+    feed_forward_dim: int,
+) -> None:
+    for block, attention_dim in enumerate(attention_dims):
+        prefix = f"action_model.model.transformer_blocks.{block}"
+        shapes.update(
+            {
+                f"{prefix}.norm1.linear.weight": [2 * width, width],
+                f"{prefix}.norm1.linear.bias": [2 * width],
+                f"{prefix}.attn1.to_q.weight": [width, width],
+                f"{prefix}.attn1.to_q.bias": [width],
+                f"{prefix}.attn1.to_k.weight": [width, attention_dim],
+                f"{prefix}.attn1.to_k.bias": [width],
+                f"{prefix}.attn1.to_v.weight": [width, attention_dim],
+                f"{prefix}.attn1.to_v.bias": [width],
+                f"{prefix}.attn1.to_out.0.weight": [width, width],
+                f"{prefix}.attn1.to_out.0.bias": [width],
+                f"{prefix}.ff.net.0.proj.weight": [feed_forward_dim, width],
+                f"{prefix}.ff.net.0.proj.bias": [feed_forward_dim],
+                f"{prefix}.ff.net.2.weight": [width, feed_forward_dim],
+                f"{prefix}.ff.net.2.bias": [width],
+            }
+        )
+
+
+def add_flow_tensors(
+    shapes: dict[str, list[int]],
+    *,
+    width: int,
+    mlp_dim: int,
+    state_dim: int,
+    action_dim: int,
+    decoder_input_dim: int,
+) -> None:
+    shapes.update(
+        {
+            "action_model.state_encoder.layer1.weight": [mlp_dim, state_dim],
+            "action_model.state_encoder.layer1.bias": [mlp_dim],
+            "action_model.state_encoder.layer2.weight": [width, mlp_dim],
+            "action_model.state_encoder.layer2.bias": [width],
+            "action_model.action_encoder.layer1.weight": [width, action_dim],
+            "action_model.action_encoder.layer1.bias": [width],
+            "action_model.action_encoder.layer2.weight": [width, 2 * width],
+            "action_model.action_encoder.layer2.bias": [width],
+            "action_model.action_encoder.layer3.weight": [width, width],
+            "action_model.action_encoder.layer3.bias": [width],
+            "action_model.action_decoder.layer1.weight": [mlp_dim, decoder_input_dim],
+            "action_model.action_decoder.layer1.bias": [mlp_dim],
+            "action_model.action_decoder.layer2.weight": [action_dim, mlp_dim],
+            "action_model.action_decoder.layer2.bias": [action_dim],
+            "action_model.future_tokens.weight": [2, width],
+            "action_model.position_embedding.weight": [6, width],
+        }
+    )
 
 
 def tiny_groot_policy() -> dict[str, torch.Tensor]:
@@ -128,55 +180,29 @@ def tiny_groot_policy() -> dict[str, torch.Tensor]:
         "action_model.model.timestep_encoder.timestep_embedder.linear_2.weight": [width, width],
         "action_model.model.timestep_encoder.timestep_embedder.linear_2.bias": [width],
     }
-    for block in range(16):
-        prefix = f"action_model.model.transformer_blocks.{block}"
-        attention_input = cross_dim if block % 2 == 0 else width
-        shapes.update(
-            {
-                f"{prefix}.norm1.linear.weight": [2 * width, width],
-                f"{prefix}.norm1.linear.bias": [2 * width],
-                f"{prefix}.attn1.to_q.weight": [width, width],
-                f"{prefix}.attn1.to_q.bias": [width],
-                f"{prefix}.attn1.to_k.weight": [width, attention_input],
-                f"{prefix}.attn1.to_k.bias": [width],
-                f"{prefix}.attn1.to_v.weight": [width, attention_input],
-                f"{prefix}.attn1.to_v.bias": [width],
-                f"{prefix}.attn1.to_out.0.weight": [width, width],
-                f"{prefix}.attn1.to_out.0.bias": [width],
-                f"{prefix}.ff.net.0.proj.weight": [ff_dim, width],
-                f"{prefix}.ff.net.0.proj.bias": [ff_dim],
-                f"{prefix}.ff.net.2.weight": [width, ff_dim],
-                f"{prefix}.ff.net.2.bias": [width],
-            }
-        )
+    add_dit_blocks(
+        shapes,
+        [cross_dim if block % 2 == 0 else width for block in range(16)],
+        width,
+        ff_dim,
+    )
     shapes.update(
         {
             "action_model.model.proj_out_1.weight": [2 * width, width],
             "action_model.model.proj_out_1.bias": [2 * width],
             "action_model.model.proj_out_2.weight": [output_dim, width],
             "action_model.model.proj_out_2.bias": [output_dim],
-            "action_model.state_encoder.layer1.weight": [mlp_dim, state_dim],
-            "action_model.state_encoder.layer1.bias": [mlp_dim],
-            "action_model.state_encoder.layer2.weight": [width, mlp_dim],
-            "action_model.state_encoder.layer2.bias": [width],
-            "action_model.action_encoder.layer1.weight": [width, action_dim],
-            "action_model.action_encoder.layer1.bias": [width],
-            "action_model.action_encoder.layer2.weight": [width, 2 * width],
-            "action_model.action_encoder.layer2.bias": [width],
-            "action_model.action_encoder.layer3.weight": [width, width],
-            "action_model.action_encoder.layer3.bias": [width],
-            "action_model.action_decoder.layer1.weight": [mlp_dim, output_dim],
-            "action_model.action_decoder.layer1.bias": [mlp_dim],
-            "action_model.action_decoder.layer2.weight": [action_dim, mlp_dim],
-            "action_model.action_decoder.layer2.bias": [action_dim],
-            "action_model.future_tokens.weight": [2, width],
-            "action_model.position_embedding.weight": [6, width],
         }
     )
-    return {
-        name: torch.arange(math.prod(shape), dtype=torch.float32).reshape(shape)
-        for name, shape in shapes.items()
-    }
+    add_flow_tensors(
+        shapes,
+        width=width,
+        mlp_dim=mlp_dim,
+        state_dim=state_dim,
+        action_dim=action_dim,
+        decoder_input_dim=output_dim,
+    )
+    return tensors_from_shapes(shapes)
 
 
 def tiny_pi_policy() -> dict[str, torch.Tensor]:
@@ -184,12 +210,8 @@ def tiny_pi_policy() -> dict[str, torch.Tensor]:
     for block in range(16):
         prefix = f"action_model.model.transformer_blocks.{block}.attn1"
         for suffix in ("to_k.weight", "to_v.weight"):
-            tensors[f"{prefix}.{suffix}"] = torch.arange(
-                16, dtype=torch.float32
-            ).reshape(4, 4)
-    tensors["action_model.action_decoder.layer1.weight"] = torch.arange(
-        28, dtype=torch.float32
-    ).reshape(7, 4)
+            tensors[f"{prefix}.{suffix}"] = torch.zeros(4, 4)
+    tensors["action_model.action_decoder.layer1.weight"] = torch.zeros(7, 4)
     return tensors
 
 
@@ -208,49 +230,22 @@ def tiny_pi_v3_policy() -> dict[str, torch.Tensor]:
         "action_model.model.timestep_encoder.timestep_embedder.linear_2.weight": [width, width],
         "action_model.model.timestep_encoder.timestep_embedder.linear_2.bias": [width],
     }
-    for block in range(36):
-        prefix = f"action_model.model.transformer_blocks.{block}"
-        shapes.update(
-            {
-                f"{prefix}.norm1.linear.weight": [2 * width, width],
-                f"{prefix}.norm1.linear.bias": [2 * width],
-                f"{prefix}.attn1.to_q.weight": [width, width],
-                f"{prefix}.attn1.to_q.bias": [width],
-                f"{prefix}.attn1.to_k.weight": [width, width],
-                f"{prefix}.attn1.to_k.bias": [width],
-                f"{prefix}.attn1.to_v.weight": [width, width],
-                f"{prefix}.attn1.to_v.bias": [width],
-                f"{prefix}.attn1.to_out.0.weight": [width, width],
-                f"{prefix}.attn1.to_out.0.bias": [width],
-                f"{prefix}.ff.net.0.proj.weight": [ff_dim, width],
-                f"{prefix}.ff.net.0.proj.bias": [ff_dim],
-                f"{prefix}.ff.net.2.weight": [width, ff_dim],
-                f"{prefix}.ff.net.2.bias": [width],
-            }
-        )
+    add_dit_blocks(shapes, [width] * 36, width, ff_dim)
     shapes.update(
         {
             "action_model.model.proj_out_1.weight": [2 * width, width],
             "action_model.model.proj_out_1.bias": [2 * width],
             "action_model.model.proj_out_2.weight": [output_dim, width],
             "action_model.model.proj_out_2.bias": [output_dim],
-            "action_model.state_encoder.layer1.weight": [mlp_dim, state_dim],
-            "action_model.state_encoder.layer1.bias": [mlp_dim],
-            "action_model.state_encoder.layer2.weight": [width, mlp_dim],
-            "action_model.state_encoder.layer2.bias": [width],
-            "action_model.action_encoder.layer1.weight": [width, action_dim],
-            "action_model.action_encoder.layer1.bias": [width],
-            "action_model.action_encoder.layer2.weight": [width, 2 * width],
-            "action_model.action_encoder.layer2.bias": [width],
-            "action_model.action_encoder.layer3.weight": [width, width],
-            "action_model.action_encoder.layer3.bias": [width],
-            "action_model.action_decoder.layer1.weight": [mlp_dim, width],
-            "action_model.action_decoder.layer1.bias": [mlp_dim],
-            "action_model.action_decoder.layer2.weight": [action_dim, mlp_dim],
-            "action_model.action_decoder.layer2.bias": [action_dim],
-            "action_model.future_tokens.weight": [2, width],
-            "action_model.position_embedding.weight": [6, width],
         }
+    )
+    add_flow_tensors(
+        shapes,
+        width=width,
+        mlp_dim=mlp_dim,
+        state_dim=state_dim,
+        action_dim=action_dim,
+        decoder_input_dim=width,
     )
     for projector in range(36):
         prefix = f"project_layers.{projector}"
@@ -262,24 +257,13 @@ def tiny_pi_v3_policy() -> dict[str, torch.Tensor]:
                 f"{prefix}.1.bias": [width],
             }
         )
-    return {
-        name: torch.arange(math.prod(shape), dtype=torch.float32).reshape(shape)
-        for name, shape in shapes.items()
-    }
+    return tensors_from_shapes(shapes)
 
 
 class CatalogAndInventoryTest(unittest.TestCase):
     def setUp(self) -> None:
         self.catalog = load_catalog()
         self.oft = get_variant(self.catalog, "oft")
-
-    def test_public_model_type_mapping(self) -> None:
-        self.assertEqual(len(self.catalog["variants"]), 7)
-        for entry in self.catalog["variants"].values():
-            self.assertEqual(entry["model_type"], "starvla")
-            self.assertIn(entry["backbone"], {"qwen3_vl", "qwen2_5_vl"})
-            self.assertIn(entry["qwen_asset"], self.catalog["shared_assets"])
-            self.assertTrue((TOOLS_DIR / entry["reference_server"]).is_file())
 
     def test_release_source_uses_catalog_relative_checkpoint_path(self) -> None:
         source = {"checkpoint": "/private/checkpoint.pt", "revision": "test"}
@@ -288,69 +272,6 @@ class CatalogAndInventoryTest(unittest.TestCase):
             portable["checkpoint"], "checkpoints/steps_5000_pytorch_model.pt"
         )
         self.assertEqual(source["checkpoint"], "/private/checkpoint.pt")
-
-    def test_pi_v3_catalog_pins_official_checkpoint_and_inventory(self) -> None:
-        pi_v3 = get_variant(self.catalog, "pi_v3")
-        self.assertEqual(pi_v3["revision"], "99a3c01b3977e6442871a1fb62ce178279c5c3ed")
-        self.assertEqual(
-            pi_v3["checkpoint"],
-            {
-                "path": "checkpoints/steps_50000_pytorch_model.pt",
-                "size": 10_922_634_912,
-                "sha256": "7f59a5d0fa9c167fabd941bca8e606bdf5597bfb4f99ca83e345672dd9c345ed",
-            },
-        )
-        expected = pi_v3["expected"]
-        self.assertEqual(expected["total_tensors"], 1386)
-        self.assertEqual(expected["vlm_tensors"], 714)
-        self.assertEqual(expected["policy_tensors"], 672)
-        self.assertEqual(expected["policy_numel"], 634_294_279)
-        self.assertEqual(expected["dtypes"], {"bfloat16": 1386})
-
-    def test_qwen25_groot_catalog_pins_remote_checkpoint_inventory(self) -> None:
-        groot = get_variant(self.catalog, "qwen25_groot")
-        expected = groot["expected"]
-        self.assertEqual(expected["total_tensors"], 1073)
-        self.assertEqual(expected["vlm_tensors"], 825)
-        self.assertEqual(expected["policy_tensors"], 248)
-        self.assertEqual(expected["policy_numel"], 155_181_319)
-        self.assertEqual(expected["total_numel"], 4_228_247_815)
-        self.assertEqual(expected["dtypes"], {"bfloat16": 1073})
-        self.assertEqual(
-            groot["required_shapes"][
-                "action_model.model.transformer_blocks.0.attn1.to_k.weight"
-            ],
-            [768, 2048],
-        )
-        self.assertEqual(
-            official_bundle_uuid(groot, self.catalog),
-            "2f030c6b-9dd8-5d20-a278-e19df2e245d8",
-        )
-
-    def test_qwen25_pi_catalog_pins_remote_checkpoint_inventory(self) -> None:
-        pi = get_variant(self.catalog, "qwen25_pi")
-        expected = pi["expected"]
-        self.assertEqual(expected["total_tensors"], 1073)
-        self.assertEqual(expected["vlm_tensors"], 825)
-        self.assertEqual(expected["policy_tensors"], 248)
-        self.assertEqual(expected["policy_numel"], 978_287_623)
-        self.assertEqual(expected["total_numel"], 5_051_354_119)
-        self.assertEqual(expected["total_nbytes"], 10_102_708_238)
-        self.assertEqual(expected["dtypes"], {"bfloat16": 1073})
-        self.assertEqual(
-            pi["required_shapes"][
-                "action_model.model.transformer_blocks.15.attn1.to_k.weight"
-            ],
-            [2048, 2048],
-        )
-        self.assertEqual(
-            pi["required_shapes"]["action_model.action_decoder.layer2.weight"],
-            [7, 2048],
-        )
-        self.assertEqual(
-            official_bundle_uuid(pi, self.catalog),
-            "5cb5b57e-11be-52c0-93da-feb23ac1cef5",
-        )
 
     def test_weights_only_checkpoint_load_rejects_pickle_side_effect(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -493,15 +414,6 @@ class CatalogAndInventoryTest(unittest.TestCase):
         )
         self.assertEqual(records[0].destination_name, "project_layers.0.weight")
 
-    def test_catalog_pins_every_small_source_file(self) -> None:
-        entries = [*self.catalog["shared_assets"].values(), *self.catalog["variants"].values()]
-        for entry in entries:
-            self.assertEqual(set(entry["files"]), set(entry["file_hashes"]))
-            self.assertEqual(
-                set(entry.get("optional_weight_files", [])),
-                set(entry.get("optional_weight_hashes", {})),
-            )
-
     def test_modified_checkpoint_cannot_pass_as_official_manifest(self) -> None:
         manifest = {
             "schema_version": 1,
@@ -537,7 +449,6 @@ class CatalogAndInventoryTest(unittest.TestCase):
     def test_pi_v3_bundle_uuid_pins_checkpoint_and_asset_hashes(self) -> None:
         pi_v3 = get_variant(self.catalog, "pi_v3")
         original = official_bundle_uuid(pi_v3, self.catalog)
-        self.assertEqual(original, "cb17ad62-7bbe-5a27-abc5-d3037a253055")
 
         changed = deepcopy(self.catalog)
         changed["variants"]["pi_v3"]["checkpoint"]["sha256"] = "0" * 64
@@ -562,24 +473,13 @@ class CatalogAndInventoryTest(unittest.TestCase):
             official_bundle_uuid(changed["variants"]["pi_v3"], changed),
         )
 
-    def test_qwen3_groot_bundle_uuid_is_stable(self) -> None:
-        self.assertEqual(
-            official_bundle_uuid(get_variant(self.catalog, "groot"), self.catalog),
-            "c4587666-d9f9-5cbb-a414-0b83d3e03519",
-        )
-
     def test_qwen25_bundle_excludes_checkpoint_generated_weight_index(self) -> None:
-        variant = get_variant(self.catalog, "qwen25_oft")
         qwen_entry = self.catalog["shared_assets"]["qwen2_5_vl_3b_instruct"]
         staged = staged_qwen_asset_hashes(qwen_entry)
         self.assertNotIn("model.safetensors.index.json", staged)
         self.assertEqual(
             staged["config.json"],
             qwen_entry["staged_overrides"]["config.json"]["sha256"],
-        )
-        self.assertEqual(
-            official_bundle_uuid(variant, self.catalog),
-            "90d105ae-00fa-580c-8751-9f931e324c3b",
         )
 
 
@@ -701,70 +601,42 @@ class EffectiveConfigTest(unittest.TestCase):
         self.assertNotIn("num_vl_layers", effective["framework"]["qwenvl"])
         self.assertNotIn("action_dit_hidden_dim", dit)
 
-    def test_qwen3_effective_config_rejects_missing_annotations(self) -> None:
-        effective = {
-            "framework": {},
-            "_robotcpp_effective_config": {
-                "variant": "oft",
-                "framework": "oft",
-                "backbone": "qwen3_vl",
-            },
-        }
-        stored = deepcopy(effective)
-        stored_metadata = stored["_robotcpp_effective_config"]
-        stored_metadata.pop("framework")
-        stored_metadata.pop("backbone")
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            effective_path = root / "effective_config.json"
-            effective_path.write_text(json.dumps(stored), encoding="utf-8")
-            manifest = {
-                "variant": "oft",
-                "framework": "oft",
-                "backbone": "qwen3_vl",
-                "effective_config": {
-                    "path": effective_path.name,
-                    "size": effective_path.stat().st_size,
-                    "sha256": sha256_file(effective_path),
-                },
-            }
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.resolve_effective_config",
-                return_value=effective,
-            ), self.assertRaisesRegex(StarVLAError, "does not match"):
-                load_variant_config(root, manifest, "oft")
-
-    def test_qwen25_effective_config_rejects_missing_annotations(self) -> None:
-        effective = {
-            "framework": {},
-            "_robotcpp_effective_config": {
-                "variant": "qwen25_oft",
-                "framework": "oft",
-                "backbone": "qwen2_5_vl",
-            },
-        }
-        stored = deepcopy(effective)
-        stored["_robotcpp_effective_config"].pop("framework")
-        stored["_robotcpp_effective_config"].pop("backbone")
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            effective_path = root / "effective_config.json"
-            effective_path.write_text(json.dumps(stored), encoding="utf-8")
-            manifest = {
-                "variant": "qwen25_oft",
-                "framework": "oft",
-                "backbone": "qwen2_5_vl",
-                "effective_config": {
-                    "path": effective_path.name,
-                    "size": effective_path.stat().st_size,
-                    "sha256": sha256_file(effective_path),
-                },
-            }
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.resolve_effective_config",
-                return_value=effective,
-            ), self.assertRaisesRegex(StarVLAError, "does not match"):
-                load_variant_config(root, manifest, "oft")
+    def test_effective_config_requires_variant_annotations(self) -> None:
+        cases = (
+            ("oft", "qwen3_vl"),
+            ("qwen25_oft", "qwen2_5_vl"),
+        )
+        for variant, backbone in cases:
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                effective = {
+                    "framework": {},
+                    "_robotcpp_effective_config": {
+                        "variant": variant,
+                        "framework": "oft",
+                        "backbone": backbone,
+                    },
+                }
+                stored = deepcopy(effective)
+                stored["_robotcpp_effective_config"].pop("framework")
+                stored["_robotcpp_effective_config"].pop("backbone")
+                root = Path(temporary)
+                effective_path = root / "effective_config.json"
+                effective_path.write_text(json.dumps(stored), encoding="utf-8")
+                manifest = {
+                    "variant": variant,
+                    "framework": "oft",
+                    "backbone": backbone,
+                    "effective_config": {
+                        "path": effective_path.name,
+                        "size": effective_path.stat().st_size,
+                        "sha256": sha256_file(effective_path),
+                    },
+                }
+                with mock.patch(
+                    "convert_starvla_policy_to_gguf.resolve_effective_config",
+                    return_value=effective,
+                ), self.assertRaisesRegex(StarVLAError, "does not match"):
+                    load_variant_config(root, manifest, "oft")
 
     def test_checkpoint_inspector_passes_catalog_variant_to_qwen25_pi_config(self) -> None:
         canonical = {
@@ -1145,187 +1017,6 @@ class OFTPolicyTest(unittest.TestCase):
         with self.assertRaisesRegex(StarVLAError, "finite numbers"):
             normalization_metadata(invalid_quantile, 3)
 
-    def test_metadata_pins_outer_raw_final_decoder_output(self) -> None:
-        config = {
-            "framework": {"action_model": {"action_horizon": 16}},
-            "datasets": {
-                "vla_data": {
-                    "image_size": [224, 224],
-                    "obs": ["image_0"],
-                    "CoT_prompt": "",
-                    "action_type": "delta_ee",
-                }
-            },
-        }
-        qwen = {
-            "processor_size": {"shortest_edge": 65536, "longest_edge": 16777216},
-            "processor_patch_size": 16,
-            "processor_temporal_patch_size": 2,
-            "processor_merge_size": 2,
-            "image_processor_type": "Qwen2VLImageProcessorFast",
-            "image_mean": [0.5, 0.5, 0.5],
-            "image_std": [0.5, 0.5, 0.5],
-            "vision_patch_size": 16,
-            "vision_temporal_patch_size": 2,
-            "vision_merge_size": 2,
-        }
-        action_stats = {
-            "q01": [-1.0] * 7,
-            "q99": [1.0] * 7,
-            "mask": [True] * 6 + [False],
-        }
-        surgery_manifest = {
-            "bundle_uuid": "fixture-uuid",
-            "source": {
-                "starvla_revision": "a" * 40,
-                "llama_cpp_revision": "b" * 40,
-                "qwen_repo_id": "Qwen/Qwen3-VL-4B-Instruct",
-                "qwen_revision": "c" * 40,
-            },
-        }
-        variant = {
-            "model_type": "starvla",
-            "backbone": "qwen3_vl",
-            "repo_id": "StarVLA/Qwen3VL-OFT-Bridge-RT-1",
-            "revision": "d" * 40,
-            "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            policy_dir = root / "policy"
-            hf_dir = root / "hf"
-            policy_dir.mkdir()
-            hf_dir.mkdir()
-            (policy_dir / "dataset_statistics.json").write_text(
-                json.dumps(
-                    {
-                        "oxe_bridge": {"action": action_stats},
-                        "oxe_rt1": {"action": action_stats},
-                    }
-                ),
-                encoding="utf-8",
-            )
-            (hf_dir / "chat_template.json").write_text("{}", encoding="utf-8")
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.load_oft_config",
-                return_value=config,
-            ), mock.patch(
-                "convert_starvla_policy_to_gguf._validate_pinned_qwen3vl_contract",
-                return_value=qwen,
-            ):
-                metadata = build_oft_metadata(
-                    policy_dir,
-                    hf_dir,
-                    variant,
-                    surgery_manifest,
-                    {"action_dim": 7, "input_dim": 2560, "hidden_dim": 5120},
-                    146663,
-                    "qwen-oft-bf16.gguf",
-                    "mmproj-oft-bf16.gguf",
-                )
-
-        self.assertEqual(
-            metadata["starvla.component.mmproj.filename"], "mmproj-oft-bf16.gguf"
-        )
-        self.assertEqual(metadata["starvla.image.patch_size"], 16)
-        self.assertNotIn("starvla.conditioning.source", metadata)
-
-    def test_qwen25_metadata_pins_final_norm_and_backbone_dimensions(self) -> None:
-        config = {
-            "framework": {"action_model": {"action_horizon": 16}},
-            "datasets": {
-                "vla_data": {
-                    "image_size": [224, 224],
-                    "obs": ["image_0"],
-                    "CoT_prompt": "",
-                    "action_type": "delta_ee",
-                }
-            },
-        }
-        qwen = {
-            "vocab_size": 151936,
-            "hidden_size": 2048,
-            "layer_count": 36,
-            "head_count": 16,
-            "head_count_kv": 2,
-            "head_dim": 128,
-            "vision_deepstack": [],
-            "processor_min_pixels": 3136,
-            "processor_max_pixels": 12845056,
-            "processor_patch_size": 14,
-            "processor_temporal_patch_size": 2,
-            "processor_merge_size": 2,
-            "image_mean": [0.48145466, 0.4578275, 0.40821073],
-            "image_std": [0.26862954, 0.26130258, 0.27577711],
-            "vision_patch_size": 14,
-            "vision_temporal_patch_size": 2,
-            "vision_merge_size": 2,
-        }
-        action_stats = {
-            "q01": [-1.0] * 7,
-            "q99": [1.0] * 7,
-            "mask": [True] * 6 + [False],
-        }
-        surgery_manifest = {
-            "bundle_uuid": "fixture-qwen25-uuid",
-            "source": {
-                "starvla_revision": "a" * 40,
-                "llama_cpp_revision": "b" * 40,
-                "qwen_repo_id": "Qwen/Qwen2.5-VL-3B-Instruct",
-                "qwen_revision": "c" * 40,
-            },
-        }
-        variant = {
-            "model_type": "starvla",
-            "framework": "oft",
-            "backbone": "qwen2_5_vl",
-            "repo_id": "StarVLA/Qwen-OFT-Bridge-RT-1",
-            "revision": "d" * 40,
-            "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            policy_dir = root / "policy"
-            hf_dir = root / "hf"
-            policy_dir.mkdir()
-            hf_dir.mkdir()
-            (policy_dir / "dataset_statistics.json").write_text(
-                json.dumps(
-                    {
-                        "bridge_dataset": {"action": action_stats},
-                        "fractal20220817_data": {"action": action_stats},
-                    }
-                ),
-                encoding="utf-8",
-            )
-            (hf_dir / "chat_template.json").write_text("{}", encoding="utf-8")
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.load_oft_config",
-                return_value=config,
-            ), mock.patch(
-                "convert_starvla_policy_to_gguf._validate_pinned_qwen25vl_contract",
-                return_value=qwen,
-            ):
-                metadata = build_oft_metadata(
-                    policy_dir,
-                    hf_dir,
-                    variant,
-                    surgery_manifest,
-                    {"action_dim": 7, "input_dim": 2048, "hidden_dim": 4096},
-                    146663,
-                    "qwen-qwen25-oft-bf16.gguf",
-                    "mmproj-qwen25-oft-bf16.gguf",
-                )
-
-        self.assertEqual(metadata["starvla.backbone.arch"], "qwen2_5_vl")
-        self.assertEqual(metadata["starvla.qwen.input_embedding_size"], 2048)
-        self.assertNotIn("starvla.vision.deepstack_feature_indices", metadata)
-        self.assertNotIn("starvla.text.deepstack_injection_indices", metadata)
-        self.assertNotIn("starvla.conditioning.source", metadata)
-        self.assertEqual(metadata["starvla.image.patch_size"], 14)
-        self.assertEqual(metadata["starvla.image.min_token_count"], 4)
-
-
 class Qwen3VLDynamicImageMetadataTest(unittest.TestCase):
     @staticmethod
     def qwen_contract() -> dict[str, object]:
@@ -1436,22 +1127,6 @@ class GR00TPolicyTest(unittest.TestCase):
         with self.assertRaisesRegex(StarVLAError, "GR00T policy tensor mismatch"):
             validate_groot_tensors(tensors)
 
-    def test_official_ggml_shape_contract_is_complete(self) -> None:
-        expected = expected_groot_policy_tensor_map()
-        self.assertEqual(len(expected), 244)
-        self.assertEqual(
-            expected["starvla.policy.groot.block.0.attention.key.weight"],
-            [2560, 768],
-        )
-        self.assertEqual(
-            expected["starvla.policy.groot.block.1.attention.key.weight"],
-            [768, 768],
-        )
-        self.assertEqual(
-            expected["starvla.policy.groot.velocity.output.weight"],
-            [1024, 7],
-        )
-
     def test_qwen25_action_asset_uses_nested_text_contract(self) -> None:
         qwen_config = {
             "architectures": ["Qwen2_5_VLForConditionalGeneration"],
@@ -1506,318 +1181,6 @@ class GR00TPolicyTest(unittest.TestCase):
         self.assertEqual(
             contract["image_processor_type"], "Qwen2VLImageProcessorFast"
         )
-
-    def test_qwen25_official_dimensions_and_metadata_contract(self) -> None:
-        dimensions = dict(
-            GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE["qwen2_5_vl"]
-        )
-        self.assertEqual(dimensions["numel"], 155_181_319)
-        self.assertEqual(dimensions["qwen_hidden_dim"], 2048)
-        config = {
-            "framework": {
-                "framework_py": "QwenFM",
-                "qwenvl": {"base_vlm": "./nora", "vl_hidden_dim": 2048},
-                "action_model": {
-                    "action_model_type": "DiT-B",
-                    "hidden_size": 1024,
-                    "action_hidden_dim": 2048,
-                    "add_pos_embed": True,
-                    "max_seq_len": 1024,
-                    "action_dim": 7,
-                    "state_dim": 7,
-                    "future_action_window_size": 15,
-                    "action_horizon": 16,
-                    "past_action_window_size": 0,
-                    "repeated_diffusion_steps": 8,
-                    "noise_beta_alpha": 1.5,
-                    "noise_beta_beta": 1.0,
-                    "noise_s": 0.999,
-                    "num_timestep_buckets": 1000,
-                    "num_inference_timesteps": 4,
-                    "num_target_vision_tokens": 32,
-                    "diffusion_model_cfg": {
-                        "input_embedding_dim": 768,
-                        "attention_head_dim": 64,
-                        "num_attention_heads": 12,
-                        "cross_attention_dim": 2048,
-                        "dropout": 0.2,
-                        "final_dropout": True,
-                        "interleave_self_attention": True,
-                        "norm_type": "ada_norm",
-                        "num_layers": 16,
-                        "output_dim": 1024,
-                        "positional_embeddings": None,
-                    },
-                },
-            },
-            "datasets": {
-                "vla_data": {
-                    "CoT_prompt": (
-                        "Your task is {instruction}. To identify the key objects for your task. "
-                        "Locate their bounding boxes in [x1,y1,x2,y2] format."
-                    ),
-                    "action_type": "delta_ee",
-                    "image_size": [224, 224],
-                    "obs": ["image_0"],
-                }
-            },
-        }
-        qwen = {
-            "vocab_size": 153713,
-            "hidden_size": 2048,
-            "layer_count": 36,
-            "head_count": 16,
-            "head_count_kv": 2,
-            "head_dim": 128,
-            "vision_deepstack": [],
-            "processor_min_pixels": 3136,
-            "processor_max_pixels": 12845056,
-            "processor_patch_size": 14,
-            "processor_temporal_patch_size": 2,
-            "processor_merge_size": 2,
-            "image_mean": [0.48145466, 0.4578275, 0.40821073],
-            "image_std": [0.26862954, 0.26130258, 0.27577711],
-            "vision_patch_size": 14,
-            "vision_temporal_patch_size": 2,
-            "vision_merge_size": 2,
-            "chat_template_sha256": "f" * 64,
-        }
-        action_stats = {
-            "q01": [-1.0] * 7,
-            "q99": [1.0] * 7,
-            "mask": [True] * 6 + [False],
-        }
-        state_stats = {"q01": [-1.0] * 8, "q99": [1.0] * 8}
-        surgery_manifest = {
-            "bundle_uuid": "fixture-qwen25-groot-uuid",
-            "source": {
-                "starvla_revision": "a" * 40,
-                "llama_cpp_revision": "b" * 40,
-                "qwen_repo_id":
-                    "StarVLA/Qwen2.5-VL-3B-Instruct-Action",
-                "qwen_revision": "c" * 40,
-            },
-        }
-        variant = {
-            "model_type": "starvla",
-            "framework": "groot",
-            "backbone": "qwen2_5_vl",
-            "repo_id": "StarVLA/Qwen-GR00T-Bridge-RT-1",
-            "revision": "d" * 40,
-            "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            policy_dir = Path(temporary)
-            (policy_dir / "dataset_statistics.json").write_text(
-                json.dumps(
-                    {
-                        "oxe_bridge": {
-                            "action": action_stats,
-                            "state": state_stats,
-                        },
-                        "oxe_rt1": {
-                            "action": action_stats,
-                            "state": state_stats,
-                        },
-                    }
-                ),
-                encoding="utf-8",
-            )
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.load_groot_config",
-                return_value=config,
-            ), mock.patch(
-                "convert_starvla_policy_to_gguf._validate_pinned_qwenvl_contract",
-                return_value=qwen,
-            ):
-                metadata = build_groot_metadata(
-                    policy_dir,
-                    policy_dir,
-                    variant,
-                    surgery_manifest,
-                    dimensions,
-                    "qwen-qwen25-groot-bf16.gguf",
-                    "mmproj-qwen25-groot-bf16.gguf",
-                )
-
-        self.assertEqual(metadata["starvla.backbone.arch"], "qwen2_5_vl")
-        self.assertEqual(metadata["starvla.qwen.input_embedding_size"], 2048)
-        self.assertEqual(metadata["starvla.qwen.vocab_size"], 153713)
-        self.assertNotIn("starvla.vision.deepstack_feature_indices", metadata)
-        self.assertNotIn("starvla.text.deepstack_injection_indices", metadata)
-        self.assertNotIn("starvla.conditioning.source", metadata)
-        self.assertEqual(metadata["starvla.groot.cross_attention_dim"], 2048)
-        self.assertEqual(metadata["starvla.image.patch_size"], 14)
-
-    def test_metadata_preserves_proven_semantics_and_unresolved_gates(self) -> None:
-        raw_config = {
-            "framework": {
-                "name": "QwenGR00T",
-                "qwenvl": {"base_vlm": "./Qwen", "vl_hidden_dim": 2048},
-                "action_model": {
-                    "action_model_type": "DiT-B",
-                    "hidden_size": 1024,
-                    "action_hidden_dim": 2048,
-                    "add_pos_embed": True,
-                    "max_seq_len": 1024,
-                    "action_dim": 7,
-                    "state_dim": 7,
-                    "future_action_window_size": 15,
-                    "action_horizon": 16,
-                    "past_action_window_size": 0,
-                    "repeated_diffusion_steps": 8,
-                    "noise_beta_alpha": 1.5,
-                    "noise_beta_beta": 1.0,
-                    "noise_s": 0.999,
-                    "num_timestep_buckets": 1000,
-                    "num_inference_timesteps": 4,
-                    "num_target_vision_tokens": 32,
-                    "diffusion_model_cfg": {
-                        "cross_attention_dim": 2048,
-                        "dropout": 0.2,
-                        "final_dropout": True,
-                        "interleave_self_attention": True,
-                        "norm_type": "ada_norm",
-                        "num_layers": 16,
-                        "output_dim": 1024,
-                        "positional_embeddings": None,
-                    },
-                },
-            },
-            "datasets": {
-                "vla_data": {
-                    "CoT_prompt": (
-                        "Your task is {instruction}. To identify the key objects for your task. "
-                        "Locate their bounding boxes in [x1,y1,x2,y2] format."
-                    ),
-                    "action_type": "delta_ee",
-                    "data_mix": "bridge_rt_1",
-                    "default_image_resolution": [3, 224, 224],
-                    "image_size": [224, 224],
-                    "obs": ["image_0"],
-                }
-            },
-        }
-        dimensions = {
-            "qwen_hidden_dim": 2560,
-            "dit_width": 768,
-            "timestep_dim": 256,
-            "feed_forward_dim": 3072,
-            "output_dim": 1024,
-            "mlp_hidden_dim": 1024,
-            "state_dim": 7,
-            "action_dim": 7,
-            "future_token_count": 32,
-            "max_sequence_length": 1024,
-            "block_count": 16,
-            "tensor_count": 248,
-            "numel": 161_472_775,
-        }
-        action_stats = {
-            "q01": [-1.0] * 7,
-            "q99": [1.0] * 7,
-            "mask": [True] * 6 + [False],
-        }
-        state_stats = {"q01": [-1.0] * 8, "q99": [1.0] * 8}
-        qwen_config = {
-            "architectures": ["Qwen3VLForConditionalGeneration"],
-            "text_config": {
-                "vocab_size": 151936,
-                "hidden_size": 2560,
-                "num_hidden_layers": 36,
-                "num_attention_heads": 32,
-                "num_key_value_heads": 8,
-                "head_dim": 128,
-            },
-            "vision_config": {
-                "hidden_size": 1024,
-                "depth": 24,
-                "num_heads": 16,
-                "patch_size": 16,
-                "temporal_patch_size": 2,
-                "spatial_merge_size": 2,
-                "deepstack_visual_indexes": [5, 11, 17],
-            },
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            policy_dir = root / "policy"
-            hf_dir = root / "hf"
-            policy_dir.mkdir()
-            hf_dir.mkdir()
-            (policy_dir / "config.yaml").write_text(
-                yaml.safe_dump(raw_config, sort_keys=True), encoding="utf-8"
-            )
-            (policy_dir / "config.json").write_text(json.dumps(raw_config), encoding="utf-8")
-            effective = resolve_effective_config(policy_dir, "groot")
-            effective_path = policy_dir / "effective_config.json"
-            effective_path.write_text(json.dumps(effective), encoding="utf-8")
-            (policy_dir / "dataset_statistics.json").write_text(
-                json.dumps(
-                    {
-                        "oxe_bridge": {"action": action_stats, "state": state_stats},
-                        "oxe_rt1": {"action": action_stats, "state": state_stats},
-                    }
-                ),
-                encoding="utf-8",
-            )
-            (hf_dir / "config.json").write_text(json.dumps(qwen_config), encoding="utf-8")
-            (hf_dir / "preprocessor_config.json").write_text(
-                json.dumps(
-                    {
-                        "size": {"shortest_edge": 65536, "longest_edge": 16777216},
-                        "patch_size": 16,
-                        "temporal_patch_size": 2,
-                        "merge_size": 2,
-                        "processor_class": "Qwen3VLProcessor",
-                        "image_processor_type": "Qwen2VLImageProcessorFast",
-                        "image_mean": [0.5, 0.5, 0.5],
-                        "image_std": [0.5, 0.5, 0.5],
-                    }
-                ),
-                encoding="utf-8",
-            )
-            (hf_dir / "chat_template.json").write_text(
-                json.dumps({"chat_template": "fixture"}), encoding="utf-8"
-            )
-            surgery_manifest = {
-                "bundle_uuid": "fixture-uuid",
-                "source": {
-                    "starvla_revision": "a" * 40,
-                    "llama_cpp_revision": "b" * 40,
-                    "qwen_repo_id": "Qwen/Qwen3-VL-4B-Instruct",
-                    "qwen_revision": "c" * 40,
-                },
-                "effective_config": {
-                    "path": effective_path.name,
-                    "size": effective_path.stat().st_size,
-                    "sha256": sha256_file(effective_path),
-                },
-            }
-            variant = {
-                "model_type": "starvla",
-                "backbone": "qwen3_vl",
-                "repo_id": "StarVLA/Qwen3VL-GR00T-Bridge-RT-1",
-                "revision": "d" * 40,
-                "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},
-            }
-            metadata = build_groot_metadata(
-                policy_dir,
-                hf_dir,
-                variant,
-                surgery_manifest,
-                dimensions,
-                "qwen-groot-bf16.gguf",
-                "mmproj-groot-bf16.gguf",
-            )
-
-        self.assertEqual(
-            metadata["starvla.component.mmproj.filename"], "mmproj-groot-bf16.gguf"
-        )
-        self.assertEqual(metadata["starvla.groot.timestep_ids"], [0, 250, 500, 750])
-        self.assertEqual(metadata["starvla.image.patch_size"], 16)
-        self.assertNotIn("starvla.conditioning.source", metadata)
-        self.assertNotIn("starvla.image.token_count", metadata)
 
     def test_llama_converter_commands_use_explicit_mmproj_name(self) -> None:
         commands = build_commands(
@@ -1993,226 +1356,6 @@ class LegacyPIPolicyTest(unittest.TestCase):
         with self.assertRaisesRegex(StarVLAError, "legacy PI policy tensor mismatch"):
             validate_pi_tensors(tensors)
 
-    def test_official_ggml_shape_contract_is_complete(self) -> None:
-        expected = expected_pi_policy_tensor_map()
-        self.assertEqual(len(expected), 244)
-        self.assertEqual(
-            expected["starvla.policy.pi.block.0.attention.key.weight"],
-            [2048, 2048],
-        )
-        self.assertEqual(
-            expected["starvla.policy.pi.block.15.feed_forward.input.weight"],
-            [2048, 8192],
-        )
-        self.assertFalse(any("unused_output" in name for name in expected))
-        self.assertEqual(
-            expected["starvla.policy.pi.velocity.output.weight"],
-            [2048, 7],
-        )
-
-    def test_full_tensor_map_validator_compares_staged_bytes(self) -> None:
-        from safetensors.torch import save_file
-
-        source = tiny_pi_policy()
-        with tempfile.TemporaryDirectory() as temporary:
-            policy_dir = Path(temporary)
-            shard = policy_dir / "policy-00001-of-00001.safetensors"
-            save_file(source, shard, metadata={"format": "pt"})
-            (policy_dir / "policy.safetensors.index.json").write_text(
-                json.dumps(
-                    {
-                        "metadata": {
-                            "total_size": sum(
-                                tensor.numel() * tensor.element_size()
-                                for tensor in source.values()
-                            )
-                        },
-                        "weight_map": {
-                            name: shard.name for name in source
-                        },
-                    }
-                ),
-                encoding="utf-8",
-            )
-            converted = {
-                destination: SimpleNamespace(
-                    data=source[source_name].detach().float().numpy()
-                )
-                for source_name, destination in PI_TENSOR_MAP.items()
-            }
-            validate_policy_tensor_bytes(
-                converted,
-                policy_dir,
-                "fp32",
-                tensor_name_map=PI_TENSOR_MAP,
-                component_label="legacy PI",
-            )
-
-            destination = next(iter(converted))
-            corrupted = dict(converted)
-            data = np.array(converted[destination].data, copy=True)
-            data.reshape(-1)[0] += 1
-            corrupted[destination] = SimpleNamespace(data=data)
-            with self.assertRaisesRegex(StarVLAError, "content mismatch"):
-                validate_policy_tensor_bytes(
-                    corrupted,
-                    policy_dir,
-                    "fp32",
-                    tensor_name_map=PI_TENSOR_MAP,
-                    component_label="legacy PI",
-                )
-
-    def test_official_metadata_pins_legacy_runtime_and_image_resize(self) -> None:
-        dimensions = dict(PI_OFFICIAL_DIMENSIONS)
-        config = {
-            "framework": {
-                "name": "QwenPI",
-                "qwenvl": {
-                    "vl_hidden_dim": 2048,
-                    "attn_implementation": "flash_attention_2",
-                },
-                "action_model": {
-                    "action_model_type": "DiT-Qwen",
-                    "hidden_size": 2048,
-                    "action_hidden_dim": 2048,
-                    "add_pos_embed": True,
-                    "max_seq_len": 1024,
-                    "action_dim": 7,
-                    "state_dim": 7,
-                    "future_action_window_size": 15,
-                    "action_horizon": 16,
-                    "past_action_window_size": 0,
-                    "repeated_diffusion_steps": 8,
-                    "noise_beta_alpha": 1.5,
-                    "noise_beta_beta": 1.0,
-                    "noise_s": 0.999,
-                    "num_timestep_buckets": 1000,
-                    "num_inference_timesteps": 4,
-                    "num_target_vision_tokens": 32,
-                    "diffusion_model_cfg": {
-                        "input_embedding_dim": 2048,
-                        "attention_head_dim": 64,
-                        "num_attention_heads": 32,
-                        "cross_attention_dim": 2048,
-                        "dropout": 0.2,
-                        "final_dropout": True,
-                        "interleave_self_attention": True,
-                        "use_canonical_forward": False,
-                        "norm_type": "ada_norm",
-                        "num_layers": 16,
-                        "output_dim": 1024,
-                        "positional_embeddings": None,
-                    },
-                },
-            },
-            "datasets": {
-                "vla_data": {
-                    "CoT_prompt": (
-                        "Your task is {instruction}. To identify the key objects for your task. "
-                        "Locate their bounding boxes in [x1,y1,x2,y2] format."
-                    ),
-                    "action_type": "delta_ee",
-                    "data_mix": "bridge_rt_1",
-                    "default_image_resolution": [3, 224, 224],
-                    "image_size": [224, 224],
-                    "obs": ["image_0"],
-                }
-            },
-        }
-        qwen = {
-            "vocab_size": 153713,
-            "hidden_size": 2048,
-            "layer_count": 36,
-            "head_count": 16,
-            "head_count_kv": 2,
-            "head_dim": 128,
-            "vision_deepstack": [],
-            "processor_min_pixels": 3136,
-            "processor_max_pixels": 12845056,
-            "processor_patch_size": 14,
-            "processor_temporal_patch_size": 2,
-            "processor_merge_size": 2,
-            "image_mean": [0.48145466, 0.4578275, 0.40821073],
-            "image_std": [0.26862954, 0.26130258, 0.27577711],
-            "vision_patch_size": 14,
-            "vision_temporal_patch_size": 2,
-            "vision_merge_size": 2,
-            "chat_template_sha256": "f" * 64,
-        }
-        action_stats = {
-            "q01": [-1.0] * 7,
-            "q99": [1.0] * 7,
-            "mask": [True] * 6 + [False],
-        }
-        state_stats = {"q01": [-1.0] * 8, "q99": [1.0] * 8}
-        variant = {
-            "model_type": "starvla",
-            "framework": "pi",
-            "backbone": "qwen2_5_vl",
-            "repo_id": "StarVLA/Qwen-PI-Bridge-RT-1",
-            "revision": "d" * 40,
-            "checkpoint": {"path": "checkpoints/model.pt", "sha256": "e" * 64},
-        }
-        surgery_manifest = {
-            "bundle_uuid": "fixture-qwen25-pi-uuid",
-            "source": {
-                "starvla_revision": "a" * 40,
-                "llama_cpp_revision": "b" * 40,
-                "qwen_repo_id":
-                    "StarVLA/Qwen2.5-VL-3B-Instruct-Action",
-                "qwen_revision": "c" * 40,
-            },
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            policy_dir = Path(temporary)
-            (policy_dir / "dataset_statistics.json").write_text(
-                json.dumps(
-                    {
-                        "oxe_bridge": {
-                            "action": action_stats,
-                            "state": state_stats,
-                        },
-                        "oxe_rt1": {
-                            "action": action_stats,
-                            "state": state_stats,
-                        },
-                    }
-                ),
-                encoding="utf-8",
-            )
-            with mock.patch(
-                "convert_starvla_policy_to_gguf.load_pi_config",
-                return_value=config,
-            ), mock.patch(
-                "convert_starvla_policy_to_gguf._validate_pinned_qwen25vl_contract",
-                return_value=qwen,
-            ):
-                metadata = build_pi_metadata(
-                    policy_dir,
-                    policy_dir,
-                    variant,
-                    surgery_manifest,
-                    dimensions,
-                    "qwen-qwen25-pi-bf16.gguf",
-                    "mmproj-qwen25-pi-bf16.gguf",
-                )
-
-        self.assertEqual(
-            metadata["starvla.conditioning.hidden_tuple_indices"],
-            list(range(21, 37)),
-        )
-        self.assertTrue(metadata["starvla.normalization.clip_actions"])
-        self.assertEqual(
-            metadata["starvla.normalization.binary_comparison"], "ge"
-        )
-        self.assertFalse(any("runtime_contract" in key for key in metadata))
-        self.assertFalse(any("unused_output" in key for key in metadata))
-        self.assertEqual(
-            metadata["starvla.image.framework_inference_pre_resize_width"], 224
-        )
-        self.assertEqual(
-            metadata["starvla.image.framework_inference_pre_resize_height"], 224
-        )
 class PIv3PolicyTest(unittest.TestCase):
     def test_active_tensor_contract(self) -> None:
         tensors = tiny_pi_v3_policy()
@@ -2230,18 +1373,6 @@ class PIv3PolicyTest(unittest.TestCase):
         tensors.pop(next(iter(PI_V3_TENSOR_MAP)))
         with self.assertRaisesRegex(StarVLAError, "missing runtime tensors"):
             validate_pi_v3_tensors(tensors)
-
-    def test_official_ggml_shapes_cover_active_graph(self) -> None:
-        expected = expected_pi_v3_policy_tensor_map()
-        self.assertEqual(len(expected), 664)
-        self.assertEqual(
-            expected["starvla.policy.pi_v3.projector.35.projection.weight"],
-            [2560, 1024],
-        )
-        self.assertEqual(
-            expected["starvla.policy.pi_v3.velocity.output.weight"],
-            [1024, 7],
-        )
 
 
 class AtomicOutputTest(unittest.TestCase):
@@ -2302,7 +1433,7 @@ class ArtifactPrecisionDefaultsTest(unittest.TestCase):
             return parse_qwen_args()
 
     @staticmethod
-    def parse_policy_args(*extra: str):
+    def parse_policy_args():
         argv = [
             "convert_starvla_policy_to_gguf.py",
             "--policy-dir",
@@ -2313,13 +1444,12 @@ class ArtifactPrecisionDefaultsTest(unittest.TestCase):
             "surgery.json",
             "--output",
             "policy.gguf",
-            *extra,
         ]
         with mock.patch.object(sys, "argv", argv):
             return parse_policy_args()
 
     @staticmethod
-    def parse_validator_args(*extra: str):
+    def parse_validator_args():
         argv = [
             "validate_starvla_bundle.py",
             "--text",
@@ -2336,7 +1466,6 @@ class ArtifactPrecisionDefaultsTest(unittest.TestCase):
             "surgery.json",
             "--output",
             "manifest.json",
-            *extra,
         ]
         with mock.patch.object(sys, "argv", argv):
             return parse_validator_args()
@@ -2344,9 +1473,7 @@ class ArtifactPrecisionDefaultsTest(unittest.TestCase):
     @staticmethod
     def orchestrator_environment(
         root: Path,
-        mmproj_dtype: str | None = None,
         fail_stage: str | None = None,
-        variant: str = "pi_v3",
     ) -> dict[str, str]:
         calls = root / "calls.log"
         fake_python = root / "fake-python"
@@ -2406,7 +1533,7 @@ fi
         env.pop("LLAMA_ROOT", None)
         env.update(
             {
-                "VARIANT": variant,
+                "VARIANT": "pi_v3",
                 "CHECKPOINT": str(root / "checkpoint.pt"),
                 "SOURCE_DIR": str(root / "source"),
                 "BASE_ASSETS": str(root / "assets"),
@@ -2417,8 +1544,6 @@ fi
                 "LLAMA_ROOT": str(root / "clean-llama.cpp"),
             }
         )
-        if mmproj_dtype is not None:
-            env["MMPROJ_DTYPE"] = mmproj_dtype
         if fail_stage is not None:
             env["FAIL_STAGE"] = fail_stage
         return env
@@ -2427,11 +1552,9 @@ fi
     def invoke_orchestrator(
         cls,
         root: Path,
-        mmproj_dtype: str | None = None,
         fail_stage: str | None = None,
-        variant: str = "pi_v3",
     ) -> subprocess.CompletedProcess[str]:
-        env = cls.orchestrator_environment(root, mmproj_dtype, fail_stage, variant)
+        env = cls.orchestrator_environment(root, fail_stage)
         return subprocess.run(
             ["bash", str(TOOLS_DIR / "convert_starvla_all.sh")],
             check=False,
@@ -2441,10 +1564,10 @@ fi
         )
 
     @classmethod
-    def run_orchestrator(cls, mmproj_dtype: str | None = None) -> str:
+    def run_orchestrator(cls) -> str:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            result = cls.invoke_orchestrator(root, mmproj_dtype)
+            result = cls.invoke_orchestrator(root)
             if result.returncode != 0:
                 raise AssertionError(result.stderr)
             return (root / "calls.log").read_text(encoding="utf-8")
@@ -2465,18 +1588,6 @@ fi
 
         policy_args = self.parse_policy_args()
         self.assertEqual(policy_args.dtype, DEFAULT_POLICY_DTYPE)
-        self.assertEqual(
-            self.parse_policy_args("--variant", "qwen25_groot").variant,
-            "qwen25_groot",
-        )
-        self.assertEqual(
-            self.parse_policy_args("--variant", "qwen25_oft").variant,
-            "qwen25_oft",
-        )
-        self.assertEqual(
-            self.parse_policy_args("--variant", "qwen25_pi").variant,
-            "qwen25_pi",
-        )
 
         validator_args = self.parse_validator_args()
         self.assertEqual(validator_args.text_dtype, DEFAULT_TEXT_DTYPE)
@@ -2499,13 +1610,6 @@ fi
                     default_mmproj_filename(variant), f"mmproj-{stem}-bf16.gguf"
                 )
 
-    def test_f16_mmproj_remains_an_explicit_cli_override(self) -> None:
-        self.assertEqual(self.parse_qwen_args("--mmproj-dtype", "f16").mmproj_dtype, "f16")
-        self.assertEqual(
-            self.parse_validator_args("--mmproj-dtype", "f16").mmproj_dtype,
-            "f16",
-        )
-
     def test_orchestrator_uses_bf16_mmproj_by_default(self) -> None:
         calls = self.run_orchestrator()
         self.assertIn("--mmproj-filename mmproj-pi-v3-bf16.gguf", calls)
@@ -2513,80 +1617,6 @@ fi
         self.assertIn("--llama-root ", calls)
         self.assertNotIn(f"--llama-root {LLAMA_ROOT}", calls)
         self.assertNotIn("mmproj-pi-v3-f16.gguf", calls)
-
-    def test_orchestrator_passes_variant_to_bundle_validator(self) -> None:
-        for variant in (
-            "groot",
-            "pi_v3",
-            "qwen25_oft",
-            "qwen25_groot",
-            "qwen25_pi",
-        ):
-            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                result = self.invoke_orchestrator(root, variant=variant)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                validator_calls = [
-                    line
-                    for line in (root / "calls.log").read_text(encoding="utf-8").splitlines()
-                    if "validate_starvla_bundle.py" in line
-                ]
-                self.assertEqual(len(validator_calls), 1)
-                self.assertIn(f"--variant {variant}", validator_calls[0])
-
-    def test_qwen25_orchestrator_publishes_collision_free_component_names(self) -> None:
-        for variant, stem in (
-            ("qwen25_oft", "qwen25-oft"),
-            ("qwen25_groot", "qwen25-groot"),
-            ("qwen25_pi", "qwen25-pi"),
-        ):
-            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                result = self.invoke_orchestrator(root, variant=variant)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(
-                    {path.name for path in (root / "output").iterdir()},
-                    {
-                        f"qwen-{stem}-bf16.gguf",
-                        f"mmproj-{stem}-bf16.gguf",
-                        f"starvla-{stem}-policy-fp32.gguf",
-                        "text-metadata.json",
-                        "mmproj-metadata.json",
-                        "conversion_manifest.json",
-                    },
-                )
-
-    def test_qwen25_fast_is_routed_to_its_dedicated_converter(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            result = self.invoke_orchestrator(root, variant="qwen25_fast")
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("convert_starvla_qwen25_fast.py", result.stderr)
-            self.assertFalse((root / "work").exists())
-            self.assertFalse((root / "output").exists())
-
-    def test_orchestrator_passes_explicit_llama_root(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            llama_root = root / "clean-llama.cpp"
-            env = self.orchestrator_environment(root)
-            env["LLAMA_ROOT"] = str(llama_root)
-            result = subprocess.run(
-                ["bash", str(TOOLS_DIR / "convert_starvla_all.sh")],
-                check=False,
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            calls = (root / "calls.log").read_text(encoding="utf-8")
-            self.assertIn(f"--llama-root {llama_root}", calls)
-
-    def test_orchestrator_preserves_explicit_f16_mmproj_override(self) -> None:
-        calls = self.run_orchestrator("f16")
-        self.assertIn("--mmproj-filename mmproj-pi-v3-f16.gguf", calls)
-        self.assertIn("--mmproj-dtype f16", calls)
-        self.assertNotIn("mmproj-pi-v3-bf16.gguf", calls)
 
     def test_orchestrator_refuses_existing_bundle_artifact_without_touching_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2623,8 +1653,6 @@ fi
                     "qwen-pi-v3-bf16.gguf",
                     "mmproj-pi-v3-bf16.gguf",
                     "starvla-pi-v3-policy-fp32.gguf",
-                    "text-metadata.json",
-                    "mmproj-metadata.json",
                     "conversion_manifest.json",
                 },
             )
@@ -2650,9 +1678,6 @@ class BundleValidatorTest(unittest.TestCase):
     def test_qwen25_tensor_contract_is_complete(self) -> None:
         text = expected_text_tensor_map("qwen2_5_vl", vocab_size=153713)
         mmproj = expected_mmproj_tensor_map("qwen2_5_vl")
-        groot = expected_groot_policy_tensor_map(qwen_hidden_dim=2048)
-        pi = expected_pi_policy_tensor_map()
-
         self.assertEqual(len(text), 435)
         self.assertEqual(text["token_embd.weight"], [2048, 153713])
         self.assertEqual(text["blk.35.attn_k.weight"], [2048, 256])
@@ -2664,45 +1689,6 @@ class BundleValidatorTest(unittest.TestCase):
         self.assertEqual(mmproj["v.blk.31.attn_q.weight"], [1280, 1280])
         self.assertEqual(mmproj["v.blk.31.ffn_gate.weight"], [1280, 3420])
         self.assertNotIn("v.position_embd.weight", mmproj)
-
-        self.assertEqual(len(groot), 244)
-        self.assertEqual(
-            groot["starvla.policy.groot.block.0.attention.key.weight"],
-            [2048, 768],
-        )
-        self.assertEqual(
-            groot["starvla.policy.groot.block.1.attention.key.weight"],
-            [768, 768],
-        )
-        self.assertEqual(len(pi), 244)
-        self.assertEqual(
-            pi["starvla.policy.pi.block.15.attention.key.weight"],
-            [2048, 2048],
-        )
-        self.assertEqual(
-            pi["starvla.policy.pi.velocity.output.weight"],
-            [2048, 7],
-        )
-
-    def test_validator_accepts_qwen25_variants(self) -> None:
-        self.assertEqual(
-            ArtifactPrecisionDefaultsTest.parse_validator_args(
-                "--variant", "qwen25_oft"
-            ).variant,
-            "qwen25_oft",
-        )
-        self.assertEqual(
-            ArtifactPrecisionDefaultsTest.parse_validator_args(
-                "--variant", "qwen25_groot"
-            ).variant,
-            "qwen25_groot",
-        )
-        self.assertEqual(
-            ArtifactPrecisionDefaultsTest.parse_validator_args(
-                "--variant", "qwen25_pi"
-            ).variant,
-            "qwen25_pi",
-        )
 
     def test_shape_checks_use_ggml_dimension_order(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

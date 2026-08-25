@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <string>
 
-static const char * backend_mode_name(backend_mode mode) {
+const char * backend_mode_name(backend_mode mode) {
     switch (mode) {
     case backend_mode::cuda:
         return "cuda";

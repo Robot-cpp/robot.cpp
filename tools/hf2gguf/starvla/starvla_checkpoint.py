@@ -186,13 +186,6 @@ def load_catalog(path: Path | str = DEFAULT_CATALOG) -> dict[str, Any]:
             raise StarVLAError(f"catalog variant {name!r} is missing repo_id/revision")
         if not isinstance(entry.get("default_unnorm_key"), str) or not entry["default_unnorm_key"]:
             raise StarVLAError(f"catalog variant {name!r} has no default_unnorm_key")
-        reference_server = _safe_relative_path(
-            entry.get("reference_server"), field=f"variant {name}.reference_server"
-        )
-        if len(reference_server.parts) != 1 or reference_server.suffix != ".py":
-            raise StarVLAError(
-                f"catalog variant {name!r} has an invalid reference_server"
-            )
         _validate_revision(entry.get("revision"), field=f"variant {name}.revision")
         checkpoint = entry.get("checkpoint")
         if not isinstance(checkpoint, dict):

@@ -44,8 +44,7 @@ bool qwen_vl_is_final_norm_tensor_name(const char * name) noexcept;
 // Map one Transformers 4.57 hidden_states tuple index to the corresponding
 // llama.cpp graph output. Index zero (the embedding input) is intentionally not
 // exposed. Qwen2.5-VL has no DeepStack and its final tuple item is result_norm;
-// Qwen3-VL retains the recorder/alias behavior used by the existing parity
-// contract.
+// Qwen3-VL additionally maps the DeepStack outputs exposed by llama.cpp.
 bool qwen_vl_hidden_state_source(QwenVLArchitecture architecture,
                                  int decoder_layer_count,
                                  int deepstack_layer_count,
@@ -78,8 +77,8 @@ struct Qwen3VLBridgeConfig {
     int n_batch = 2048;
     int n_threads = 0;
     int verbosity = 0;
-    // OFT uses plain flash attention to meet its final-action parity profile.
-    // Other StarVLA variants retain non-flash text attention.
+    // OFT uses flash attention; other variants require intermediate outputs
+    // that are only available on the non-flash path.
     bool flash_text_attention = false;
     // Round each F32 decoder residual output, plus DeepStack outputs when the
     // detected architecture has them, through BF16 RNE before it feeds the next

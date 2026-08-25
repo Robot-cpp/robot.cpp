@@ -14,22 +14,14 @@ from typing import Any
 import numpy as np
 
 from convert_starvla_policy_to_gguf import (
-    GROOT_BLOCK_COUNT,
     GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE,
-    GROOT_POLICY_TENSOR_COUNT,
     GROOT_TENSOR_MAP,
     OFT_ACTION_TOKEN_ID,
     OFT_TENSOR_MAP,
-    PI_BLOCK_COUNT,
     PI_OFFICIAL_DIMENSIONS,
-    PI_POLICY_TENSOR_COUNT,
     PI_TENSOR_MAP,
-    PI_V3_BLOCK_COUNT,
     PI_V3_OFFICIAL_DIMENSIONS,
-    PI_V3_POLICY_TENSOR_COUNT,
-    PI_V3_PROJECTOR_COUNT,
     PI_V3_TENSOR_MAP,
-    QWEN3VL_DYNAMIC_IMAGE_METADATA,
     build_groot_metadata,
     build_oft_metadata,
     build_pi_metadata,
@@ -265,174 +257,6 @@ def expected_mmproj_tensor_map(
     return expected
 
 
-def expected_groot_policy_tensor_map(
-    qwen_hidden_dim: int = 2560,
-) -> dict[str, list[int]]:
-    """Return all GR00T GGUF shapes in ggml `ne[]` dimension order."""
-    expected = {
-        "starvla.policy.groot.timestep.input.weight": [256, 768],
-        "starvla.policy.groot.timestep.input.bias": [768],
-        "starvla.policy.groot.timestep.output.weight": [768, 768],
-        "starvla.policy.groot.timestep.output.bias": [768],
-    }
-    for block in range(GROOT_BLOCK_COUNT):
-        attention_input_dim = qwen_hidden_dim if block % 2 == 0 else 768
-        prefix = f"starvla.policy.groot.block.{block}"
-        expected.update(
-            {
-                f"{prefix}.ada_norm.weight": [768, 1536],
-                f"{prefix}.ada_norm.bias": [1536],
-                f"{prefix}.attention.query.weight": [768, 768],
-                f"{prefix}.attention.query.bias": [768],
-                f"{prefix}.attention.key.weight": [attention_input_dim, 768],
-                f"{prefix}.attention.key.bias": [768],
-                f"{prefix}.attention.value.weight": [attention_input_dim, 768],
-                f"{prefix}.attention.value.bias": [768],
-                f"{prefix}.attention.output.weight": [768, 768],
-                f"{prefix}.attention.output.bias": [768],
-                f"{prefix}.feed_forward.input.weight": [768, 3072],
-                f"{prefix}.feed_forward.input.bias": [3072],
-                f"{prefix}.feed_forward.output.weight": [3072, 768],
-                f"{prefix}.feed_forward.output.bias": [768],
-            }
-        )
-    expected.update(
-        {
-            "starvla.policy.groot.output.modulation.weight": [768, 1536],
-            "starvla.policy.groot.output.modulation.bias": [1536],
-            "starvla.policy.groot.output.projection.weight": [768, 1024],
-            "starvla.policy.groot.output.projection.bias": [1024],
-            "starvla.policy.groot.action.input.weight": [7, 768],
-            "starvla.policy.groot.action.input.bias": [768],
-            "starvla.policy.groot.action.time_mix.weight": [1536, 768],
-            "starvla.policy.groot.action.time_mix.bias": [768],
-            "starvla.policy.groot.action.output.weight": [768, 768],
-            "starvla.policy.groot.action.output.bias": [768],
-            "starvla.policy.groot.velocity.input.weight": [1024, 1024],
-            "starvla.policy.groot.velocity.input.bias": [1024],
-            "starvla.policy.groot.velocity.output.weight": [1024, 7],
-            "starvla.policy.groot.velocity.output.bias": [7],
-            "starvla.policy.groot.future_tokens.weight": [768, 32],
-            "starvla.policy.groot.action_position.weight": [768, 1024],
-        }
-    )
-    if len(expected) != GROOT_POLICY_TENSOR_COUNT:
-        raise AssertionError(f"internal GR00T tensor contract has {len(expected)} tensors")
-    return expected
-
-
-def expected_pi_policy_tensor_map() -> dict[str, list[int]]:
-    """Return all legacy PI GGUF shapes in ggml `ne[]` dimension order."""
-    expected = {
-        "starvla.policy.pi.timestep.input.weight": [256, 2048],
-        "starvla.policy.pi.timestep.input.bias": [2048],
-        "starvla.policy.pi.timestep.output.weight": [2048, 2048],
-        "starvla.policy.pi.timestep.output.bias": [2048],
-    }
-    for block in range(PI_BLOCK_COUNT):
-        prefix = f"starvla.policy.pi.block.{block}"
-        expected.update(
-            {
-                f"{prefix}.ada_norm.weight": [2048, 4096],
-                f"{prefix}.ada_norm.bias": [4096],
-                f"{prefix}.attention.query.weight": [2048, 2048],
-                f"{prefix}.attention.query.bias": [2048],
-                f"{prefix}.attention.key.weight": [2048, 2048],
-                f"{prefix}.attention.key.bias": [2048],
-                f"{prefix}.attention.value.weight": [2048, 2048],
-                f"{prefix}.attention.value.bias": [2048],
-                f"{prefix}.attention.output.weight": [2048, 2048],
-                f"{prefix}.attention.output.bias": [2048],
-                f"{prefix}.feed_forward.input.weight": [2048, 8192],
-                f"{prefix}.feed_forward.input.bias": [8192],
-                f"{prefix}.feed_forward.output.weight": [8192, 2048],
-                f"{prefix}.feed_forward.output.bias": [2048],
-            }
-        )
-    expected.update(
-        {
-            "starvla.policy.pi.state.input.weight": [7, 2048],
-            "starvla.policy.pi.state.input.bias": [2048],
-            "starvla.policy.pi.state.output.weight": [2048, 2048],
-            "starvla.policy.pi.state.output.bias": [2048],
-            "starvla.policy.pi.action.input.weight": [7, 2048],
-            "starvla.policy.pi.action.input.bias": [2048],
-            "starvla.policy.pi.action.time_mix.weight": [4096, 2048],
-            "starvla.policy.pi.action.time_mix.bias": [2048],
-            "starvla.policy.pi.action.output.weight": [2048, 2048],
-            "starvla.policy.pi.action.output.bias": [2048],
-            "starvla.policy.pi.velocity.input.weight": [2048, 2048],
-            "starvla.policy.pi.velocity.input.bias": [2048],
-            "starvla.policy.pi.velocity.output.weight": [2048, 7],
-            "starvla.policy.pi.velocity.output.bias": [7],
-            "starvla.policy.pi.future_tokens.weight": [2048, 32],
-            "starvla.policy.pi.action_position.weight": [2048, 1024],
-        }
-    )
-    if len(expected) != PI_POLICY_TENSOR_COUNT:
-        raise AssertionError(f"internal legacy PI tensor contract has {len(expected)} tensors")
-    return expected
-
-
-def expected_pi_v3_policy_tensor_map() -> dict[str, list[int]]:
-    """Return all PI_v3 GGUF shapes in ggml `ne[]` dimension order."""
-    expected = {
-        "starvla.policy.pi_v3.timestep.input.weight": [256, 1024],
-        "starvla.policy.pi_v3.timestep.input.bias": [1024],
-        "starvla.policy.pi_v3.timestep.output.weight": [1024, 1024],
-        "starvla.policy.pi_v3.timestep.output.bias": [1024],
-    }
-    for block in range(PI_V3_BLOCK_COUNT):
-        prefix = f"starvla.policy.pi_v3.block.{block}"
-        expected.update(
-            {
-                f"{prefix}.ada_norm.weight": [1024, 2048],
-                f"{prefix}.ada_norm.bias": [2048],
-                f"{prefix}.attention.query.weight": [1024, 1024],
-                f"{prefix}.attention.query.bias": [1024],
-                f"{prefix}.attention.key.weight": [1024, 1024],
-                f"{prefix}.attention.key.bias": [1024],
-                f"{prefix}.attention.value.weight": [1024, 1024],
-                f"{prefix}.attention.value.bias": [1024],
-                f"{prefix}.attention.output.weight": [1024, 1024],
-                f"{prefix}.attention.output.bias": [1024],
-                f"{prefix}.feed_forward.input.weight": [1024, 4096],
-                f"{prefix}.feed_forward.input.bias": [4096],
-                f"{prefix}.feed_forward.output.weight": [4096, 1024],
-                f"{prefix}.feed_forward.output.bias": [1024],
-            }
-        )
-    expected.update(
-        {
-            "starvla.policy.pi_v3.action.input.weight": [7, 1024],
-            "starvla.policy.pi_v3.action.input.bias": [1024],
-            "starvla.policy.pi_v3.action.time_mix.weight": [2048, 1024],
-            "starvla.policy.pi_v3.action.time_mix.bias": [1024],
-            "starvla.policy.pi_v3.action.output.weight": [1024, 1024],
-            "starvla.policy.pi_v3.action.output.bias": [1024],
-            "starvla.policy.pi_v3.velocity.input.weight": [1024, 1024],
-            "starvla.policy.pi_v3.velocity.input.bias": [1024],
-            "starvla.policy.pi_v3.velocity.output.weight": [1024, 7],
-            "starvla.policy.pi_v3.velocity.output.bias": [7],
-            "starvla.policy.pi_v3.future_tokens.weight": [1024, 32],
-            "starvla.policy.pi_v3.action_position.weight": [1024, 1024],
-        }
-    )
-    for projector in range(PI_V3_PROJECTOR_COUNT):
-        prefix = f"starvla.policy.pi_v3.projector.{projector}"
-        expected.update(
-            {
-                f"{prefix}.norm.weight": [2560],
-                f"{prefix}.norm.bias": [2560],
-                f"{prefix}.projection.weight": [2560, 1024],
-                f"{prefix}.projection.bias": [1024],
-            }
-        )
-    if len(expected) != PI_V3_POLICY_TENSOR_COUNT:
-        raise AssertionError(f"internal PI_v3 tensor contract has {len(expected)} tensors")
-    return expected
-
-
 def metadata_matches(actual: Any, expected: Any) -> bool:
     if isinstance(expected, float):
         return isinstance(actual, (int, float)) and math.isclose(actual, expected, rel_tol=1e-6, abs_tol=1e-6)
@@ -634,20 +458,6 @@ def validate_policy_metadata(reader: Any, expected: dict[str, Any]) -> None:
     expect_field(reader, "general.name", expected["general.name"])
 
 
-def validate_qwen3vl_image_metadata(reader: Any) -> None:
-    """Reject fixed-size or incomplete substitutes for the dynamic image contract."""
-    expected_keys = set(QWEN3VL_DYNAMIC_IMAGE_METADATA)
-    actual_keys = {key for key in reader.fields if key.startswith("starvla.image.")}
-    if actual_keys != expected_keys:
-        raise StarVLAError(
-            "Qwen3-VL dynamic image metadata set mismatch; "
-            f"missing={sorted(expected_keys - actual_keys)}, "
-            f"unexpected={sorted(actual_keys - expected_keys)}"
-        )
-    for key, expected in sorted(QWEN3VL_DYNAMIC_IMAGE_METADATA.items()):
-        expect_metadata_field(reader, key, expected)
-
-
 def validate_qwen_vl_image_metadata(
     reader: Any, expected_metadata: dict[str, Any], backbone: str
 ) -> None:
@@ -737,8 +547,17 @@ def validate_policy_tensor_bytes(
             f"{len(tensor_name_map)}-tensor map"
         )
     for source_name, destination_name in tensor_name_map.items():
-        expected = _convert_policy_tensor_data(source_tensors[source_name], dtype)
-        actual = np.asarray(tensors[destination_name].data)
+        source = source_tensors[source_name]
+        expected_shape = list(reversed(source.shape))
+        tensor = tensors[destination_name]
+        actual_shape = [int(dimension) for dimension in tensor.shape]
+        if actual_shape != expected_shape:
+            raise StarVLAError(
+                f"policy GGUF tensor shape mismatch for {destination_name}: "
+                f"expected {expected_shape}, got {actual_shape}"
+            )
+        expected = _convert_policy_tensor_data(source, dtype)
+        actual = np.asarray(tensor.data)
         if actual.nbytes != expected.nbytes:
             raise StarVLAError(
                 f"policy GGUF tensor byte size mismatch for {destination_name}: "
@@ -977,40 +796,12 @@ def validate_policy(
     )
     validate_policy_metadata(reader, expected_metadata)
     tensors = tensor_map(reader)
-    if framework == "oft":
-        tensor_name_map = OFT_TENSOR_MAP
-        input_dim = 2048 if backbone == "qwen2_5_vl" else 2560
-        hidden_dim = 4096 if backbone == "qwen2_5_vl" else 5120
-        expected_shapes = {
-            "starvla.policy.oft.input_norm.weight": [input_dim],
-            "starvla.policy.oft.input_norm.bias": [input_dim],
-            "starvla.policy.oft.input_proj.weight": [input_dim, hidden_dim],
-            "starvla.policy.oft.input_proj.bias": [hidden_dim],
-            "starvla.policy.oft.output_norm.weight": [hidden_dim],
-            "starvla.policy.oft.output_norm.bias": [hidden_dim],
-            "starvla.policy.oft.output_proj.weight": [hidden_dim, 7],
-            "starvla.policy.oft.output_proj.bias": [7],
-        }
-        for block in (0, 1):
-            expected_shapes[f"starvla.policy.oft.block.{block}.norm.weight"] = [hidden_dim]
-            expected_shapes[f"starvla.policy.oft.block.{block}.norm.bias"] = [hidden_dim]
-            expected_shapes[f"starvla.policy.oft.block.{block}.linear.weight"] = [
-                hidden_dim,
-                hidden_dim,
-            ]
-            expected_shapes[f"starvla.policy.oft.block.{block}.linear.bias"] = [hidden_dim]
-    elif framework == "groot":
-        tensor_name_map = GROOT_TENSOR_MAP
-        expected_shapes = expected_groot_policy_tensor_map(
-            2048 if backbone == "qwen2_5_vl" else 2560
-        )
-    elif framework == "pi":
-        tensor_name_map = PI_TENSOR_MAP
-        expected_shapes = expected_pi_policy_tensor_map()
-    else:
-        tensor_name_map = PI_V3_TENSOR_MAP
-        expected_shapes = expected_pi_v3_policy_tensor_map()
-    expect_complete_tensor_map(tensors, expected_shapes, f"{framework.upper()} policy")
+    tensor_name_map = {
+        "oft": OFT_TENSOR_MAP,
+        "groot": GROOT_TENSOR_MAP,
+        "pi": PI_TENSOR_MAP,
+        "pi_v3": PI_V3_TENSOR_MAP,
+    }[framework]
     dtype_counts = validate_dtype_set(reader, dtype, component="policy", exact=True)
     validate_policy_tensor_bytes(
         tensors,

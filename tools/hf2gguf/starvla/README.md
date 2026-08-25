@@ -29,7 +29,7 @@ FAST policy checkpoint.
 
 [`checkpoint_catalog.json`](checkpoint_catalog.json) is the source of truth for
 the supported variants, source revisions, download hashes, conversion paths,
-normalization profiles, and reference servers.
+and normalization profiles.
 
 ## Environment
 
@@ -38,68 +38,27 @@ conda env create -f tools/hf2gguf/starvla/environment.yaml
 conda activate starvla_gguf_converter
 ```
 
-Run the original Python checkpoint in a separate StarVLA environment. The OFT
-comparison uses SDPA and does not require FlashAttention.
-
-## Download
-
-Download one checkpoint:
-
-```bash
-python tools/hf2gguf/starvla/download_starvla.py --variant oft
-```
-
-Other selections:
-
-```bash
-# Download every supported variant for each backbone.
-python tools/hf2gguf/starvla/download_starvla.py \
-  --backbone qwen3_vl --variant all
-python tools/hf2gguf/starvla/download_starvla.py \
-  --backbone qwen2_5_vl --variant all
-
-# Print the files without downloading them.
-python tools/hf2gguf/starvla/download_starvla.py \
-  --backbone qwen3_vl --variant all --metadata-only --dry-run
-```
-
-Files are stored under `ckpts/starvla/sources/<name>/<revision>/`. The downloader
-checks the recorded size and SHA256. Conversion will not use an incomplete
-download or a file with a different hash.
-
-## Prepare llama.cpp
-
-Conversion uses an unmodified llama.cpp worktree at the revision recorded in
-the catalog. This keeps runtime patches out of the generated manifest.
-
-```bash
-LLAMA_REV="$(python -c 'import json; print(json.load(open("tools/hf2gguf/starvla/checkpoint_catalog.json"))["source_revisions"]["llama_cpp"])')"
-export LLAMA_ROOT="$(pwd)/ckpts/starvla/toolchains/llama.cpp-${LLAMA_REV}"
-git -C third_party/llama.cpp worktree add --detach "${LLAMA_ROOT}" "${LLAMA_REV}"
-```
-
-The converter checks the revision, path, and worktree status before it starts.
+The scripts use `.venv/bin/python` by default. Set `PYTHON=python` to use the
+active conda environment.
 
 ## Convert
 
-OFT, GR00T, PI_v3, and PI use the same entry point. Set `VARIANT` to `oft`,
-`groot`, `pi_v3`, `qwen25_oft`, `qwen25_groot`, or `qwen25_pi`:
+Convert one of the variants from the table above:
 
 ```bash
-export VARIANT=oft
-source tools/hf2gguf/starvla/starvla_variant_config.sh
-load_starvla_variant "${VARIANT}"
-
-export SOURCE_DIR="ckpts/starvla/sources/${CHECKPOINT_DIRECTORY}/${CHECKPOINT_REVISION}"
-export CHECKPOINT="${SOURCE_DIR}/${CHECKPOINT_RELATIVE_PATH}"
-export BASE_ASSETS="ckpts/starvla/sources/${QWEN_DIRECTORY}/${QWEN_REVISION}"
-export WORK_DIR="ckpts/starvla/work/${VARIANT}"
-export OUTPUT_DIR="ckpts/starvla/gguf/${VARIANT}"
-bash tools/hf2gguf/starvla/convert_starvla_all.sh
+tools/hf2gguf/starvla/convert.sh oft
 ```
 
-`WORK_DIR` must be empty and the output files must not exist. A successful
-conversion writes:
+The command downloads and verifies the catalog-pinned checkpoint, prepares a
+clean llama.cpp worktree at the pinned revision, converts all components, and
+validates the resulting bundle. It refuses to overwrite an existing output
+directory. Pass a second argument to select another output directory:
+
+```bash
+tools/hf2gguf/starvla/convert.sh qwen25_fast /path/to/output
+```
+
+A successful conversion writes exactly four files:
 
 ```text
 qwen-<artifact>-bf16.gguf
@@ -108,28 +67,20 @@ starvla-<artifact>-policy-fp32.gguf
 conversion_manifest.json
 ```
 
-FAST has a separate converter because it also packages the token map and FAST
-codec:
+For FAST, the policy GGUF stores the integer token map and codec data instead
+of FP32 policy weights. Its filenames are:
 
-```bash
-export VARIANT=qwen25_fast
-source tools/hf2gguf/starvla/starvla_variant_config.sh
-load_starvla_variant "${VARIANT}"
-CODEC_REV="$(python -c 'import json; print(json.load(open("tools/hf2gguf/starvla/checkpoint_catalog.json"))["shared_assets"]["fast_codec"]["revision"])')"
-
-python tools/hf2gguf/starvla/convert_starvla_qwen25_fast.py \
-  --checkpoint "ckpts/starvla/sources/${CHECKPOINT_DIRECTORY}/${CHECKPOINT_REVISION}/${CHECKPOINT_RELATIVE_PATH}" \
-  --source-dir "ckpts/starvla/sources/${CHECKPOINT_DIRECTORY}/${CHECKPOINT_REVISION}" \
-  --qwen-assets "ckpts/starvla/sources/${QWEN_DIRECTORY}/${QWEN_REVISION}" \
-  --fast-codec "ckpts/starvla/sources/fast-codec/${CODEC_REV}" \
-  --staging-dir ckpts/starvla/work/qwen25_fast \
-  --output-dir ckpts/starvla/gguf/qwen25_fast \
-  --llama-root "${LLAMA_ROOT}"
+```text
+qwen-qwen25-fast-bf16.gguf
+mmproj-qwen25-fast-bf16.gguf
+policy-qwen25-fast.gguf
+conversion_manifest.json
 ```
 
-FAST writes `qwen-qwen25-fast-bf16.gguf`,
-`mmproj-qwen25-fast-bf16.gguf`, `policy-qwen25-fast.gguf`, and
-`qwen25-fast-bundle-manifest.json`.
+Set `STARVLA_LOCAL_FILES_ONLY=1` to forbid network access and use already
+downloaded sources. The low-level converters remain available for debugging,
+but normal conversion should use `convert.sh` so all paths and revisions come
+from [`checkpoint_catalog.json`](checkpoint_catalog.json).
 
 ## Build
 
@@ -156,7 +107,7 @@ metadata:
 CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-cli \
   --model-type starvla \
   --policy ckpts/starvla/gguf/oft/starvla-oft-policy-fp32.gguf \
-  --image goldens/inputs/frame-224-rgb.png \
+  --image /path/to/frame-224-rgb.png \
   --image-name image_0 \
   --task "grab the block." \
   --unnorm-key oxe_bridge \
@@ -164,9 +115,8 @@ CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-cli \
   --n-batch 2048
 ```
 
-GR00T, PI_v3, and PI accept `--noise-seed`. Paired Bridge rollouts send the
-same explicit noise to the Python and C++ servers. FAST accepts one RGB
-`image_0` and no robot state.
+GR00T, PI_v3, and PI accept `--noise-seed`. FAST accepts one RGB `image_0` and
+no robot state.
 
 The server uses the same model type and policy file:
 
@@ -182,32 +132,14 @@ CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-server \
 
 Select the normalization profile once at startup with `--unnorm-key`.
 
-## Compare actions
-
-`compare_starvla_actions.py` compares a local Python `.pt` result with C++
-actions saved as JSON:
-
-```bash
-uv run python tools/hf2gguf/starvla/compare_starvla_actions.py \
-  --reference golden.json \
-  --candidate response.json
-```
-
-By default, the arrays must have the same non-empty 2D shape, contain only
-finite values, and have no more than 3% global relative-L2 error after action
-unnormalization. The command reports the shape, relative-L2 value, limit, and
-pass status.
-
 ## Run Bridge rollouts
 
-The SimplerEnv scripts run the local Python checkpoint and C++ GGUF with the
-same task and episode settings:
+The SimplerEnv runner reports success rates from local GGUF inference:
 
 ```bash
 VARIANT=oft \
-COMPARISON_ID=oft-local-paired-001 \
-GPU_IDS=0,1,2,3 PORTS=5600,5601,5602,5603 \
-bash eval/simpler_env/scripts/run_paired_local.sh
+OUTPUT=ckpts/starvla/results/oft/bridge.json \
+bash eval/simpler_env/scripts/run_model_server.sh
 ```
 
 See [`eval/simpler_env/README.md`](../../../eval/simpler_env/README.md) for setup

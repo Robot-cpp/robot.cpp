@@ -36,9 +36,9 @@ Qwen3 FAST 没有官方微调 policy checkpoint，因此当前不作为运行时
 | `src/models/starvla/*_prompt.*` | 各 policy 的 prompt 构造和校验 |
 | `src/models/starvla/oft_image_preprocess.*` | 与 Python 路径一致的 RGB resize 和 dynamic grid 处理 |
 | `src/models/starvla/normalization.*` | profile 选择、连续 action 反归一化和二值 action 处理 |
-| `tools/hf2gguf/starvla/` | checkpoint 清单、拆分、转换、bundle 校验和 Python reference |
+| `tools/hf2gguf/starvla/` | checkpoint 清单、下载、转换和 bundle 校验 |
 | `tests/starvla/` | C++ 小型测试和 Python 转换工具测试 |
-| `eval/simpler_env/` | 本地 Python 与 C++ 的 paired Bridge rollout |
+| `eval/simpler_env/` | 本地 GGUF 的 Bridge rollout 和成功率统计 |
 
 `Qwen3VLBridge` 是历史类名，实际同时支持 Qwen2.5-VL 和 Qwen3-VL。新增调用方不应
 根据这个类名推断 backbone。
@@ -101,9 +101,9 @@ model-server / model-cli
 metadata 决定图像数量。
 
 扩散模型在没有 `observation.initial_noise` 时使用 engine RNG。生成的 Gaussian noise 会先
-按 BF16 round-to-nearest-even 舍入再送入 policy。数值对齐时应通过 protocol v4 给 Python
-和 C++ 发送同一份显式 noise，而不是比较两种语言各自的随机数生成器。`reset()` 会清理
-Qwen KV 状态，但不会重新播种 engine RNG。
+按 BF16 round-to-nearest-even 舍入再送入 policy。调用方也可以通过
+`observation.initial_noise` 提供固定噪声。`reset()` 会清理 Qwen KV 状态，但不会重新播种
+engine RNG。
 
 成功结果只暴露最终 actions、`chunk_size`、`action_dim` 和分阶段耗时。中间 hidden
 states、normalized actions 和 token IDs 保留在实现内部。
@@ -120,10 +120,6 @@ states、normalized actions 和 token IDs 保留在实现内部。
   action unnormalization。
 - FAST 要求 `n_ctx` 不小于 policy metadata 中的 generation `max_length`，并使用
   checkpoint 中固定的 EOS、top-k 和 repetition penalty 配置。
-
-如果调整 dtype、attention 或中间舍入位置，应重新生成同输入的 Python reference，先比较
-最终 action，再运行 Bridge rollout。不要只用单个 hidden-state tensor 的误差判断策略是否
-可用。
 
 ## llama.cpp overlay
 
@@ -155,7 +151,17 @@ patch 的 submodule。具体命令见转换 README。
 
 [`checkpoint_catalog.json`](../tools/hf2gguf/starvla/checkpoint_catalog.json) 是七个 variant
 的单一配置来源，保存 repository、revision、文件大小、SHA256、tensor inventory、转换路径、
-normalization profile 和 reference server。
+normalization profile。
+
+日常转换只使用统一入口：
+
+```bash
+tools/hf2gguf/starvla/convert.sh <variant>
+```
+
+该入口负责下载和哈希校验、准备固定 revision 的干净 llama.cpp worktree、创建临时
+staging、调用对应 converter，并在成功后留下三个 GGUF 和
+`conversion_manifest.json`。中断或失败时临时目录会被删除，已有输出目录不会被覆盖。
 
 非 FAST variant 由 `convert_starvla_all.sh` 串联以下步骤：
 
@@ -189,7 +195,7 @@ cmake --build build_cuda -j
 CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-cli \
   --model-type starvla \
   --policy ckpts/starvla/gguf/oft/starvla-oft-policy-fp32.gguf \
-  --image goldens/inputs/frame-224-rgb.png \
+  --image /path/to/frame-224-rgb.png \
   --image-name image_0 \
   --task "grab the block." \
   --unnorm-key oxe_bridge \
@@ -210,45 +216,30 @@ uv run --with pytest python -m pytest tests/starvla
 (cd build_cuda && ctest --output-on-failure)
 ```
 
-Python 测试覆盖 catalog、下载安全检查、surgery、metadata、bundle validator、reference
-server 和 action 比较工具。CTest 覆盖 model factory、prompt、图像预处理、Qwen profile、
-FAST codec/runtime 和协议。两者都不会执行七个完整 checkpoint 的 CUDA 推理。
-
-### Action 对齐
-
-使用相同图像、task、state、normalization profile 和显式 noise 生成本地 Python 与 C++
-结果，再运行：
-
-```bash
-uv run python tools/hf2gguf/starvla/compare_starvla_actions.py \
-  --reference golden.json \
-  --candidate response.json
-```
-
-默认比较反归一化后的完整 action chunk，要求 shape 相同、数值有限且全局 relative-L2 不
-超过 3%。这一步用于发现转换、dtype boundary 和计算图实现差异。
+Python 测试覆盖 catalog、下载安全检查、surgery、metadata 和 bundle validator。CTest
+覆盖 model factory、prompt、图像预处理、Qwen profile、FAST codec/runtime 和协议。两者
+都不会执行七个完整 checkpoint 的 CUDA 推理。
 
 ### Bridge 评测
 
 ```bash
 VARIANT=oft \
-COMPARISON_ID=oft-local-paired-001 \
-GPU_IDS=0,1,2,3 PORTS=5600,5601,5602,5603 \
-bash eval/simpler_env/scripts/run_paired_local.sh
+OUTPUT=ckpts/starvla/results/oft/bridge.json \
+bash eval/simpler_env/scripts/run_model_server.sh
 ```
 
-完整 profile 为四个 task、每个 task 24 个 episode，Python 原始 checkpoint 是本地参照。
-比较结果记录两端成功率和逐 episode 一致性，不把 action relative-L2 当作成功率替代品。
+完整 profile 为四个 task、每个 task 24 个 episode。结果记录总体和各任务成功率、逐
+episode 状态以及推理耗时。
 
 ## 增加 checkpoint 或模型
 
 ### 同一 backbone/framework 的新 checkpoint
 
 1. 在 `checkpoint_catalog.json` 添加固定 revision、大小、SHA256、文件清单、tensor
-   inventory、normalization profile 和 reference server。
+   inventory 和 normalization profile。
 2. 检查 `starvla_checkpoint.py` 的 effective config 是否需要 checkpoint-specific 修正。
 3. 用 converter 和 bundle validator 生成新 bundle。
-4. 生成本地 Python reference，完成 action 对齐和 Bridge smoke，再跑完整 profile。
+4. 运行小型单测、CUDA smoke 和 Bridge profile。
 
 只要 GGUF schema 和计算图没有变化，通常不需要新增 public model type 或复制 engine。
 
@@ -260,7 +251,7 @@ bash eval/simpler_env/scripts/run_paired_local.sh
 4. 在 `StarVLAVariant`、`starvla_variant_from_metadata()` 和 engine 调度中接入新组合。
 5. 若需要 llama.cpp 尚未提供的能力，优先使用公开 API。确实需要修改第三方代码时，新增
    独立 patch、更新一键脚本和 CMake 检查，不直接提交 submodule 内源码。
-6. 增加小型 C++ 单测、Python converter/validator 测试、action reference 和 Bridge 配置。
+6. 增加小型 C++ 单测、Python converter/validator 测试和 Bridge 配置。
 
 每个新分支都应显式校验输入、metadata 和 tensor shape。不要通过默认值、模糊 tensor
 匹配或静默 CPU fallback 接受未知 checkpoint。
@@ -271,8 +262,6 @@ bash eval/simpler_env/scripts/run_paired_local.sh
   没有变化。
 - bundle UUID 不一致：不要混用不同转换目录的 policy、text 和 mmproj。
 - normalization profile 报错：查看 policy 中的 profile keys，并显式传 `--unnorm-key`。
-- action 对齐不稳定：确认输入图像预处理、prompt、显式 noise 和 dtype boundary 完全相同。
 - FAST 初始化失败：确认使用 Action 版 Qwen2.5-VL 权重、配套 codec，并设置
   `--n-ctx` 不小于 policy metadata 中的 generation `max_length`。
-- Bridge 结果显示 `partial`：完整运行需要四个 task 各 24 个 episode；smoke run 必须显式
-  设置 `ALLOW_PARTIAL=1`。
+- Bridge 结果显示 `partial`：完整运行需要四个 task 各 24 个 episode。

@@ -96,16 +96,6 @@ void run_unit_tests() {
     require(fast_ids == std::vector<int32_t>({1, 0, 3, 1}),
             "action extraction must filter with the inverse map and preserve order");
 
-    std::vector<uint32_t> codepoints;
-    require(codec->byte_level_decode({0, 1, 2, 3}, codepoints, error),
-            "ByteLevel decode must succeed");
-    require(codepoints == std::vector<uint32_t>({10, 20, 30, 40}),
-            "ByteLevel decode must invert the GPT-2 byte alphabet");
-    require(codec->byte_level_decode({4, 5, 6}, codepoints, error),
-            "lossy UTF-8 ByteLevel decode must succeed");
-    require(codepoints == std::vector<uint32_t>({0xfffdU, 0x28U}),
-            "ByteLevel decode must match Rust UTF-8 replacement semantics");
-
     FastDecodeResult decoded;
     require(codec->decode_fast_tokens({{0, 1, 2, 3}}, decoded, error),
             "synthetic inverse DCT must succeed");

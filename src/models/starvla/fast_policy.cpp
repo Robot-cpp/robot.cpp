@@ -2,6 +2,7 @@
 
 #include "ggml.h"
 #include "gguf.h"
+#include "models/starvla/policy_gguf.h"
 
 #include <cmath>
 #include <cstdint>
@@ -25,101 +26,11 @@ constexpr const char * kOffsetsTensor =
 constexpr const char * kTokenBytesTensor =
     "starvla.policy.fast.codec.token_bytes";
 
-int require_key(gguf_context * gguf, const char * key, gguf_type type) {
-    const int index = gguf_find_key(gguf, key);
-    if (index < 0) {
-        throw std::runtime_error(std::string("missing required FAST GGUF metadata: ") +
-                                 key);
-    }
-    if (gguf_get_kv_type(gguf, index) != type) {
-        throw std::runtime_error(std::string("invalid FAST GGUF metadata type: ") +
-                                 key);
-    }
-    return index;
-}
-
-std::string require_string(gguf_context * gguf, const char * key) {
-    return gguf_get_val_str(gguf, require_key(gguf, key, GGUF_TYPE_STRING));
-}
-
-int32_t require_i32(gguf_context * gguf, const char * key) {
-    return gguf_get_val_i32(gguf, require_key(gguf, key, GGUF_TYPE_INT32));
-}
-
-float require_f32(gguf_context * gguf, const char * key) {
-    return gguf_get_val_f32(gguf, require_key(gguf, key, GGUF_TYPE_FLOAT32));
-}
-
-bool require_bool(gguf_context * gguf, const char * key) {
-    return gguf_get_val_bool(gguf, require_key(gguf, key, GGUF_TYPE_BOOL));
-}
-
-int require_array(gguf_context * gguf, const char * key, gguf_type type) {
-    const int index = require_key(gguf, key, GGUF_TYPE_ARRAY);
-    if (gguf_get_arr_type(gguf, index) != type) {
-        throw std::runtime_error(
-            std::string("invalid FAST GGUF array element type: ") + key);
-    }
-    return index;
-}
-
-std::vector<int32_t> require_i32_array(gguf_context * gguf, const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_INT32);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    const auto * data =
-        static_cast<const int32_t *>(gguf_get_arr_data(gguf, index));
-    if (count != 0 && data == nullptr) {
-        throw std::runtime_error(std::string("missing FAST GGUF array data: ") +
-                                 key);
-    }
-    return std::vector<int32_t>(data, data + count);
-}
-
-std::vector<float> require_f32_array(gguf_context * gguf, const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_FLOAT32);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    const auto * data =
-        static_cast<const float *>(gguf_get_arr_data(gguf, index));
-    if (count != 0 && data == nullptr) {
-        throw std::runtime_error(std::string("missing FAST GGUF array data: ") +
-                                 key);
-    }
-    return std::vector<float>(data, data + count);
-}
-
-std::vector<uint8_t> require_bool_array(gguf_context * gguf,
-                                        const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_BOOL);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    const auto * data =
-        static_cast<const uint8_t *>(gguf_get_arr_data(gguf, index));
-    if (count != 0 && data == nullptr) {
-        throw std::runtime_error(std::string("missing FAST GGUF array data: ") +
-                                 key);
-    }
-    std::vector<uint8_t> values(count);
-    for (size_t i = 0; i < count; ++i) {
-        values[i] = data[i] != 0 ? uint8_t{1} : uint8_t{0};
-    }
-    return values;
-}
-
-std::vector<std::string> require_string_array(gguf_context * gguf,
-                                              const char * key) {
-    const int index = require_array(gguf, key, GGUF_TYPE_STRING);
-    const size_t count = gguf_get_arr_n(gguf, index);
-    std::vector<std::string> values;
-    values.reserve(count);
-    for (size_t i = 0; i < count; ++i) {
-        values.emplace_back(gguf_get_arr_str(gguf, index, i));
-    }
-    return values;
-}
-
-std::string profile_key(int index, const char * suffix) {
-    return "starvla.normalization.profile." + std::to_string(index) + "." +
-           suffix;
-}
+using detail::require_f32;
+using detail::require_i32;
+using detail::require_i32_array;
+using detail::require_string;
+using detail::require_string_array;
 
 struct FastRuntimeMetadata {
     FastCodecConfig codec;
@@ -211,43 +122,7 @@ FastRuntimeMetadata parse_metadata(gguf_context * gguf,
     }
     config.generation_max_length = static_cast<size_t>(max_length);
 
-    NormalizationConfig & normalization = config.normalization;
-    normalization.clip_actions = require_bool(gguf, "starvla.normalization.clip_actions");
-    normalization.binary_threshold =
-        require_f32(gguf, "starvla.normalization.binary_threshold");
-    normalization.binary_comparison =
-        require_string(gguf, "starvla.normalization.binary_comparison");
-    normalization.continuous_dimensions =
-        require_i32_array(gguf, "starvla.action.continuous_dimensions");
-    normalization.binary_dimensions =
-        require_i32_array(gguf, "starvla.action.binary_dimensions");
-    const int profile_count = require_i32(gguf, "starvla.normalization.profile_count");
-    const std::vector<std::string> profile_keys =
-        require_string_array(gguf, "starvla.normalization.profile_keys");
-    if (profile_count <= 0 || profile_keys.size() != static_cast<size_t>(profile_count)) {
-        throw std::runtime_error("StarVLA FAST normalization profiles are inconsistent");
-    }
-    normalization.profiles.clear();
-    normalization.profiles.reserve(static_cast<size_t>(profile_count));
-    for (int index = 0; index < profile_count; ++index) {
-        NormalizationProfile profile;
-        profile.key = require_string(gguf, profile_key(index, "key").c_str());
-        profile.action_q01 =
-            require_f32_array(gguf, profile_key(index, "action_q01").c_str());
-        profile.action_q99 =
-            require_f32_array(gguf, profile_key(index, "action_q99").c_str());
-        profile.action_mask =
-            require_bool_array(gguf, profile_key(index, "action_mask").c_str());
-        if (profile.key != profile_keys[static_cast<size_t>(index)]) {
-            throw std::runtime_error("StarVLA FAST normalization profile order is inconsistent");
-        }
-        normalization.profiles.push_back(std::move(profile));
-    }
-    std::string normalization_error;
-    if (!validate_normalization_config(normalization, config.action_dim,
-                                       normalization_error)) {
-        throw std::runtime_error(normalization_error);
-    }
+    config.normalization = detail::require_normalization(gguf, config.action_dim);
     return runtime;
 }
 

@@ -26,8 +26,6 @@ TEXT_FILENAME="${TEXT_FILENAME:-qwen-${ARTIFACT_STEM}-${TEXT_DTYPE}.gguf}"
 MMPROJ_FILENAME="${MMPROJ_FILENAME:-mmproj-${ARTIFACT_STEM}-${MMPROJ_DTYPE}.gguf}"
 POLICY_FILENAME="${POLICY_FILENAME:-starvla-${ARTIFACT_STEM}-policy-${POLICY_DTYPE}.gguf}"
 MANIFEST_FILENAME="conversion_manifest.json"
-TEXT_METADATA_FILENAME="text-metadata.json"
-MMPROJ_METADATA_FILENAME="mmproj-metadata.json"
 
 if [[ -e "${WORK_DIR}" ]] &&
    [[ -n "$(find "${WORK_DIR}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
@@ -41,8 +39,6 @@ for filename in \
     "${TEXT_FILENAME}" \
     "${MMPROJ_FILENAME}" \
     "${POLICY_FILENAME}" \
-    "${TEXT_METADATA_FILENAME}" \
-    "${MMPROJ_METADATA_FILENAME}" \
     "${MANIFEST_FILENAME}"; do
     destination="${OUTPUT_DIR}/${filename}"
     if [[ -e "${destination}" || -L "${destination}" ]]; then
@@ -142,8 +138,6 @@ publish_file() {
 publish_file "${RUN_OUTPUT_DIR}/${TEXT_FILENAME}" "${OUTPUT_DIR}/${TEXT_FILENAME}"
 publish_file "${RUN_OUTPUT_DIR}/${MMPROJ_FILENAME}" "${OUTPUT_DIR}/${MMPROJ_FILENAME}"
 publish_file "${RUN_OUTPUT_DIR}/${POLICY_FILENAME}" "${OUTPUT_DIR}/${POLICY_FILENAME}"
-publish_file "${RUN_OUTPUT_DIR}/${TEXT_METADATA_FILENAME}" "${OUTPUT_DIR}/${TEXT_METADATA_FILENAME}"
-publish_file "${RUN_OUTPUT_DIR}/${MMPROJ_METADATA_FILENAME}" "${OUTPUT_DIR}/${MMPROJ_METADATA_FILENAME}"
 # The manifest is the bundle commit marker and is intentionally published last.
 publish_file "${RUN_OUTPUT_DIR}/${MANIFEST_FILENAME}" "${OUTPUT_DIR}/${MANIFEST_FILENAME}"
 SUCCESS=1

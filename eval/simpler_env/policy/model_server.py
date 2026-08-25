@@ -17,7 +17,6 @@ DEFAULT_IMAGE_SIZE = (224, 224)
 DEFAULT_UNNORM_KEY = "oxe_bridge"
 DEFAULT_ACTION_ENSEMBLE_HORIZON = 7
 DEFAULT_ADAPTIVE_ENSEMBLE_ALPHA = 0.1
-EXPLICIT_NOISE_CONTRACT = "request_bf16_numpy_seedsequence_pcg64_v1"
 
 
 class AdaptiveEnsembler:
@@ -120,7 +119,6 @@ class SimplerEnvModelServerPolicy:
         action_ensemble: bool = True,
         action_ensemble_horizon: int = DEFAULT_ACTION_ENSEMBLE_HORIZON,
         adaptive_ensemble_alpha: float = DEFAULT_ADAPTIVE_ENSEMBLE_ALPHA,
-        initial_noise_shape: tuple[int, ...] | None = None,
         client: ModelClient | None = None,
     ):
         self.client = client or ModelClient(host=host, port=port, timeout=timeout)
@@ -128,15 +126,6 @@ class SimplerEnvModelServerPolicy:
         self.image_size = (int(image_size[0]), int(image_size[1]))
         self.unnorm_key = str(unnorm_key)
         self.action_scale = float(action_scale)
-        self.initial_noise_shape = (
-            tuple(int(value) for value in initial_noise_shape)
-            if initial_noise_shape is not None
-            else None
-        )
-        if self.initial_noise_shape is not None and (
-            not self.initial_noise_shape or any(value <= 0 for value in self.initial_noise_shape)
-        ):
-            raise ValueError("initial noise dimensions must be positive")
         self.action_ensembler = (
             AdaptiveEnsembler(action_ensemble_horizon, adaptive_ensemble_alpha)
             if action_ensemble
@@ -146,8 +135,6 @@ class SimplerEnvModelServerPolicy:
         self.predict_calls = 0
         self.timing_records: list[ServerTiming] = []
         self._action_shape: tuple[int, int] | None = None
-        self._noise_seed: tuple[int, ...] | None = None
-        self._noise_step = 0
 
     def health(self) -> str:
         return self.client.health()
@@ -190,33 +177,12 @@ class SimplerEnvModelServerPolicy:
         task_description: str | None = None,
         *,
         reset_server: bool = True,
-        noise_seed: int | tuple[int, ...] | None = None,
     ) -> None:
         self.task_description = task_description
         if self.action_ensembler is not None:
             self.action_ensembler.reset()
         if reset_server:
             self.client.reset()
-        if noise_seed is not None:
-            values = (noise_seed,) if isinstance(noise_seed, int) else noise_seed
-            self._noise_seed = tuple(int(value) for value in values)
-            if not self._noise_seed or any(value < 0 for value in self._noise_seed):
-                raise ValueError("initial noise seed values must be non-negative")
-            self._noise_step = 0
-        elif reset_server and self.initial_noise_shape is not None:
-            raise ValueError("explicit initial noise requires a per-episode noise seed")
-
-    def _next_initial_noise(self) -> np.ndarray:
-        if self.initial_noise_shape is None or self._noise_seed is None:
-            raise RuntimeError("explicit initial noise is not configured")
-        seed = np.random.SeedSequence((*self._noise_seed, self._noise_step))
-        self._noise_step += 1
-        values = np.random.default_rng(seed).standard_normal(
-            self.initial_noise_shape, dtype=np.float32
-        )
-        bits = values.view(np.uint32)
-        rounded = bits + np.uint32(0x7FFF) + ((bits >> 16) & np.uint32(1))
-        return (rounded & np.uint32(0xFFFF0000)).view(np.float32)
 
     def build_observation(self, image: np.ndarray, task_description: str) -> dict[str, Any]:
         resized = resize_image_area(image, self.image_size)
@@ -225,8 +191,6 @@ class SimplerEnvModelServerPolicy:
             "state": [],
             "prompt": task_description,
         }
-        if self.initial_noise_shape is not None:
-            observation["initial_noise"] = self._next_initial_noise()
         return observation
 
     def predict_action_chunk(self, image: np.ndarray, task_description: str) -> ModelResponse:

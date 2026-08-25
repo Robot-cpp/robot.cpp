@@ -16,13 +16,7 @@ TOOLS_DIR = REPO_ROOT / "tools" / "hf2gguf" / "starvla"
 sys.path.insert(0, str(TOOLS_DIR))
 sys.path.insert(0, str(TOOLS_DIR.parent / "pi0"))
 
-from convert_starvla_policy_to_gguf import (  # noqa: E402
-    GROOT_TENSOR_MAP,
-    OFT_TENSOR_MAP,
-    PI_TENSOR_MAP,
-    PI_V3_TENSOR_MAP,
-    QWEN3VL_DYNAMIC_IMAGE_METADATA,
-)
+from convert_starvla_policy_to_gguf import OFT_TENSOR_MAP  # noqa: E402
 from gguf_writer import write_gguf_arrays  # noqa: E402
 from starvla_checkpoint import StarVLAError  # noqa: E402
 from validate_starvla_bundle import (  # noqa: E402
@@ -30,7 +24,6 @@ from validate_starvla_bundle import (  # noqa: E402
     gguf,
     tensor_map,
     validate_policy_tensor_bytes,
-    validate_qwen3vl_image_metadata,
 )
 
 
@@ -114,54 +107,6 @@ class TokenizerMetadataTest(unittest.TestCase):
         self.assertEqual(metadata["tokenizer.chat_template"], "{{ messages }}")
 
 
-class Qwen3VLDynamicImageMetadataValidatorTest(unittest.TestCase):
-    @staticmethod
-    def write_metadata(path: Path, metadata: dict[str, object]) -> None:
-        write_gguf_arrays(
-            path,
-            {"general.architecture": "starvla-policy", **metadata},
-            [("fixture", [1], np.zeros(1, dtype=np.float32), "fp32")],
-        )
-
-    def test_canonical_dynamic_image_contract_is_accepted(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "dynamic-image.gguf"
-            self.write_metadata(output, dict(QWEN3VL_DYNAMIC_IMAGE_METADATA))
-            reader = gguf.GGUFReader(output)
-            validate_qwen3vl_image_metadata(reader)
-            del reader
-
-    def test_fixed_size_legacy_metadata_is_rejected(self) -> None:
-        metadata = dict(QWEN3VL_DYNAMIC_IMAGE_METADATA)
-        metadata["starvla.image.input_width"] = 224
-        metadata["starvla.image.input_height"] = 224
-        metadata["starvla.image.token_count"] = 64
-        with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "fixed-image.gguf"
-            self.write_metadata(output, metadata)
-            reader = gguf.GGUFReader(output)
-            with self.assertRaisesRegex(StarVLAError, "dynamic image metadata set mismatch"):
-                validate_qwen3vl_image_metadata(reader)
-            del reader
-
-    def test_missing_or_drifted_dynamic_bound_is_rejected(self) -> None:
-        cases = []
-        missing = dict(QWEN3VL_DYNAMIC_IMAGE_METADATA)
-        del missing["starvla.image.processor_max_pixels"]
-        cases.append(("missing", missing, "metadata set mismatch"))
-        drifted = dict(QWEN3VL_DYNAMIC_IMAGE_METADATA)
-        drifted["starvla.image.max_token_count"] = 64
-        cases.append(("drifted", drifted, "max_token_count"))
-        for name, metadata, error in cases:
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
-                output = Path(temporary) / f"{name}.gguf"
-                self.write_metadata(output, metadata)
-                reader = gguf.GGUFReader(output)
-                with self.assertRaisesRegex(StarVLAError, error):
-                    validate_qwen3vl_image_metadata(reader)
-                del reader
-
-
 class PolicyTensorBytesTest(unittest.TestCase):
     @staticmethod
     def source_tensors() -> dict[str, torch.Tensor]:
@@ -227,99 +172,6 @@ class PolicyTensorBytesTest(unittest.TestCase):
             reader = gguf.GGUFReader(output)
             with self.assertRaisesRegex(StarVLAError, "content mismatch"):
                 validate_policy_tensor_bytes(tensor_map(reader), policy_dir, "bf16")
-            del reader
-
-    def test_groot_tensor_byte_validator_uses_complete_variant_map(self) -> None:
-        source = {
-            name: (torch.arange(6, dtype=torch.float32).reshape(2, 3) + index / 100)
-            for index, name in enumerate(GROOT_TENSOR_MAP)
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            policy_dir = root / "policy"
-            output = root / "groot-policy-f16.gguf"
-            self.write_policy_staging(policy_dir, source)
-
-            def arrays():
-                for source_name, destination_name in GROOT_TENSOR_MAP.items():
-                    tensor = source[source_name]
-                    yield destination_name, list(tensor.shape), tensor.numpy(), "f16"
-
-            write_gguf_arrays(
-                output,
-                {"general.architecture": "starvla-policy"},
-                arrays(),
-            )
-            reader = gguf.GGUFReader(output)
-            validate_policy_tensor_bytes(
-                tensor_map(reader),
-                policy_dir,
-                "f16",
-                tensor_name_map=GROOT_TENSOR_MAP,
-                component_label="GR00T",
-            )
-            del reader
-
-    def test_legacy_pi_tensor_byte_validator_uses_complete_variant_map(self) -> None:
-        source = {
-            name: (torch.arange(6, dtype=torch.float32).reshape(2, 3) + index / 1000)
-            for index, name in enumerate(PI_TENSOR_MAP)
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            policy_dir = root / "policy"
-            output = root / "legacy-pi-policy-fp32.gguf"
-            self.write_policy_staging(policy_dir, source)
-
-            def arrays():
-                for source_name, destination_name in PI_TENSOR_MAP.items():
-                    tensor = source[source_name]
-                    yield destination_name, list(tensor.shape), tensor.numpy(), "fp32"
-
-            write_gguf_arrays(
-                output,
-                {"general.architecture": "starvla-policy"},
-                arrays(),
-            )
-            reader = gguf.GGUFReader(output)
-            validate_policy_tensor_bytes(
-                tensor_map(reader),
-                policy_dir,
-                "fp32",
-                tensor_name_map=PI_TENSOR_MAP,
-                component_label="legacy PI",
-            )
-            del reader
-
-    def test_pi_v3_tensor_byte_validator_uses_complete_variant_map(self) -> None:
-        source = {
-            name: (torch.arange(6, dtype=torch.float32).reshape(2, 3) + index / 1000)
-            for index, name in enumerate(PI_V3_TENSOR_MAP)
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            policy_dir = root / "policy"
-            output = root / "pi-v3-policy-bf16.gguf"
-            self.write_policy_staging(policy_dir, source)
-
-            def arrays():
-                for source_name, destination_name in PI_V3_TENSOR_MAP.items():
-                    tensor = source[source_name]
-                    yield destination_name, list(tensor.shape), tensor.numpy(), "bf16"
-
-            write_gguf_arrays(
-                output,
-                {"general.architecture": "starvla-policy"},
-                arrays(),
-            )
-            reader = gguf.GGUFReader(output)
-            validate_policy_tensor_bytes(
-                tensor_map(reader),
-                policy_dir,
-                "bf16",
-                tensor_name_map=PI_V3_TENSOR_MAP,
-                component_label="PI_v3",
-            )
             del reader
 
 

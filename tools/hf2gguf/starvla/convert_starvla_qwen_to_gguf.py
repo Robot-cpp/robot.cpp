@@ -116,7 +116,7 @@ def verify_llama_checkout(path: Path, expected_revision: str) -> Path:
     if actual_revision != expected_revision:
         raise StarVLAError(
             f"llama.cpp revision mismatch: expected {expected_revision}, got {actual_revision}; "
-            "update the pinned catalog and regenerate golden data before converting"
+            "use the revision pinned by the checkpoint catalog"
         )
     worktree_changes = git_worktree_changes(root)
     if worktree_changes:
