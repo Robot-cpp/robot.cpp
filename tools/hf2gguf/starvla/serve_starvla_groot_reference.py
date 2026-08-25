@@ -52,8 +52,10 @@ from serve_starvla_oft_reference import (  # noqa: E402
     _canonical_sha256,
     _git_tracked_index_sha256,
     _git_tree_sha1,
+    add_torch_compile_arguments,
     build_runtime_metadata,
     explicit_torch_initial_noise,
+    enable_torch_compile,
     wire,
     write_metadata,
 )
@@ -466,6 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metadata-output", type=Path)
     parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--verbosity", type=int, default=0)
+    add_torch_compile_arguments(parser)
     return parser
 
 
@@ -513,6 +516,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         noise_seed=args.noise_seed,
         default_unnorm_key=args.unnorm_key,
     )
+    if args.torch_compile:
+        import torch
+
+        enable_torch_compile(policy, torch, mode=args.torch_compile_mode)
     if args.metadata_output is not None:
         write_metadata(args.metadata_output, policy.metadata)
     logging.info(

@@ -471,7 +471,10 @@ def load_official_framework(paths: Mapping[str, Any], *, device: str) -> tuple[A
             cfg = share_tools.dict_to_namespace(config)
             cfg.trainer.pretrained_checkpoint = None
             with _config_only_qwen25_bootstrap(
-                torch, transformers, Path(paths["qwen_dir"])
+                torch,
+                transformers,
+                Path(paths["qwen_dir"]),
+                expected_vocab_size=ACTION_TOKEN_ID_MAX + 1,
             ):
                 framework = QwenGR00T.Qwen_GR00T(cfg)
 

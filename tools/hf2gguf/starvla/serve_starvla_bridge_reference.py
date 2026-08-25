@@ -36,8 +36,10 @@ from serve_starvla_oft_reference import (  # noqa: E402
     ProtocolError,
     ReferenceProtocolServer,
     _canonical_json_bytes,
+    add_torch_compile_arguments,
     build_runtime_metadata,
     explicit_torch_initial_noise,
+    enable_torch_compile,
     wire,
     write_metadata,
 )
@@ -479,6 +481,20 @@ def _load_fast_policy(
     )
 
 
+def _enable_fast_torch_compile(policy: FastReferencePolicy, torch: Any, *, mode: str) -> None:
+    policy.model.forward = torch.compile(
+        policy.model.forward, mode=mode, fullgraph=False
+    )
+    runtime = dict(policy.metadata["runtime"])
+    runtime["torch_compile"] = {
+        "enabled": True,
+        "mode": mode,
+        "fullgraph": False,
+        "components": ["qwen_vl.forward"],
+    }
+    policy.metadata["runtime"] = runtime
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, required=True)
@@ -492,6 +508,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metadata-output", type=Path)
     parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--verbosity", type=int, default=0)
+    add_torch_compile_arguments(parser)
     return parser
 
 
@@ -558,6 +575,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.variant, paths, device=args.device, metadata=metadata
         )
     )
+    if args.torch_compile:
+        if args.variant == "qwen25_fast":
+            _enable_fast_torch_compile(policy, torch, mode=args.torch_compile_mode)
+        else:
+            enable_torch_compile(policy, torch, mode=args.torch_compile_mode)
     if args.metadata_output is not None:
         write_metadata(args.metadata_output, policy.metadata)
     logging.info(

@@ -412,6 +412,65 @@ def build_runtime_metadata(
     return record
 
 
+def enable_torch_compile(policy: Any, torch: Any, *, mode: str) -> None:
+    """Compile the tensor-heavy policy paths without changing preprocessing."""
+
+    framework = policy.framework
+    qwen = framework.qwen_vl_interface
+    backbone = str(policy.metadata["backbone"])
+    if backbone == "qwen3_vl":
+        hf_model = qwen.model.model
+        hf_model.visual.forward = torch.compile(
+            hf_model.visual.forward, mode=mode, fullgraph=False
+        )
+        for layer in hf_model.language_model.layers:
+            layer.forward = torch.compile(
+                layer.forward, mode=mode, fullgraph=False
+            )
+        qwen_components = [
+            "qwen3_vl.visual.forward",
+            "qwen3_vl.text_decoder_layers[].forward",
+        ]
+    else:
+        qwen.forward = torch.compile(qwen.forward, mode=mode, fullgraph=False)
+        qwen_components = ["qwen_vl_interface.forward"]
+
+    action_model = framework.action_model
+    framework_name = str(policy.metadata["model_info"]["framework"])
+    if framework_name == "oft":
+        action_model.predict_action = torch.compile(
+            action_model.predict_action, mode=mode, fullgraph=False
+        )
+        action_component = "action_model.predict_action"
+    else:
+        action_model.model.forward = torch.compile(
+            action_model.model.forward, mode=mode, fullgraph=False
+        )
+        action_component = "action_model.model.forward"
+
+    runtime = dict(policy.metadata["runtime"])
+    runtime["torch_compile"] = {
+        "enabled": True,
+        "mode": mode,
+        "fullgraph": False,
+        "components": [*qwen_components, action_component],
+    }
+    policy.metadata["runtime"] = runtime
+
+
+def add_torch_compile_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--torch-compile",
+        action="store_true",
+        default=os.environ.get("STARVLA_TORCH_COMPILE") == "1",
+        help="Compile the Qwen forward and action tensor path with TorchInductor.",
+    )
+    parser.add_argument(
+        "--torch-compile-mode",
+        default=os.environ.get("STARVLA_TORCH_COMPILE_MODE", "default"),
+    )
+
+
 def build_server_metadata(
     paths: Mapping[str, Any],
     framework: Any,
@@ -1140,6 +1199,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional atomic JSON record of all pinned identities and dtype contracts.",
     )
     parser.add_argument("--verbosity", type=int, default=0)
+    add_torch_compile_arguments(parser)
     return parser
 
 
@@ -1189,6 +1249,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         default_unnorm_key=default_unnorm_key,
         variant_name=args.variant,
     )
+    if args.torch_compile:
+        import torch
+
+        enable_torch_compile(policy, torch, mode=args.torch_compile_mode)
     if args.metadata_output is not None:
         write_metadata(args.metadata_output, policy.metadata)
     logging.info(

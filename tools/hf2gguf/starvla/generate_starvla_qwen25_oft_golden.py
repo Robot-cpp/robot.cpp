@@ -291,7 +291,13 @@ def unnormalize_legacy_actions(
 
 
 @contextlib.contextmanager
-def _config_only_qwen25_bootstrap(torch: Any, transformers: Any, qwen_dir: Path):
+def _config_only_qwen25_bootstrap(
+    torch: Any,
+    transformers: Any,
+    qwen_dir: Path,
+    *,
+    expected_vocab_size: int = 151936,
+):
     """Build Qwen2.5 topology without loading a duplicate base weight set."""
 
     model_class = transformers.Qwen2_5_VLForConditionalGeneration
@@ -330,7 +336,7 @@ def _config_only_qwen25_bootstrap(torch: Any, transformers: Any, qwen_dir: Path)
             "runtime_model_type": runtime_model_type,
             "hidden_size": 2048,
             "layer_count": 36,
-            "vocab_size": 151936,
+            "vocab_size": expected_vocab_size,
             "vision_hidden_size": 1280,
             "vision_depth": 32,
             "vision_output_size": 2048,
