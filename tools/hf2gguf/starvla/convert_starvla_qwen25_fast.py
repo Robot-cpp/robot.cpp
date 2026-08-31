@@ -581,7 +581,6 @@ def build_fast_runtime_policy(
     qwen_dir: Path,
     codec_dir: Path,
 ) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
-    del entry
     source = manifest.get("source")
     bundle_uuid = manifest.get("bundle_uuid")
     if not isinstance(source, Mapping) or not isinstance(bundle_uuid, str):
@@ -651,7 +650,9 @@ def build_fast_runtime_policy(
         "starvla.fast.codec.token_offsets_count": int(offsets.size),
         "starvla.fast.codec.token_bytes_count": int(token_bytes.size),
     }
-    metadata.update(normalization_metadata(stats, ACTION_DIM))
+    metadata.update(
+        normalization_metadata(stats, ACTION_DIM, str(entry["default_unnorm_key"]))
+    )
     return {
         key: _normalize_gguf_metadata_value(value)
         for key, value in metadata.items()

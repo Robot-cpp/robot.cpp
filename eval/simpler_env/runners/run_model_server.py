@@ -25,7 +25,6 @@ from eval.simpler_env.policy.model_server import (
     DEFAULT_ADAPTIVE_ENSEMBLE_ALPHA,
     DEFAULT_IMAGE_NAME,
     DEFAULT_IMAGE_SIZE,
-    DEFAULT_UNNORM_KEY,
     SimplerEnvModelServerPolicy,
 )
 from eval.simpler_env.utils.environment import (
@@ -222,7 +221,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sim-freq", type=int, default=500)
     parser.add_argument("--image-name", default=DEFAULT_IMAGE_NAME)
     parser.add_argument("--image-size", type=int, nargs=2, default=list(DEFAULT_IMAGE_SIZE))
-    parser.add_argument("--unnorm-key", default=DEFAULT_UNNORM_KEY)
     parser.add_argument("--action-scale", type=float, default=1.0)
     parser.add_argument("--no-action-ensemble", action="store_true")
     parser.add_argument(
@@ -269,7 +267,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         port=args.port,
         image_name=args.image_name,
         image_size=tuple(args.image_size),
-        unnorm_key=args.unnorm_key,
         action_scale=args.action_scale,
         action_ensemble=not args.no_action_ensemble,
         action_ensemble_horizon=args.action_ensemble_horizon,
@@ -378,7 +375,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "server_launches": launches,
             "image_name": args.image_name,
             "image_size": args.image_size,
-            "unnorm_key": args.unnorm_key,
             "action_scale": args.action_scale,
             "action_ensemble": not args.no_action_ensemble,
             "action_ensemble_horizon": args.action_ensemble_horizon,

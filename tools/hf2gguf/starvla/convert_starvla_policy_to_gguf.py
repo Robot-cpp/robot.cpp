@@ -779,15 +779,22 @@ def resolve_action_token_id(hf_dir: Path) -> int:
     return token_ids[0]
 
 
-def normalization_metadata(stats: dict[str, Any], action_dim: int) -> dict[str, Any]:
+def normalization_metadata(
+    stats: dict[str, Any], action_dim: int, default_profile: str
+) -> dict[str, Any]:
+    if default_profile not in stats:
+        raise StarVLAError(
+            f"default normalization profile {default_profile!r} is not present"
+        )
+    profile_keys = [default_profile, *sorted(set(stats) - {default_profile})]
     metadata: dict[str, Any] = {
         "starvla.normalization.profile_count": len(stats),
-        "starvla.normalization.profile_keys": sorted(stats),
+        "starvla.normalization.profile_keys": profile_keys,
         "starvla.normalization.clip_actions": False,
         "starvla.normalization.binary_threshold": 0.5,
         "starvla.normalization.binary_comparison": "gt",
     }
-    for index, key in enumerate(sorted(stats)):
+    for index, key in enumerate(profile_keys):
         profile = stats[key]
         action = profile.get("action")
         if not isinstance(action, dict):
@@ -960,7 +967,11 @@ def build_oft_metadata(
     )
     if set(stats) != expected_profiles:
         raise StarVLAError(f"unexpected official OFT normalization profiles: {sorted(stats)}")
-    metadata.update(normalization_metadata(stats, dimensions["action_dim"]))
+    metadata.update(
+        normalization_metadata(
+            stats, dimensions["action_dim"], variant["default_unnorm_key"]
+        )
+    )
     return metadata
 
 
@@ -1507,7 +1518,11 @@ def build_groot_metadata(
     )
     if state_dimensions != [8]:
         raise StarVLAError(f"unexpected official GR00T state statistics dimensions: {state_dimensions}")
-    metadata.update(normalization_metadata(stats, dimensions["action_dim"]))
+    metadata.update(
+        normalization_metadata(
+            stats, dimensions["action_dim"], variant["default_unnorm_key"]
+        )
+    )
     return metadata
 
 
@@ -1729,7 +1744,11 @@ def build_pi_metadata(
         raise StarVLAError(
             f"unexpected official legacy PI state statistics dimensions: {state_dimensions}"
         )
-    metadata.update(normalization_metadata(stats, dimensions["action_dim"]))
+    metadata.update(
+        normalization_metadata(
+            stats, dimensions["action_dim"], variant["default_unnorm_key"]
+        )
+    )
     metadata["starvla.normalization.clip_actions"] = True
     metadata["starvla.normalization.binary_comparison"] = "ge"
     return metadata
@@ -1821,6 +1840,7 @@ def build_pi_v3_metadata(
         normalization_metadata(
             _load_json(policy_dir / "dataset_statistics.json"),
             dimensions["action_dim"],
+            variant["default_unnorm_key"],
         )
     )
     return metadata

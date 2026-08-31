@@ -68,7 +68,30 @@ bash eval/simpler_env/scripts/run_model_server.sh
 
 脚本默认从 `ckpts/starvla/gguf/<variant>` 读取三个 GGUF，并使用
 `build_cuda/bin/model-server`。常用覆盖项包括 `GGUF_DIR`、`SERVER_BIN`、`PYTHON`、
-`SIMPLER_ENV_ROOT`、`UNNORM_KEY`、`TASK_IDS`、`EPISODE_IDS`、`REPEATS` 和 `OUTPUT`。
+`SIMPLER_ENV_ROOT`、`TASK_IDS`、`EPISODE_IDS`、`REPEATS` 和 `OUTPUT`。
 
 每个 task/repeat 会启动新的 model-server。结果包含 checkpoint 标识、rollout 明细、成功率
 和各阶段耗时。
+
+## 延迟测试
+
+直接测试官方 PyTorch checkpoint：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m eval.simpler_env.runners.latency_starvla \
+  --variant oft --compile-model
+```
+
+runner 会根据 StarVLA catalog 选择 checkpoint、Qwen 资源和 Bridge 归一化配置。默认先预热
+5 次，再统计 20 次推理，并分别报告 policy、action 反归一化和总耗时。policy 耗时包含
+StarVLA 的图像/文本预处理和模型 forward。去掉 `--compile-model` 即可测试 eager
+PyTorch。`torch.compile` 为惰性编译；FAST 第一次预热可能需要几分钟，这部分不会计入
+最终统计。
+
+robot.cpp model-server 使用统一的服务端测试脚本：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 N_BATCH=2048 SKIP_BUILD=1 \
+GGUF_DIR="$PWD/ckpts/starvla/gguf/oft" \
+bash robot_server/test/test_server_latency.sh starvla linux-cuda starvla-bridge
+```

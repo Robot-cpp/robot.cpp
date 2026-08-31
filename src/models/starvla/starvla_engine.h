@@ -27,9 +27,8 @@ bool starvla_variant_from_metadata(const std::string & framework,
 
 struct StarVLAEngineConfig {
     std::string policy_path;
-    std::string text_path_override;
-    std::string mmproj_path_override;
-    std::string unnorm_key;
+    std::string text_path;
+    std::string mmproj_path;
     int n_threads = 0;
     int n_ctx = 2048;
     int n_batch = 512;

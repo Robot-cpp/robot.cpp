@@ -28,7 +28,6 @@ struct server_args {
     std::string state_proj_path;
     std::string action_expert_path;
     std::string policy_path;
-    std::string unnorm_key;
     std::string task   = "grab the block.";
     std::string host   = "127.0.0.1";
     int port           = 5555;
@@ -65,7 +64,7 @@ static void print_usage(const char * prog) {
                  "<path> [options]\n"
                  "       %s --model-type pi0 --vit <path> --mmproj <path> --llm <path> --tokenizer <path> --state-gguf "
                  "<path> --action-decoder <path> [options]\n"
-                 "       %s --model-type starvla --policy <path> [options]\n"
+                 "       %s --model-type starvla --llm <path> --mmproj <path> --policy <path> [options]\n"
                  "\n"
                  "Common options:\n"
                  "  --model-type <type>      smolvla|pi0|starvla\n"
@@ -88,9 +87,8 @@ static void print_usage(const char * prog) {
                  "\n"
                  "StarVLA options:\n"
                  "  --policy <path>          StarVLA policy GGUF path (required)\n"
-                 "  --unnorm-key <key>       Default normalization profile (optional for single-profile policy)\n"
-                 "  --llm <path>             Qwen text GGUF override (optional)\n"
-                 "  --mmproj <path>          Qwen vision GGUF override (optional)\n"
+                 "  --llm <path>             Qwen text GGUF path (required)\n"
+                 "  --mmproj <path>          Qwen vision GGUF path (required)\n"
                  "\n"
                  "Runtime options:\n"
                  "  --host <ip>              Listen host (default: 127.0.0.1)\n"
@@ -121,8 +119,6 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
             }
         } else if (arg == "--policy" && i + 1 < argc) {
             args.policy_path = argv[++i];
-        } else if (arg == "--unnorm-key" && i + 1 < argc) {
-            args.unnorm_key = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
             args.mmproj_path = argv[++i];
         } else if (arg == "--vit" && i + 1 < argc) {
@@ -220,8 +216,9 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
             return false;
         }
     } else if (robotcpp::is_starvla_model_type(args.model_type)) {
-        if (args.policy_path.empty()) {
-            std::fprintf(stderr, "Error: %s requires --policy\n", robotcpp::model_type_name(args.model_type));
+        if (args.llm_path.empty() || args.mmproj_path.empty() || args.policy_path.empty()) {
+            std::fprintf(stderr, "Error: %s requires --llm --mmproj --policy\n",
+                         robotcpp::model_type_name(args.model_type));
             return false;
         }
     } else {
@@ -245,7 +242,6 @@ static robotcpp::model_args make_model_args(const server_args & args) {
     model_args.state_proj_path     = args.state_proj_path;
     model_args.action_expert_path  = args.action_expert_path;
     model_args.policy_path         = args.policy_path;
-    model_args.unnorm_key          = args.unnorm_key;
     model_args.n_batch             = args.n_batch;
     model_args.n_ctx               = args.n_ctx;
     model_args.noise_mode          = args.noise_mode;

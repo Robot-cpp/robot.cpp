@@ -72,9 +72,8 @@ bool make_starvla_model(const model_args & args, std::unique_ptr<Model> & out,
     }
     starvla::StarVLAEngineConfig config;
     config.policy_path = args.policy_path;
-    config.text_path_override = args.llm_path;
-    config.mmproj_path_override = args.mmproj_path;
-    config.unnorm_key = args.unnorm_key;
+    config.text_path = args.llm_path;
+    config.mmproj_path = args.mmproj_path;
     config.n_threads = args.threads;
     config.n_ctx = args.n_ctx;
     config.n_batch = args.n_batch;

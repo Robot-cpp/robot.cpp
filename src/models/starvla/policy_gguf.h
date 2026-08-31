@@ -107,6 +107,7 @@ inline NormalizationConfig require_normalization(gguf_context * gguf, int action
     if (profile_count <= 0 || keys.size() != static_cast<size_t>(profile_count)) {
         throw std::runtime_error("StarVLA normalization profile count is inconsistent");
     }
+    config.default_profile_key = keys.front();
     config.profiles.reserve(static_cast<size_t>(profile_count));
     for (int index = 0; index < profile_count; ++index) {
         NormalizationProfile profile;

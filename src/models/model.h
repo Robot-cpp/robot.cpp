@@ -68,7 +68,6 @@ struct model_args {
 
     // starvla
     std::string policy_path;
-    std::string unnorm_key;
 };
 
 class Model {

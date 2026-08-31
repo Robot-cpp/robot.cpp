@@ -66,8 +66,32 @@ bash eval/simpler_env/scripts/run_model_server.sh
 
 The script reads three GGUF files from `ckpts/starvla/gguf/<variant>` and uses
 `build_cuda/bin/model-server` by default. Common overrides are `GGUF_DIR`,
-`SERVER_BIN`, `PYTHON`, `SIMPLER_ENV_ROOT`, `UNNORM_KEY`, `TASK_IDS`,
+`SERVER_BIN`, `PYTHON`, `SIMPLER_ENV_ROOT`, `TASK_IDS`,
 `EPISODE_IDS`, `REPEATS`, and `OUTPUT`.
 
 Each task/repeat starts a fresh model-server. Results include checkpoint
 identity, rollout records, success rates, and timing summaries.
+
+## Latency
+
+Benchmark the official PyTorch checkpoint directly:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m eval.simpler_env.runners.latency_starvla \
+  --variant oft --compile-model
+```
+
+The runner selects the checkpoint, Qwen assets, and Bridge normalization from
+the StarVLA catalog. It reports policy, action unnormalization, and total
+latency after 5 warmup calls and 20 measured calls. Policy latency includes
+StarVLA's image/text preprocessing and model forward. Omit `--compile-model`
+for eager PyTorch. Compilation is lazy; the first FAST warmup can take several
+minutes and is not included in the reported measurements.
+
+For the robot.cpp model-server path, use the common server benchmark:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 N_BATCH=2048 SKIP_BUILD=1 \
+GGUF_DIR="$PWD/ckpts/starvla/gguf/oft" \
+bash robot_server/test/test_server_latency.sh starvla linux-cuda starvla-bridge
+```

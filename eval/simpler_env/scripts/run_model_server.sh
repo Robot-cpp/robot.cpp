@@ -27,7 +27,6 @@ SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
 PYTHON_BIN="${PYTHON:-ckpts/simpler_env/.venv/bin/python}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
-UNNORM_KEY="${UNNORM_KEY:-${DEFAULT_UNNORM_KEY}}"
 NOISE_SEED_BASE="${NOISE_SEED_BASE:-1000}"
 
 for path in "${LLM_GGUF}" "${MMPROJ_GGUF}" "${POLICY_GGUF}"; do
@@ -51,7 +50,6 @@ eval_cmd=(
     --launch-server
     --host "${HOST}"
     --port "${PORT}"
-    --unnorm-key "${UNNORM_KEY}"
     --variant "${VARIANT}"
     --expected-model-type "${MODEL_TYPE}"
     --expected-checkpoint-revision "${CHECKPOINT_REVISION}"
@@ -75,7 +73,6 @@ eval_cmd+=(
     --policy "${POLICY_GGUF}"
     --llm "${LLM_GGUF}"
     --mmproj "${MMPROJ_GGUF}"
-    --unnorm-key "${UNNORM_KEY}"
     --host "${HOST}"
     --port "${PORT}"
     --noise-seed "${NOISE_SEED_BASE}"

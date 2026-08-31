@@ -144,9 +144,8 @@ bool require_regular_file(const std::filesystem::path & path, const char * label
     return true;
 }
 
-bool resolve_component_path(const std::filesystem::path & policy_path,
-                            const std::string & metadata_filename,
-                            const std::string & override_path, const char * label,
+bool resolve_component_path(const std::string & metadata_filename,
+                            const std::string & component_path, const char * label,
                             std::filesystem::path & resolved, std::string & error) {
     if (!is_plain_basename(metadata_filename)) {
         error = std::string("StarVLA policy ") + label +
@@ -154,12 +153,12 @@ bool resolve_component_path(const std::filesystem::path & policy_path,
         return false;
     }
 
-    resolved = override_path.empty() ? policy_path.parent_path() / metadata_filename
-                                     : std::filesystem::path(override_path);
-    if (!override_path.empty() && override_path.find('\0') != std::string::npos) {
-        error = std::string("StarVLA ") + label + " override contains an embedded NUL";
+    if (component_path.empty() || component_path.find('\0') != std::string::npos) {
+        error = std::string("StarVLA ") + label +
+                " path is required and must not contain an embedded NUL";
         return false;
     }
+    resolved = std::filesystem::path(component_path);
     if (resolved.filename().string() != metadata_filename) {
         error = std::string("StarVLA ") + label + " basename must match policy metadata '" +
                 metadata_filename + "': " + resolved.string();
@@ -346,7 +345,7 @@ struct StarVLAEngine::Impl {
     std::filesystem::path policy_path;
     std::filesystem::path text_path;
     std::filesystem::path mmproj_path;
-    std::string default_unnorm_key;
+    std::string normalization_profile_key;
     const NormalizationConfig * normalization = nullptr;
     std::mt19937_64 noise_rng;
     // Destroy the policy scheduler/backends before Qwen releases llama's global backend state.
@@ -512,12 +511,10 @@ std::unique_ptr<StarVLAEngine> StarVLAEngine::load(const StarVLAEngineConfig & c
             return nullptr;
         }
     }
-    if (!resolve_component_path(impl->policy_path, text_filename,
-                                config.text_path_override, "text GGUF", impl->text_path,
-                                error) ||
-        !resolve_component_path(impl->policy_path, mmproj_filename,
-                                config.mmproj_path_override, "mmproj GGUF", impl->mmproj_path,
-                                error)) {
+    if (!resolve_component_path(text_filename, config.text_path, "text GGUF",
+                                impl->text_path, error) ||
+        !resolve_component_path(mmproj_filename, config.mmproj_path, "mmproj GGUF",
+                                impl->mmproj_path, error)) {
         return nullptr;
     }
     if (same_file(impl->policy_path, impl->text_path) ||
@@ -528,17 +525,15 @@ std::unique_ptr<StarVLAEngine> StarVLAEngine::load(const StarVLAEngineConfig & c
     }
 
     impl->normalization = normalization;
-    if (!config.unnorm_key.empty() || normalization->profiles.size() == 1) {
-        std::string profile_error;
-        const NormalizationProfile * profile = resolve_normalization_profile(
-            *normalization, config.unnorm_key, profile_error);
-        if (profile == nullptr) {
-            error = std::string("failed to select StarVLA ") + framework +
-                    " normalization profile: " + profile_error;
-            return nullptr;
-        }
-        impl->default_unnorm_key = profile->key;
+    std::string profile_error;
+    const NormalizationProfile * profile = resolve_normalization_profile(
+        *normalization, "", profile_error);
+    if (profile == nullptr) {
+        error = std::string("failed to select StarVLA ") + framework +
+                " normalization profile: " + profile_error;
+        return nullptr;
     }
+    impl->normalization_profile_key = profile->key;
 
     Qwen3VLBridgeConfig qwen_config;
     qwen_config.text_path = impl->text_path.string();
@@ -611,8 +606,7 @@ std::unique_ptr<StarVLAEngine> StarVLAEngine::load(const StarVLAEngineConfig & c
                      __func__, variant_name, impl->policy_path.string().c_str(),
                      impl->text_path.string().c_str(),
                      impl->mmproj_path.string().c_str(),
-                     impl->default_unnorm_key.empty() ? "<request-required>"
-                                                      : impl->default_unnorm_key.c_str(),
+                     impl->normalization_profile_key.c_str(),
                      impl->qwen->backend_name(), policy_backend);
     }
     return std::unique_ptr<StarVLAEngine>(new StarVLAEngine(std::move(impl)));
@@ -642,7 +636,7 @@ bool StarVLAEngine::predict(const observation & obs, StarVLAEngineResult & resul
     }
     std::string profile_error;
     const NormalizationProfile * profile = resolve_normalization_profile(
-        *impl_->normalization, impl_->default_unnorm_key, profile_error);
+        *impl_->normalization, impl_->normalization_profile_key, profile_error);
     if (profile == nullptr) {
         error = "failed to select StarVLA normalization profile: " + profile_error;
         return fail();

@@ -39,6 +39,10 @@ bool validate_normalization_config(const NormalizationConfig & config, int actio
         error = "StarVLA policy has no normalization profiles";
         return false;
     }
+    if (config.default_profile_key.empty()) {
+        error = "StarVLA policy has no default normalization profile";
+        return false;
+    }
 
     std::vector<uint8_t> dimension_kind(static_cast<size_t>(action_dim), 0);
     for (int32_t dim : config.continuous_dimensions) {
@@ -94,6 +98,12 @@ bool validate_normalization_config(const NormalizationConfig & config, int actio
             }
         }
     }
+    if (std::find(seen_keys.begin(), seen_keys.end(), config.default_profile_key) ==
+        seen_keys.end()) {
+        error = "StarVLA default normalization profile is not present: " +
+                config.default_profile_key;
+        return false;
+    }
     return true;
 }
 
@@ -101,11 +111,7 @@ const NormalizationProfile * resolve_normalization_profile(const NormalizationCo
                                                            const std::string & profile_key, std::string & error) {
     error.clear();
     if (profile_key.empty()) {
-        if (config.profiles.size() == 1) {
-            return &config.profiles.front();
-        }
-        error = "StarVLA policy has multiple normalization profiles; select one of: " + profile_keys(config);
-        return nullptr;
+        return resolve_normalization_profile(config, config.default_profile_key, error);
     }
     for (const NormalizationProfile & profile : config.profiles) {
         if (profile.key == profile_key) {

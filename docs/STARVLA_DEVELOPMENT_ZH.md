@@ -59,12 +59,12 @@ normalization profile、组件文件名和 bundle UUID。`StarVLAEngine::load()`
 
 1. 读取 policy GGUF 的 `starvla.framework` 和 `starvla.backbone.arch`。
 2. 创建对应 policy loader，并校验全部必需 metadata、tensor 名称和 shape。
-3. 从 policy 所在目录解析 text/mmproj 文件。`--llm` 和 `--mmproj` 只能覆盖目录，
-   basename 仍必须与 policy metadata 一致。
+3. 从 `--llm` 和 `--mmproj` 加载 text/mmproj 文件，basename 必须与 policy metadata
+   一致。
 4. 要求 policy、text 和 mmproj 是三个不同的普通文件。
 5. 对比三个组件的 bundle UUID，并校验 Qwen architecture、hidden size、input embedding
    size 和 vocabulary size。
-6. 选择 normalization profile。存在多个 profile 时必须传 `--unnorm-key`。
+6. 使用 policy GGUF 中排在首位的默认 normalization profile。
 7. 创建 Qwen context 和 policy backend。
 
 这些检查用于阻止不同转换批次的组件被混用。不要为缺失 metadata 或 shape 不匹配增加
@@ -195,17 +195,17 @@ cmake --build build_cuda -j
 CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-cli \
   --model-type starvla \
   --policy ckpts/starvla/gguf/oft/starvla-oft-policy-fp32.gguf \
+  --llm ckpts/starvla/gguf/oft/qwen-oft-bf16.gguf \
+  --mmproj ckpts/starvla/gguf/oft/mmproj-oft-bf16.gguf \
   --image /path/to/frame-224-rgb.png \
   --image-name image_0 \
   --task "grab the block." \
-  --unnorm-key oxe_bridge \
   --n-ctx 2048 \
   --n-batch 2048 \
   --verbose
 ```
 
-policy、text 和 mmproj 放在同一目录时，只需传 `--policy`。只有在组件位于其他目录时才
-使用 `--llm`/`--mmproj`，且文件名必须与 policy metadata 相同。
+policy、text 和 mmproj 必须分别传入，且文件名必须与 policy metadata 相同。
 
 ## 测试分层
 
@@ -261,7 +261,7 @@ episode 状态以及推理耗时。
 - CMake 报缺少 overlay：运行 `apply_starvla_patches.sh --check`，并确认 llama.cpp commit
   没有变化。
 - bundle UUID 不一致：不要混用不同转换目录的 policy、text 和 mmproj。
-- normalization profile 报错：查看 policy 中的 profile keys，并显式传 `--unnorm-key`。
+- normalization profile 报错：确认 policy 中的首个 profile 与 checkpoint catalog 的默认值一致。
 - FAST 初始化失败：确认使用 Action 版 Qwen2.5-VL 权重、配套 codec，并设置
   `--n-ctx` 不小于 policy metadata 中的 generation `max_length`。
 - Bridge 结果显示 `partial`：完整运行需要四个 task 各 24 个 episode。

@@ -52,7 +52,9 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "Usage:\n");
     std::fprintf(stderr, "  %s --model-type smolvla [options]\n", prog);
     std::fprintf(stderr, "  %s --model-type pi0 [options]\n", prog);
-    std::fprintf(stderr, "  %s --model-type starvla --policy <path> [options]\n\n", prog);
+    std::fprintf(stderr,
+                 "  %s --model-type starvla --llm <path> --mmproj <path> --policy <path> [options]\n\n",
+                 prog);
     std::fprintf(stderr, "Common options:\n");
     std::fprintf(stderr,
                  "  --model-type <type>      smolvla|pi0|starvla\n"
@@ -84,9 +86,8 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "  --action-decoder <path>  Action decoder GGUF path\n");
     std::fprintf(stderr, "\nStarVLA options:\n");
     std::fprintf(stderr, "  --policy <path>          StarVLA policy GGUF path (required)\n");
-    std::fprintf(stderr, "  --unnorm-key <key>       Normalization profile (optional for single-profile policy)\n");
-    std::fprintf(stderr, "  --llm <path>             Qwen text GGUF override (optional)\n");
-    std::fprintf(stderr, "  --mmproj <path>          Qwen vision GGUF override (optional)\n");
+    std::fprintf(stderr, "  --llm <path>             Qwen text GGUF path (required)\n");
+    std::fprintf(stderr, "  --mmproj <path>          Qwen vision GGUF path (required)\n");
     std::fprintf(stderr, "  --n-batch <n>            Qwen batch size (default: 512)\n");
     std::fprintf(stderr, "  --n-ctx <n>              Qwen context size (default: 2048)\n");
     std::fprintf(stderr,
@@ -154,8 +155,6 @@ int main(int argc, char ** argv) {
             }
         } else if (arg == "--policy" && i + 1 < argc) {
             args.policy_path = argv[++i];
-        } else if (arg == "--unnorm-key" && i + 1 < argc) {
-            args.unnorm_key = argv[++i];
         } else if (arg == "--llm" && i + 1 < argc) {
             args.llm_path = argv[++i];
         } else if (arg == "--mmproj" && i + 1 < argc) {
@@ -222,8 +221,8 @@ int main(int argc, char ** argv) {
         return 1;
     }
     if (robotcpp::is_starvla_model_type(args.type)) {
-        if (args.policy_path.empty()) {
-            std::fprintf(stderr, "Error: %s requires --policy\n",
+        if (args.llm_path.empty() || args.mmproj_path.empty() || args.policy_path.empty()) {
+            std::fprintf(stderr, "Error: %s requires --llm --mmproj --policy\n",
                          robotcpp::model_type_name(args.type));
             return 1;
         }

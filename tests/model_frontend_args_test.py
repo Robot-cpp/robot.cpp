@@ -39,7 +39,10 @@ def main() -> int:
     require_failure(legacy, "unsupported model type 'starvla_qwen_fast'")
 
     missing_policy = run(args.executable, "--model-type", "starvla")
-    require_failure(missing_policy, "starvla requires --policy")
+    require_failure(missing_policy, "starvla requires --llm --mmproj --policy")
+
+    removed_unnorm_key = run(args.executable, "--unnorm-key", "oxe_bridge")
+    require_failure(removed_unnorm_key, "unknown argument '--unnorm-key'")
 
     if args.kind == "cli":
         wrong_image_name = run(
@@ -48,6 +51,10 @@ def main() -> int:
             "starvla",
             "--policy",
             "unused.gguf",
+            "--llm",
+            "unused-llm.gguf",
+            "--mmproj",
+            "unused-mmproj.gguf",
             "--image",
             "unused.png",
             "--image-name",
@@ -61,6 +68,10 @@ def main() -> int:
             "starvla",
             "--policy",
             "unused.gguf",
+            "--llm",
+            "unused-llm.gguf",
+            "--mmproj",
+            "unused-mmproj.gguf",
             "--noise-mode",
             "debug-sin",
         )

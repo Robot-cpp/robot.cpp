@@ -70,6 +70,17 @@ case "${MODEL_TYPE}" in
             --action-decoder "${ACTION_DECODER_GGUF}"
         )
         ;;
+    starvla)
+        LLM_GGUF="${LLM_GGUF:?LLM_GGUF must be set for StarVLA}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:?MMPROJ_GGUF must be set for StarVLA}"
+        POLICY_GGUF="${POLICY_GGUF:?POLICY_GGUF must be set for StarVLA}"
+        MODEL_ARGS=(
+            --model-type starvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${MMPROJ_GGUF}"
+            --policy "${POLICY_GGUF}"
+        )
+        ;;
     *)
         echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
         exit 1

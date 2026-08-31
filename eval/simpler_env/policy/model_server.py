@@ -14,7 +14,6 @@ from robot_client.python.model_client import ModelClient, ModelResponse
 
 DEFAULT_IMAGE_NAME = "image_0"
 DEFAULT_IMAGE_SIZE = (224, 224)
-DEFAULT_UNNORM_KEY = "oxe_bridge"
 DEFAULT_ACTION_ENSEMBLE_HORIZON = 7
 DEFAULT_ADAPTIVE_ENSEMBLE_ALPHA = 0.1
 
@@ -114,7 +113,6 @@ class SimplerEnvModelServerPolicy:
         timeout: float | None = 120.0,
         image_name: str = DEFAULT_IMAGE_NAME,
         image_size: tuple[int, int] = DEFAULT_IMAGE_SIZE,
-        unnorm_key: str = DEFAULT_UNNORM_KEY,
         action_scale: float = 1.0,
         action_ensemble: bool = True,
         action_ensemble_horizon: int = DEFAULT_ACTION_ENSEMBLE_HORIZON,
@@ -124,7 +122,6 @@ class SimplerEnvModelServerPolicy:
         self.client = client or ModelClient(host=host, port=port, timeout=timeout)
         self.image_name = str(image_name)
         self.image_size = (int(image_size[0]), int(image_size[1]))
-        self.unnorm_key = str(unnorm_key)
         self.action_scale = float(action_scale)
         self.action_ensembler = (
             AdaptiveEnsembler(action_ensemble_horizon, adaptive_ensemble_alpha)

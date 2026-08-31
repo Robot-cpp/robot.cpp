@@ -14,6 +14,7 @@ struct NormalizationProfile {
 };
 
 struct NormalizationConfig {
+    std::string default_profile_key;
     bool clip_actions = false;
     float binary_threshold = 0.5f;
     std::string binary_comparison;

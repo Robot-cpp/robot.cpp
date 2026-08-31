@@ -994,6 +994,13 @@ class OFTPolicyTest(unittest.TestCase):
 
     def test_normalization_contract_records_binary_semantics(self) -> None:
         stats = {
+            "another": {
+                "action": {
+                    "q01": [-1.0, -1.0, 0.0],
+                    "q99": [1.0, 1.0, 1.0],
+                    "mask": [True, True, False],
+                }
+            },
             "fixture": {
                 "action": {
                     "q01": [-1.0, -1.0, 0.0],
@@ -1002,7 +1009,10 @@ class OFTPolicyTest(unittest.TestCase):
                 }
             }
         }
-        metadata = normalization_metadata(stats, 3)
+        metadata = normalization_metadata(stats, 3, "fixture")
+        self.assertEqual(
+            metadata["starvla.normalization.profile_keys"], ["fixture", "another"]
+        )
         self.assertFalse(metadata["starvla.normalization.clip_actions"])
         self.assertEqual(metadata["starvla.normalization.binary_threshold"], 0.5)
         self.assertEqual(metadata["starvla.normalization.binary_comparison"], "gt")
@@ -1010,12 +1020,15 @@ class OFTPolicyTest(unittest.TestCase):
         invalid_mask = deepcopy(stats)
         invalid_mask["fixture"]["action"]["mask"] = [1, 1, 0]
         with self.assertRaisesRegex(StarVLAError, "action.mask"):
-            normalization_metadata(invalid_mask, 3)
+            normalization_metadata(invalid_mask, 3, "fixture")
 
         invalid_quantile = deepcopy(stats)
         invalid_quantile["fixture"]["action"]["q99"][0] = float("nan")
         with self.assertRaisesRegex(StarVLAError, "finite numbers"):
-            normalization_metadata(invalid_quantile, 3)
+            normalization_metadata(invalid_quantile, 3, "fixture")
+
+        with self.assertRaisesRegex(StarVLAError, "default normalization profile"):
+            normalization_metadata(stats, 3, "missing")
 
 class Qwen3VLDynamicImageMetadataTest(unittest.TestCase):
     @staticmethod

@@ -42,7 +42,6 @@ values = {
     "CHECKPOINT_RELATIVE_PATH": checkpoint["path"],
     "QWEN_REVISION": qwen["revision"],
     "QWEN_DIRECTORY": qwen["directory"],
-    "DEFAULT_UNNORM_KEY": variant["default_unnorm_key"],
     "ARTIFACT_STEM": artifact_stem(sys.argv[2]),
 }
 for name, value in values.items():

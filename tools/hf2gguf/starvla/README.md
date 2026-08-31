@@ -100,17 +100,17 @@ cmake --build build_cuda -j
 
 ## Run
 
-The policy GGUF locates the Qwen and multimodal-projector files from its
-metadata:
+Pass the Qwen, multimodal projector, and policy GGUF files separately:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-cli \
   --model-type starvla \
   --policy ckpts/starvla/gguf/oft/starvla-oft-policy-fp32.gguf \
+  --llm ckpts/starvla/gguf/oft/qwen-oft-bf16.gguf \
+  --mmproj ckpts/starvla/gguf/oft/mmproj-oft-bf16.gguf \
   --image /path/to/frame-224-rgb.png \
   --image-name image_0 \
   --task "grab the block." \
-  --unnorm-key oxe_bridge \
   --n-ctx 2048 \
   --n-batch 2048
 ```
@@ -124,13 +124,45 @@ The server uses the same model type and policy file:
 CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-server \
   --model-type starvla \
   --policy ckpts/starvla/gguf/oft/starvla-oft-policy-fp32.gguf \
+  --llm ckpts/starvla/gguf/oft/qwen-oft-bf16.gguf \
+  --mmproj ckpts/starvla/gguf/oft/mmproj-oft-bf16.gguf \
   --host 127.0.0.1 \
   --port 5555 \
   --n-ctx 2048 \
   --n-batch 2048
 ```
 
-Select the normalization profile once at startup with `--unnorm-key`.
+The policy GGUF records its default action normalization profile.
+
+## Benchmark
+
+The PyTorch benchmark uses the catalog-pinned official StarVLA source:
+
+```bash
+git clone https://github.com/starVLA/starVLA.git ckpts/starvla/source/starvla
+STARVLA_REV=$(python -c \
+  'import json; print(json.load(open("tools/hf2gguf/starvla/checkpoint_catalog.json"))["source_revisions"]["starvla"])')
+git -C ckpts/starvla/source/starvla checkout "$STARVLA_REV"
+```
+
+Benchmark the official PyTorch checkpoint with 5 warmup calls and 20 measured
+calls. Add `--compile-model` to test `torch.compile`:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m eval.simpler_env.runners.latency_starvla \
+  --variant oft
+```
+
+Use the common server latency entry point for the GGUF runtime. It selects the
+three files from the bundle directory and runs 5 warmup requests followed by
+100 measurements:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 N_BATCH=2048 NOISE_SEED=0 SKIP_BUILD=1 \
+ROBOT_CPP_ROOT="$PWD" BUILD_DIR="$PWD/build_cuda" \
+GGUF_DIR="$PWD/ckpts/starvla/gguf/oft" \
+bash robot_server/test/test_server_latency.sh starvla linux-cuda starvla-bridge
+```
 
 ## Run Bridge rollouts
 
