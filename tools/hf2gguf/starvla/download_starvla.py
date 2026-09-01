@@ -219,6 +219,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="skip policy checkpoints and all optional base weights",
     )
     parser.add_argument(
+        "--skip-checkpoint",
+        action="store_true",
+        help="skip policy checkpoints while retaining requested optional base weights",
+    )
+    parser.add_argument(
         "--include-base-weights",
         action="store_true",
         help="download optional safetensor shards for the selected Qwen base assets",
@@ -251,6 +256,7 @@ def main() -> int:
             "backbone": backbone,
             "variants": variants,
             "metadata_only": bool(args.metadata_only),
+            "skip_checkpoint": bool(args.skip_checkpoint),
             "downloads": {},
         }
 
@@ -288,7 +294,7 @@ def main() -> int:
             entry = get_variant(catalog, variant)
             files = list(entry.get("files", []))
             checkpoint = entry["checkpoint"]
-            if not args.metadata_only:
+            if not args.metadata_only and not args.skip_checkpoint:
                 files.append(str(checkpoint["path"]))
             download = download_entry(
                 entry,
@@ -300,7 +306,7 @@ def main() -> int:
             )
             manifest["downloads"][f"variant:{variant}"] = download
 
-            if not args.metadata_only and not args.dry_run:
+            if not args.metadata_only and not args.skip_checkpoint and not args.dry_run:
                 record = next(
                     (item for item in download["files"] if item["path"] == checkpoint["path"]),
                     None,

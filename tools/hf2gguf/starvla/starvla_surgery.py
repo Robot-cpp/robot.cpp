@@ -23,7 +23,7 @@ from starvla_checkpoint import (
     inventory_summary,
     load_catalog,
     load_checkpoint_state,
-    official_bundle_uuid,
+    bundle_uuid,
     resolve_effective_config,
     sha256_file,
     staged_qwen_asset_hashes,
@@ -194,21 +194,17 @@ def _run_surgery_in_owned_directory(
     variant_name: str,
     catalog_path: Path,
     max_shard_size: int,
-    *,
-    verify_hash: bool,
-    enforce_expected: bool,
 ) -> dict[str, Any]:
     catalog = load_catalog(catalog_path)
     variant = get_variant(catalog, variant_name)
     if variant.get("checkpoint") is None:
-        raise StarVLAError(f"variant {variant_name!r} has no official policy checkpoint to split")
-    if verify_hash:
-        verify_checkpoint_file(checkpoint, variant)
+        raise StarVLAError(f"variant {variant_name!r} has no policy checkpoint to split")
+    verify_checkpoint_file(checkpoint, variant)
     if output_dir.exists() and any(output_dir.iterdir()):
         raise StarVLAError(f"output directory is not empty: {output_dir}")
 
     state_dict = load_checkpoint_state(checkpoint)
-    records = build_inventory(state_dict, variant, enforce_expected=enforce_expected)
+    records = build_inventory(state_dict, variant, enforce_expected=True)
     vlm_records = [record for record in records if record.component == "vlm"]
     policy_records = [record for record in records if record.component == "policy"]
     if len(vlm_records) + len(policy_records) != len(records):
@@ -255,21 +251,20 @@ def _run_surgery_in_owned_directory(
         max_shard_size,
     )
 
-    checkpoint_sha256 = sha256_file(checkpoint) if not verify_hash else str(variant["checkpoint"]["sha256"])
-    bundle_uuid = official_bundle_uuid(variant, catalog)
+    source_uuid = bundle_uuid(variant, catalog)
     manifest = {
         "schema_version": 1,
         "variant": variant_name,
         "framework": variant["framework"],
         "backbone": variant["backbone"],
         "model_type": variant["model_type"],
-        "bundle_uuid": bundle_uuid,
+        "bundle_uuid": source_uuid,
         "source": {
             "repo_id": variant["repo_id"],
             "revision": variant["revision"],
             "checkpoint": str(checkpoint),
             "checkpoint_size": checkpoint.stat().st_size,
-            "checkpoint_sha256": checkpoint_sha256,
+            "checkpoint_sha256": variant["checkpoint"]["sha256"],
             "starvla_revision": catalog["source_revisions"]["starvla"],
             "llama_cpp_revision": catalog["source_revisions"]["llama_cpp"],
             "qwen_repo_id": qwen_asset_entry["repo_id"],
@@ -296,9 +291,6 @@ def run_surgery(
     variant_name: str,
     catalog_path: Path,
     max_shard_size: int,
-    *,
-    verify_hash: bool,
-    enforce_expected: bool,
 ) -> dict[str, Any]:
     """Own the staging directory so a failed split cannot poison a retry."""
     output_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -316,8 +308,6 @@ def run_surgery(
             variant_name=variant_name,
             catalog_path=catalog_path,
             max_shard_size=max_shard_size,
-            verify_hash=verify_hash,
-            enforce_expected=enforce_expected,
         )
     except BaseException:
         shutil.rmtree(output_dir, ignore_errors=True)
@@ -337,8 +327,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--max-shard-size", type=parse_size, default=parse_size("2G"))
-    parser.add_argument("--skip-hash-check", action="store_true")
-    parser.add_argument("--allow-nonofficial-inventory", action="store_true")
     return parser.parse_args()
 
 
@@ -353,8 +341,6 @@ def main() -> int:
             variant_name=args.variant,
             catalog_path=args.catalog,
             max_shard_size=args.max_shard_size,
-            verify_hash=not args.skip_hash_check,
-            enforce_expected=not args.allow_nonofficial_inventory,
         )
         print(json.dumps(manifest["inventory"], indent=2, sort_keys=True))
         print(f"surgery manifest: {args.output_dir / 'surgery_manifest.json'}")

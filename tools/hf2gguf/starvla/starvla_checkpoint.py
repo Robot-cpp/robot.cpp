@@ -257,6 +257,60 @@ def get_variant(catalog: Mapping[str, Any], variant: str) -> dict[str, Any]:
     return entry
 
 
+def local_checkpoint_catalog(
+    catalog: Mapping[str, Any],
+    variant_name: str,
+    checkpoint: Path,
+    source_dir: Path,
+    default_unnorm_key: str | None = None,
+) -> dict[str, Any]:
+    """Bind a training checkpoint and its run metadata to a catalog variant."""
+    if not checkpoint.is_file():
+        raise StarVLAError(f"checkpoint does not exist: {checkpoint}")
+    required_assets = ("config.yaml", "dataset_statistics.json")
+    for name in required_assets:
+        if not (source_dir / name).is_file():
+            raise StarVLAError(f"training run is missing {name}: {source_dir / name}")
+    try:
+        stats = json.loads((source_dir / "dataset_statistics.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise StarVLAError(f"failed to load training dataset statistics: {exc}") from exc
+    if not isinstance(stats, dict) or not stats:
+        raise StarVLAError("training dataset_statistics.json must contain at least one profile")
+
+    result = deepcopy(catalog)
+    variant = get_variant(result, variant_name)
+    selected_key = default_unnorm_key or str(variant["default_unnorm_key"])
+    if selected_key not in stats:
+        if default_unnorm_key is None and len(stats) == 1:
+            selected_key = next(iter(stats))
+        else:
+            raise StarVLAError(
+                f"normalization profile {selected_key!r} is not present; "
+                f"choose one of {sorted(stats)}"
+            )
+
+    local_entry = result["variants"][variant_name]
+    checkpoint_sha256 = sha256_file(checkpoint)
+    local_entry["repo_id"] = "local"
+    local_entry["revision"] = checkpoint_sha256[:40]
+    local_entry["checkpoint"] = {
+        "path": checkpoint.name,
+        "size": checkpoint.stat().st_size,
+        "sha256": checkpoint_sha256,
+    }
+    local_entry["files"] = list(required_assets)
+    local_entry["file_hashes"] = {
+        name: {
+            "size": (source_dir / name).stat().st_size,
+            "sha256": sha256_file(source_dir / name),
+        }
+        for name in required_assets
+    }
+    local_entry["default_unnorm_key"] = selected_key
+    return result
+
+
 def portable_source_record(
     source: Mapping[str, Any], variant_entry: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -306,7 +360,7 @@ def sha256_file(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
 def verify_checkpoint_file(path: Path, variant_entry: Mapping[str, Any]) -> None:
     checkpoint = variant_entry.get("checkpoint")
     if checkpoint is None:
-        raise StarVLAError(f"variant {variant_entry.get('framework')!r} has no official policy checkpoint")
+        raise StarVLAError(f"variant {variant_entry.get('framework')!r} has no policy checkpoint")
     if not path.is_file():
         raise StarVLAError(f"checkpoint does not exist: {path}")
     expected_size = int(checkpoint["size"])
@@ -414,7 +468,7 @@ def validate_qwen_vlm_destination_names(
         )
 
 
-def official_bundle_uuid(variant_entry: Mapping[str, Any], catalog: Mapping[str, Any]) -> str:
+def bundle_uuid(variant_entry: Mapping[str, Any], catalog: Mapping[str, Any]) -> str:
     """Derive the bundle identity from every source that can change runtime semantics."""
     qwen_asset_name, qwen_entry = get_qwen_asset(catalog, variant_entry)
     qwen_hashes = staged_qwen_asset_hashes(qwen_entry)
@@ -454,22 +508,10 @@ def official_bundle_uuid(variant_entry: Mapping[str, Any], catalog: Mapping[str,
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"robotcpp:starvla-bundle:{canonical}"))
 
 
-def _flatten_config(value: Any, prefix: str = "") -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {prefix: value}
-    flattened: dict[str, Any] = {}
-    for key, child in value.items():
-        path = f"{prefix}.{key}" if prefix else str(key)
-        flattened.update(_flatten_config(child, path))
-    return flattened
-
-
 def _set_effective_value(
     effective: dict[str, Any],
     path: str,
     value: Any,
-    authority: str,
-    overrides: dict[str, dict[str, Any]],
 ) -> None:
     owner: dict[str, Any] = effective
     parts = path.split(".")
@@ -481,10 +523,7 @@ def _set_effective_value(
         if not isinstance(child, dict):
             raise StarVLAError(f"effective config path is not an object: {path}")
         owner = child
-    previous = owner.get(parts[-1])
     owner[parts[-1]] = value
-    if previous != value:
-        overrides[path] = {"source": previous, "effective": value, "authority": authority}
 
 
 def resolve_effective_config(
@@ -522,109 +561,24 @@ def resolve_effective_config(
     if not isinstance(canonical, dict):
         raise StarVLAError(f"expected an object in canonical StarVLA config {yaml_path}")
 
-    candidate_conflicts: dict[str, dict[str, Any]] = {}
-    json_path = source_dir / "config.json"
-    if json_path.is_file():
-        try:
-            json_config = json.loads(json_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise StarVLAError(f"failed to load StarVLA config mirror {json_path}: {exc}") from exc
-        canonical_flat = _flatten_config(canonical)
-        json_flat = _flatten_config(json_config)
-        if set(json_flat) != set(canonical_flat):
-            raise StarVLAError(f"config.json and canonical config.yaml have different keys in {source_dir}")
-        conflicts = {
-            path: {"config.yaml": canonical_flat[path], "config.json": json_flat[path]}
-            for path in canonical_flat
-            if canonical_flat[path] != json_flat[path]
-        }
-        allowed = {"framework.qwenvl.base_vlm"} if framework_name == "groot" else set()
-        unexpected = set(conflicts) - allowed
-        if unexpected:
-            raise StarVLAError(
-                f"config.json and canonical config.yaml disagree at unsupported paths in {source_dir}: "
-                f"{sorted(unexpected)}"
-            )
-        candidate_conflicts.update(conflicts)
-    elif backbone == "qwen3_vl" and framework_name in {"oft", "groot"}:
-        raise StarVLAError(f"missing StarVLA config mirror: {json_path}")
-
-    if framework_name == "pi_v3":
-        full_path = source_dir / "config.full.yaml"
-        if not full_path.is_file():
-            raise StarVLAError(f"missing PI_v3 full config candidate: {full_path}")
-        try:
-            full_config = yaml.safe_load(full_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as exc:
-            raise StarVLAError(f"failed to load PI_v3 full config {full_path}: {exc}") from exc
-        if not isinstance(full_config, dict):
-            raise StarVLAError(f"expected an object in PI_v3 full config {full_path}")
-        canonical_flat = _flatten_config(canonical)
-        full_flat = _flatten_config(full_config)
-        conflicts = {
-            path: {"config.yaml": canonical_flat[path], "config.full.yaml": full_flat[path]}
-            for path in set(canonical_flat) & set(full_flat)
-            if canonical_flat[path] != full_flat[path]
-        }
-        allowed = {"framework.action_model.diffusion_model_cfg.interleave_self_attention"}
-        unexpected = set(conflicts) - allowed
-        if unexpected:
-            raise StarVLAError(
-                f"PI_v3 config.full.yaml disagrees with canonical config.yaml at unsupported paths: "
-                f"{sorted(unexpected)}"
-            )
-        candidate_conflicts.update(conflicts)
-
     effective = deepcopy(canonical)
-    overrides: dict[str, dict[str, Any]] = {}
     qwen_hidden_dim = 2048 if backbone == "qwen2_5_vl" else 2560
     if framework_name == "oft":
-        _set_effective_value(
-            effective,
-            "framework.qwenvl.vl_hidden_dim",
-            qwen_hidden_dim,
-            "checkpoint_tensor_shape",
-            overrides,
-        )
-        _set_effective_value(
-            effective,
-            "framework.action_model.action_hidden_dim",
-            qwen_hidden_dim,
-            "checkpoint_tensor_shape",
-            overrides,
-        )
-        _set_effective_value(
-            effective,
-            "framework.action_model.action_model_type",
-            "MLP",
-            "pinned_starvla_qwenoft_factory_and_checkpoint_topology",
-            overrides,
+        values = (
+            ("framework.qwenvl.vl_hidden_dim", qwen_hidden_dim),
+            ("framework.action_model.action_hidden_dim", qwen_hidden_dim),
+            ("framework.action_model.action_model_type", "MLP"),
         )
     elif framework_name == "groot":
-        _set_effective_value(
-            effective,
-            "framework.qwenvl.vl_hidden_dim",
-            qwen_hidden_dim,
-            "checkpoint_tensor_shape",
-            overrides,
-        )
-        _set_effective_value(
-            effective,
-            "framework.action_model.diffusion_model_cfg.cross_attention_dim",
-            qwen_hidden_dim,
-            "pinned_starvla_qwengroot_runtime_and_checkpoint_tensor_shape",
-            overrides,
-        )
-        for path, value in (
+        values = (
+            ("framework.qwenvl.vl_hidden_dim", qwen_hidden_dim),
+            ("framework.action_model.diffusion_model_cfg.cross_attention_dim", qwen_hidden_dim),
             ("framework.action_model.diffusion_model_cfg.input_embedding_dim", 768),
             ("framework.action_model.diffusion_model_cfg.attention_head_dim", 64),
             ("framework.action_model.diffusion_model_cfg.num_attention_heads", 12),
-        ):
-            _set_effective_value(
-                effective, path, value, "pinned_starvla_dit_b_definition", overrides
-            )
+        )
     elif framework_name == "pi_v3":
-        for path, value in (
+        values = (
             ("framework.qwenvl.vl_hidden_dim", 2560),
             ("framework.qwenvl.num_vl_layers", 36),
             ("framework.action_model.action_model_type", "LayerwiseFM"),
@@ -636,16 +590,9 @@ def resolve_effective_config(
             ("framework.action_model.diffusion_model_cfg.num_layers", 36),
             ("framework.action_model.diffusion_model_cfg.interleave_self_attention", False),
             ("framework.action_model.diffusion_model_cfg.use_canonical_forward", True),
-        ):
-            _set_effective_value(
-                effective,
-                path,
-                value,
-                "pinned_starvla_qwenpi_v3_runtime_and_released_checkpoint_config",
-                overrides,
-            )
+        )
     elif framework_name == "pi":
-        for path, value in (
+        values = (
             ("framework.qwenvl.vl_hidden_dim", qwen_hidden_dim),
             ("framework.action_model.hidden_size", qwen_hidden_dim),
             (
@@ -662,38 +609,18 @@ def resolve_effective_config(
                 qwen_hidden_dim // 64,
             ),
             ("framework.action_model.diffusion_model_cfg.use_canonical_forward", False),
-        ):
-            _set_effective_value(
-                effective,
-                path,
-                value,
-                "pinned_starvla_qwenpi_runtime_and_checkpoint_tensor_shape",
-                overrides,
-            )
+        )
     else:
         raise AssertionError(f"unhandled effective-config framework: {framework_name}")
 
-    _set_effective_value(effective, "framework.action_model.action_horizon", 16, "released_checkpoint_contract", overrides)
-    _set_effective_value(effective, "version_id", "0.21", "pinned_starvla_config_compat", overrides)
-
-    inactive_fields = []
-    if framework_name == "oft":
-        inactive_fields = [
-            "framework.action_model.diffusion_model_cfg",
-            "framework.action_model.hidden_size",
-            "framework.action_model.state_dim",
-        ]
-    elif framework_name == "groot":
-        inactive_fields = ["framework.action_model.action_hidden_dim"]
+    for path, value in values:
+        _set_effective_value(effective, path, value)
+    _set_effective_value(effective, "framework.action_model.action_horizon", 16)
     effective["_robotcpp_effective_config"] = {
         "schema_version": 1,
         "variant": variant_name,
         "framework": framework_name,
         "backbone": backbone,
-        "canonical_source": "config.yaml",
-        "candidate_conflicts": candidate_conflicts,
-        "overrides": overrides,
-        "inactive_fields": inactive_fields,
     }
     return effective
 
@@ -705,9 +632,14 @@ def load_checkpoint_state(path: Path) -> dict[str, Any]:
         raise StarVLAError("PyTorch is required to inspect a StarVLA checkpoint") from exc
 
     try:
-        raw = torch.load(path, map_location="cpu", mmap=True, weights_only=True)
+        if path.suffix == ".safetensors":
+            from safetensors.torch import load_file
+
+            raw = load_file(path, device="cpu")
+        else:
+            raw = torch.load(path, map_location="cpu", mmap=True, weights_only=True)
     except Exception as exc:
-        raise StarVLAError(f"failed to load checkpoint {path} with weights_only=True: {exc}") from exc
+        raise StarVLAError(f"failed to load checkpoint {path}: {exc}") from exc
 
     if isinstance(raw, Mapping) and raw and all(isinstance(key, str) and torch.is_tensor(value) for key, value in raw.items()):
         return dict(raw)
@@ -865,15 +797,15 @@ def validate_expected_inventory(records: list[TensorRecord], variant_entry: Mapp
         raise StarVLAError("checkpoint required-shape mismatch: " + "; ".join(shape_mismatches))
 
 
-def validate_official_surgery_manifest(
+def validate_surgery_manifest(
     manifest: Mapping[str, Any],
     variant_entry: Mapping[str, Any],
     catalog: Mapping[str, Any],
 ) -> None:
-    """Require a surgery manifest to describe the pinned official checkpoint exactly."""
+    """Validate a surgery manifest against its catalog entry."""
     checkpoint = variant_entry.get("checkpoint")
     if checkpoint is None:
-        raise StarVLAError(f"variant {variant_entry.get('framework')!r} has no official checkpoint")
+        raise StarVLAError(f"variant {variant_entry.get('framework')!r} has no checkpoint")
 
     expected_top_level = {
         "schema_version": 1,
@@ -910,7 +842,7 @@ def validate_official_surgery_manifest(
             if inventory.get(key) != expected:
                 mismatches.append(f"inventory.{key}: expected {expected!r}, got {inventory.get(key)!r}")
 
-    expected_uuid = official_bundle_uuid(variant_entry, catalog)
+    expected_uuid = bundle_uuid(variant_entry, catalog)
     if manifest.get("bundle_uuid") != expected_uuid:
         mismatches.append(f"bundle_uuid: expected {expected_uuid!r}, got {manifest.get('bundle_uuid')!r}")
 
@@ -963,7 +895,7 @@ def validate_official_surgery_manifest(
     ):
         mismatches.append("effective_config: invalid path/size/SHA256 record")
     if mismatches:
-        raise StarVLAError("non-official or inconsistent surgery manifest: " + "; ".join(mismatches))
+        raise StarVLAError("surgery manifest does not match the catalog: " + "; ".join(mismatches))
 
 
 def verify_staged_assets(root: Path, assets: Mapping[str, Any], *, component: str) -> None:
@@ -1049,7 +981,7 @@ def _verify_staged_component(
     expected_names = {record.destination_name for record in records}
     if set(weight_map) != expected_names:
         raise StarVLAError(
-            f"staged {component} tensor set does not match the official checkpoint: "
+            f"staged {component} tensor set does not match the checkpoint: "
             f"expected {len(expected_names)}, got {len(weight_map)}"
         )
 
@@ -1079,7 +1011,7 @@ def _verify_staged_component(
                     )
                 if not torch.equal(staged, original):
                     raise StarVLAError(
-                        f"staged tensor content does not match the official checkpoint: {record.destination_name}"
+                        f"staged tensor content does not match the checkpoint: {record.destination_name}"
                     )
                 del staged
 
@@ -1103,7 +1035,7 @@ def verify_staged_components_against_checkpoint(
     manifest_records = manifest.get("tensors")
     expected_manifest = [record.to_json() for record in source_records]
     if manifest_records != expected_manifest:
-        raise StarVLAError("surgery tensor inventory does not match the verified official checkpoint")
+        raise StarVLAError("surgery tensor inventory does not match the verified checkpoint")
     for component, (root, output) in components.items():
         _verify_staged_component(
             root,

@@ -11,8 +11,10 @@ load_starvla_variant() {
     local config_python="${STARVLA_CONFIG_PYTHON:-python3}"
     local assignments
     assignments="$("${config_python}" - "${_STARVLA_CONFIG_DIR}" "$1" <<'PY'
+import os
 import shlex
 import sys
+from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
 from starvla_checkpoint import (  # noqa: E402
@@ -24,7 +26,8 @@ from starvla_checkpoint import (  # noqa: E402
 )
 
 try:
-    catalog = load_catalog()
+    catalog_path = Path(os.environ["STARVLA_CATALOG"]) if "STARVLA_CATALOG" in os.environ else None
+    catalog = load_catalog(catalog_path) if catalog_path is not None else load_catalog()
     variant = get_variant(catalog, sys.argv[2])
     _, qwen = get_qwen_asset(catalog, variant)
 except StarVLAError as exc:

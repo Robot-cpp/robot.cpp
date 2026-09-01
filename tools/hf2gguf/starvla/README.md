@@ -27,9 +27,8 @@ being combined.
 Qwen3 FAST is not listed because StarVLA has not published a fine-tuned Qwen3
 FAST policy checkpoint.
 
-[`checkpoint_catalog.json`](checkpoint_catalog.json) is the source of truth for
-the supported variants, source revisions, download hashes, conversion paths,
-and normalization profiles.
+[`checkpoint_catalog.json`](checkpoint_catalog.json) defines the supported
+topologies and pins the official release files and shared Qwen assets.
 
 ## Environment
 
@@ -41,7 +40,7 @@ conda activate starvla_gguf_converter
 The scripts use `.venv/bin/python` by default. Set `PYTHON=python` to use the
 active conda environment.
 
-## Convert
+## Convert an official release
 
 Convert one of the variants from the table above:
 
@@ -49,7 +48,7 @@ Convert one of the variants from the table above:
 tools/hf2gguf/starvla/convert.sh oft
 ```
 
-The command downloads and verifies the catalog-pinned checkpoint, prepares a
+This downloads and verifies the catalog checkpoint, prepares a
 clean llama.cpp worktree at the pinned revision, converts all components, and
 validates the resulting bundle. It refuses to overwrite an existing output
 directory. Pass a second argument to select another output directory:
@@ -57,6 +56,46 @@ directory. Pass a second argument to select another output directory:
 ```bash
 tools/hf2gguf/starvla/convert.sh qwen25_fast /path/to/output
 ```
+
+## Convert a training checkpoint
+
+Current StarVLA training runs contain the files needed by the converter:
+
+```text
+<run-dir>/
+  config.yaml
+  dataset_statistics.json
+  checkpoints/steps_<N>_pytorch_model.pt
+  # or checkpoints/steps_<N>_model.safetensors
+```
+
+Pass the checkpoint and the matching topology from the model table:
+
+```bash
+tools/hf2gguf/starvla/convert.sh oft /path/to/output \
+  --checkpoint /path/to/run/checkpoints/steps_5000_model.safetensors
+```
+
+The run directory is inferred from checkpoints under `checkpoints/` or
+`final_model/`. Use `--source-dir /path/to/run` when the files use another
+layout. If `dataset_statistics.json` has several profiles and does not contain
+the catalog default, select one with `--unnorm-key`:
+
+```bash
+tools/hf2gguf/starvla/convert.sh groot /path/to/output \
+  --checkpoint /path/to/run/final_model/pytorch_model.pt \
+  --unnorm-key bridge_dataset
+```
+
+Supported training exports are flat PyTorch state dictionaries (`.pt`) and
+flat safetensors files (`.safetensors`) written by `train_starvla.py`, including
+periodic and final checkpoints. The converter does not consume optimizer
+state, distributed checkpoint shards, or a checkpoint whose architecture no
+longer matches the selected variant. `config.json` and `config.full.yaml` are
+not required.
+
+The converter hashes the local checkpoint and run metadata, so its bundle UUID
+and manifest differ from the official release even when the weights are equal.
 
 A successful conversion writes exactly four files:
 
@@ -133,49 +172,6 @@ CUDA_VISIBLE_DEVICES=0 build_cuda/bin/model-server \
 ```
 
 The policy GGUF records its default action normalization profile.
-
-## Benchmark
-
-The PyTorch benchmark uses the catalog-pinned official StarVLA source:
-
-```bash
-git clone https://github.com/starVLA/starVLA.git ckpts/starvla/source/starvla
-STARVLA_REV=$(python -c \
-  'import json; print(json.load(open("tools/hf2gguf/starvla/checkpoint_catalog.json"))["source_revisions"]["starvla"])')
-git -C ckpts/starvla/source/starvla checkout "$STARVLA_REV"
-```
-
-Benchmark the official PyTorch checkpoint with 5 warmup calls and 20 measured
-calls. Add `--compile-model` to test `torch.compile`:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python -m eval.simpler_env.runners.latency_starvla \
-  --variant oft
-```
-
-Use the common server latency entry point for the GGUF runtime. It selects the
-three files from the bundle directory and runs 5 warmup requests followed by
-100 measurements:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 N_BATCH=2048 NOISE_SEED=0 SKIP_BUILD=1 \
-ROBOT_CPP_ROOT="$PWD" BUILD_DIR="$PWD/build_cuda" \
-GGUF_DIR="$PWD/ckpts/starvla/gguf/oft" \
-bash robot_server/test/test_server_latency.sh starvla linux-cuda starvla-bridge
-```
-
-## Run Bridge rollouts
-
-The SimplerEnv runner reports success rates from local GGUF inference:
-
-```bash
-VARIANT=oft \
-OUTPUT=ckpts/starvla/results/oft/bridge.json \
-bash eval/simpler_env/scripts/run_model_server.sh
-```
-
-See [`eval/simpler_env/README.md`](../../../eval/simpler_env/README.md) for setup
-and output details.
 
 ## Tests
 

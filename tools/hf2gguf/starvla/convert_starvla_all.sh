@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PYTHON="${PYTHON:-${ROOT_DIR}/.venv/bin/python}"
+CATALOG="${STARVLA_CATALOG:-${ROOT_DIR}/tools/hf2gguf/starvla/checkpoint_catalog.json}"
 LLAMA_ROOT="${LLAMA_ROOT:?set LLAMA_ROOT to an absolute clean checkout of the catalog-pinned llama.cpp revision}"
 source "${ROOT_DIR}/tools/hf2gguf/starvla/starvla_variant_config.sh"
 VARIANT="${VARIANT:?set VARIANT to oft, groot, pi_v3, qwen25_oft, qwen25_groot, or qwen25_pi}"
@@ -88,15 +89,10 @@ publish_file() {
     rm -f -- "${source}"
 }
 
-"${PYTHON}" "${ROOT_DIR}/tools/hf2gguf/starvla/inspect_starvla_checkpoint.py" \
-    "${CHECKPOINT}" \
-    --variant "${VARIANT}" \
-    --source-dir "${SOURCE_DIR}" \
-    --output "${WORK_DIR}/inspection.json"
-
 "${PYTHON}" "${ROOT_DIR}/tools/hf2gguf/starvla/starvla_surgery.py" \
     "${CHECKPOINT}" \
     --variant "${VARIANT}" \
+    --catalog "${CATALOG}" \
     --source-dir "${SOURCE_DIR}" \
     --base-assets "${BASE_ASSETS}" \
     --output-dir "${WORK_DIR}/staging" \
@@ -105,6 +101,7 @@ publish_file() {
 "${PYTHON}" "${ROOT_DIR}/tools/hf2gguf/starvla/convert_starvla_qwen_to_gguf.py" \
     --hf-dir "${WORK_DIR}/staging/hf" \
     --surgery-manifest "${WORK_DIR}/staging/surgery_manifest.json" \
+    --catalog "${CATALOG}" \
     --output-dir "${RUN_OUTPUT_DIR}" \
     --llama-root "${LLAMA_ROOT}" \
     --text-filename "${TEXT_FILENAME}" \
@@ -117,6 +114,7 @@ publish_file() {
     --policy-dir "${WORK_DIR}/staging/policy" \
     --hf-dir "${WORK_DIR}/staging/hf" \
     --surgery-manifest "${WORK_DIR}/staging/surgery_manifest.json" \
+    --catalog "${CATALOG}" \
     --output "${RUN_OUTPUT_DIR}/${POLICY_FILENAME}" \
     --dtype "${POLICY_DTYPE}" \
     --text-filename "${TEXT_FILENAME}" \
@@ -130,6 +128,7 @@ publish_file() {
     --hf-dir "${WORK_DIR}/staging/hf" \
     --policy-dir "${WORK_DIR}/staging/policy" \
     --surgery-manifest "${WORK_DIR}/staging/surgery_manifest.json" \
+    --catalog "${CATALOG}" \
     --text-dtype "${TEXT_DTYPE}" \
     --mmproj-dtype "${MMPROJ_DTYPE}" \
     --policy-dtype "${POLICY_DTYPE}" \

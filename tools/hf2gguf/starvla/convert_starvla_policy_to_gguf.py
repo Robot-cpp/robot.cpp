@@ -26,9 +26,8 @@ from starvla_checkpoint import (
     load_catalog,
     resolve_effective_config,
     sha256_file,
-    validate_official_surgery_manifest,
+    validate_surgery_manifest,
     verify_staged_assets,
-    verify_staged_tensors_against_checkpoint,
 )
 
 
@@ -161,7 +160,7 @@ GROOT_QWEN3_POLICY_NUMEL = 161_472_775
 GROOT_QWEN25_POLICY_NUMEL = 155_181_319
 GROOT_DIT_NORM_EPS = 1e-5
 GROOT_OUTPUT_NORM_EPS = 1e-6
-GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE = {
+GROOT_SUPPORTED_DIMENSIONS_BY_BACKBONE = {
     backbone: {
         "qwen_hidden_dim": qwen_hidden_dim,
         "dit_width": 768,
@@ -194,7 +193,7 @@ PI_UNUSED_SOURCE_TENSORS = {
 PI_POLICY_TENSOR_COUNT = 244
 PI_POLICY_NUMEL = 967_796_743
 PI_DIT_NORM_EPS = 1e-5
-PI_OFFICIAL_DIMENSIONS = {
+PI_SUPPORTED_DIMENSIONS = {
     "qwen_hidden_dim": 2048,
     "dit_width": 2048,
     "timestep_dim": 256,
@@ -215,7 +214,7 @@ PI_V3_TENSOR_MAP = build_pi_v3_tensor_map(PI_V3_BLOCK_COUNT, PI_V3_PROJECTOR_COU
 PI_V3_POLICY_TENSOR_COUNT = len(PI_V3_TENSOR_MAP)
 PI_V3_DIT_NORM_EPS = 1e-5
 PI_V3_PROJECTOR_NORM_EPS = 1e-5
-PI_V3_OFFICIAL_DIMENSIONS = {
+PI_V3_SUPPORTED_DIMENSIONS = {
     "qwen_hidden_dim": 2560,
     "dit_width": 1024,
     "timestep_dim": 256,
@@ -448,7 +447,7 @@ def validate_oft_tensors(tensors: dict[str, Any]) -> dict[str, int]:
 
 
 def validate_groot_tensors(tensors: dict[str, Any]) -> dict[str, int]:
-    """Validate every released GR00T policy tensor and infer its architecture."""
+    """Validate GR00T policy tensors and infer their dimensions."""
     actual = set(tensors)
     expected = set(GROOT_TENSOR_MAP)
     if not expected.issubset(actual) or actual - expected != GROOT_UNUSED_SOURCE_TENSORS:
@@ -613,7 +612,7 @@ def validate_pi_tensors(tensors: dict[str, Any]) -> dict[str, int]:
 
 
 def validate_pi_v3_tensors(tensors: dict[str, Any]) -> dict[str, int]:
-    """Validate every released PI_v3 policy tensor and infer its architecture."""
+    """Validate PI_v3 policy tensors and infer their dimensions."""
     actual = set(tensors)
     expected = set(PI_V3_TENSOR_MAP)
     missing = sorted(expected - actual)
@@ -871,9 +870,9 @@ def build_oft_metadata(
     vla_config = datasets.get("vla_data", {})
     action_horizon = int(action_config.get("action_horizon", int(action_config.get("future_action_window_size", 15)) + 1))
     if action_horizon != 16:
-        raise StarVLAError(f"unexpected official OFT action horizon: {action_horizon}")
+        raise StarVLAError(f"unsupported OFT action horizon: {action_horizon}")
     if dimensions["action_dim"] != 7:
-        raise StarVLAError(f"unexpected official OFT action dimension: {dimensions['action_dim']}")
+        raise StarVLAError(f"unsupported OFT action dimension: {dimensions['action_dim']}")
     expected_dimensions = {
         "qwen3_vl": (2560, 5120),
         "qwen2_5_vl": (2048, 4096),
@@ -884,14 +883,14 @@ def build_oft_metadata(
         dimensions["input_dim"],
         dimensions["hidden_dim"],
     ) != expected_dimensions:
-        raise StarVLAError(f"unexpected official OFT MLP dimensions: {dimensions}")
+        raise StarVLAError(f"unsupported OFT MLP dimensions: {dimensions}")
 
     action_tokens = OFT_ACTION_TOKEN * action_horizon
     action_suffix = f" Please predict the next {action_horizon} robot actions: <action>{action_tokens}<action>."
     image_size = vla_config.get("image_size", [224, 224])
     image_names = vla_config.get("obs", ["image_0"])
-    if image_size != [224, 224] or image_names != ["image_0"]:
-        raise StarVLAError(f"unexpected official OFT image contract: image_size={image_size}, obs={image_names}")
+    if image_size != [224, 224] or not isinstance(image_names, list):
+        raise StarVLAError(f"unsupported OFT image config: image_size={image_size}, obs={image_names}")
 
     qwen = (
         _validate_pinned_qwen3vl_contract(hf_dir)
@@ -960,13 +959,6 @@ def build_oft_metadata(
             )
         ))
     stats = _load_json(policy_dir / "dataset_statistics.json")
-    expected_profiles = (
-        {"oxe_bridge", "oxe_rt1"}
-        if backbone == "qwen3_vl"
-        else {"bridge_dataset", "fractal20220817_data"}
-    )
-    if set(stats) != expected_profiles:
-        raise StarVLAError(f"unexpected official OFT normalization profiles: {sorted(stats)}")
     metadata.update(
         normalization_metadata(
             stats, dimensions["action_dim"], variant["default_unnorm_key"]
@@ -1151,18 +1143,16 @@ def _validate_pinned_qwenvl_contract(
     raise StarVLAError(f"unsupported StarVLA Qwen backbone: {backbone!r}")
 
 
-def _require_released_obs_pre_resize_disabled(
+def _validate_image_config(
     vla_config: dict[str, Any],
     variant_label: str,
     config_label: str,
 ) -> None:
     if not isinstance(vla_config, dict):
-        raise StarVLAError(f"official {variant_label} {config_label} vla_data must be an object")
+        raise StarVLAError(f"{variant_label} {config_label} vla_data must be an object")
     if "obs_image_size" in vla_config:
         raise StarVLAError(
-            f"official {variant_label} {config_label} unexpectedly defines "
-            "datasets.vla_data.obs_image_size; released predict_action must leave its "
-            "optional pre-resize branch disabled"
+            f"{variant_label} does not support datasets.vla_data.obs_image_size"
         )
 
 
@@ -1174,10 +1164,10 @@ def build_qwen3vl_image_metadata(
     variant_label: str,
     config_label: str = "effective config",
 ) -> dict[str, Any]:
-    """Build the released dynamic Qwen3-VL image preprocessing contract."""
-    _require_released_obs_pre_resize_disabled(vla_config, variant_label, config_label)
-    if image_names != ["image_0"]:
-        raise StarVLAError(f"unexpected official {variant_label} image names: {image_names!r}")
+    """Build the Qwen3-VL image preprocessing contract."""
+    _validate_image_config(vla_config, variant_label, config_label)
+    if not image_names or any(not isinstance(name, str) or not name for name in image_names):
+        raise StarVLAError(f"{variant_label} image names must be non-empty strings")
 
     processor_size = qwen.get("processor_size")
     actual = {
@@ -1217,10 +1207,13 @@ def build_qwen3vl_image_metadata(
         or QWEN3VL_PROCESSOR_MAX_PIXELS % token_area
     ):
         raise StarVLAError("internal Qwen3-VL smart-resize image-token bounds drift")
-    return {
+    metadata = {
         key: list(value) if isinstance(value, list) else value
         for key, value in QWEN3VL_DYNAMIC_IMAGE_METADATA.items()
     }
+    metadata["starvla.image.count"] = len(image_names)
+    metadata["starvla.image.names"] = list(image_names)
+    return metadata
 
 
 def build_qwen25vl_image_metadata(
@@ -1232,13 +1225,11 @@ def build_qwen25vl_image_metadata(
     config_label: str = "effective config",
 ) -> dict[str, Any]:
     """Build the Transformers 4.57 fast Qwen2.5-VL image contract."""
-    _require_released_obs_pre_resize_disabled(
+    _validate_image_config(
         vla_config, variant_label, config_label
     )
-    if image_names != ["image_0"]:
-        raise StarVLAError(
-            f"unexpected official {variant_label} image names: {image_names!r}"
-        )
+    if not image_names or any(not isinstance(name, str) or not name for name in image_names):
+        raise StarVLAError(f"{variant_label} image names must be non-empty strings")
     expected = {
         "processor_min_pixels": QWEN25VL_PROCESSOR_MIN_PIXELS,
         "processor_max_pixels": QWEN25VL_PROCESSOR_MAX_PIXELS,
@@ -1272,7 +1263,7 @@ def build_qwen25vl_image_metadata(
             "internal Qwen2.5-VL smart-resize image-token bounds drift"
         )
     return {
-        "starvla.image.count": 1,
+        "starvla.image.count": len(image_names),
         "starvla.image.names": list(image_names),
         "starvla.image.preprocessing_mode": "qwen2_5vl_smart_resize",
         "starvla.image.framework_inference_pre_resize": False,
@@ -1324,7 +1315,7 @@ def build_groot_metadata(
     text_filename: str,
     mmproj_filename: str,
 ) -> dict[str, Any]:
-    """Build the executable contract for a released Qwen-VL GR00T head."""
+    """Build the executable contract for a Qwen-VL GR00T head."""
     backbone = str(variant["backbone"])
     config = load_groot_config(policy_dir, surgery_manifest, backbone)
     framework = config.get("framework", {})
@@ -1333,11 +1324,11 @@ def build_groot_metadata(
     vla_config = config.get("datasets", {}).get("vla_data", {})
     qwen = _validate_pinned_qwenvl_contract(hf_dir, backbone)
 
-    expected_dimensions = GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE.get(backbone)
+    expected_dimensions = GROOT_SUPPORTED_DIMENSIONS_BY_BACKBONE.get(backbone)
     if expected_dimensions is None:
         raise StarVLAError(f"unsupported GR00T Qwen backbone: {backbone!r}")
     if dimensions != expected_dimensions:
-        raise StarVLAError(f"unexpected official GR00T tensor dimensions: {dimensions}")
+        raise StarVLAError(f"unsupported GR00T tensor dimensions: {dimensions}")
     if qwen["hidden_size"] != dimensions["qwen_hidden_dim"]:
         raise StarVLAError(
             "GR00T cross-attention dimension does not match the staged Qwen backbone"
@@ -1349,102 +1340,26 @@ def build_groot_metadata(
             int(action_config.get("future_action_window_size", 15)) + 1,
         )
     )
-    expected_action_config = {
-        "action_model_type": action_config.get("action_model_type"),
-        "hidden_size": action_config.get("hidden_size"),
-        "add_pos_embed": action_config.get("add_pos_embed"),
-        "max_seq_len": action_config.get("max_seq_len"),
-        "action_dim": action_config.get("action_dim"),
-        "state_dim": action_config.get("state_dim"),
-        "action_horizon": action_horizon,
-        "past_action_window_size": action_config.get("past_action_window_size"),
-        "repeated_diffusion_steps": action_config.get("repeated_diffusion_steps"),
-        "noise_beta_alpha": action_config.get("noise_beta_alpha"),
-        "noise_beta_beta": action_config.get("noise_beta_beta"),
-        "noise_s": action_config.get("noise_s"),
-        "num_timestep_buckets": action_config.get("num_timestep_buckets"),
-        "num_inference_timesteps": action_config.get("num_inference_timesteps"),
-        "num_target_vision_tokens": action_config.get("num_target_vision_tokens"),
-    }
-    required_action_config = {
-        "action_model_type": "DiT-B",
-        "hidden_size": 1024,
-        "add_pos_embed": True,
-        "max_seq_len": 1024,
-        "action_dim": 7,
-        "state_dim": 7,
-        "action_horizon": 16,
-        "past_action_window_size": 0,
-        "repeated_diffusion_steps": 8,
-        "noise_beta_alpha": 1.5,
-        "noise_beta_beta": 1.0,
-        "noise_s": 0.999,
-        "num_timestep_buckets": 1000,
-        "num_inference_timesteps": 4,
-        "num_target_vision_tokens": 32,
-    }
-    if expected_action_config != required_action_config:
-        raise StarVLAError(f"unexpected official GR00T action config: {expected_action_config}")
-
-    actual_diffusion_config = {
-        "input_embedding_dim": diffusion_config.get("input_embedding_dim"),
-        "attention_head_dim": diffusion_config.get("attention_head_dim"),
-        "num_attention_heads": diffusion_config.get("num_attention_heads"),
-        "cross_attention_dim": diffusion_config.get("cross_attention_dim"),
-        "dropout": diffusion_config.get("dropout"),
-        "final_dropout": diffusion_config.get("final_dropout"),
-        "interleave_self_attention": diffusion_config.get("interleave_self_attention"),
-        "norm_type": diffusion_config.get("norm_type"),
-        "num_layers": diffusion_config.get("num_layers"),
-        "output_dim": diffusion_config.get("output_dim"),
-        "positional_embeddings": diffusion_config.get("positional_embeddings"),
-    }
-    required_diffusion_config = {
-        "input_embedding_dim": 768,
-        "attention_head_dim": 64,
-        "num_attention_heads": 12,
-        "cross_attention_dim": dimensions["qwen_hidden_dim"],
-        "dropout": 0.2,
-        "final_dropout": True,
-        "interleave_self_attention": True,
-        "norm_type": "ada_norm",
-        "num_layers": 16,
-        "output_dim": 1024,
-        "positional_embeddings": None,
-    }
-    if actual_diffusion_config != required_diffusion_config:
-        raise StarVLAError(f"unexpected official GR00T diffusion config: {actual_diffusion_config}")
-
-    framework_identity = (
-        framework.get("name")
-        if backbone == "qwen3_vl"
-        else framework.get("framework_py")
-    )
-    expected_framework_identity = (
-        "QwenGR00T" if backbone == "qwen3_vl" else "QwenFM"
-    )
-    if framework_identity != expected_framework_identity:
-        raise StarVLAError(
-            f"unexpected official GR00T framework identity: {framework_identity!r}"
-        )
-    if vla_config.get("image_size") != [224, 224] or vla_config.get("obs") != ["image_0"]:
-        raise StarVLAError(
-            "unexpected official GR00T image contract: "
-            f"image_size={vla_config.get('image_size')}, obs={vla_config.get('obs')}"
-        )
+    if action_horizon != 16:
+        raise StarVLAError(f"unsupported GR00T action horizon: {action_horizon}")
+    head_count = int(diffusion_config.get("num_attention_heads", 0))
+    head_dim = int(diffusion_config.get("attention_head_dim", 0))
+    if head_count * head_dim != dimensions["dit_width"]:
+        raise StarVLAError("GR00T attention config does not match checkpoint shapes")
+    image_names = vla_config.get("obs", ["image_0"])
+    if vla_config.get("image_size", [224, 224]) != [224, 224] or not isinstance(image_names, list):
+        raise StarVLAError("GR00T requires a 224x224 image configuration")
     if vla_config.get("include_state", False) not in (False, "False"):
-        raise StarVLAError("released GR00T checkpoint unexpectedly enables training state input")
+        raise StarVLAError("GR00T state input is not supported")
 
     cot_template = str(vla_config.get("CoT_prompt", ""))
-    required_cot = (
-        "Your task is {instruction}. To identify the key objects for your task. "
-        "Locate their bounding boxes in [x1,y1,x2,y2] format."
-    )
-    if cot_template != required_cot:
-        raise StarVLAError(f"unexpected official GR00T CoT prompt: {cot_template!r}")
+    if not cot_template:
+        raise StarVLAError("GR00T CoT_prompt must not be empty")
 
     num_steps = int(action_config["num_inference_timesteps"])
     timestep_buckets = int(action_config["num_timestep_buckets"])
+    if num_steps <= 0 or timestep_buckets <= 0:
+        raise StarVLAError("GR00T timestep counts must be positive")
     timestep_ids = [step * timestep_buckets // num_steps for step in range(num_steps)]
     metadata: dict[str, Any] = {
         "general.architecture": "starvla-policy",
@@ -1474,8 +1389,8 @@ def build_groot_metadata(
         "starvla.action.binary_dimensions": [6],
         "starvla.groot.dit_width": dimensions["dit_width"],
         "starvla.groot.block_count": dimensions["block_count"],
-        "starvla.groot.attention_head_count": 12,
-        "starvla.groot.attention_head_dim": 64,
+        "starvla.groot.attention_head_count": head_count,
+        "starvla.groot.attention_head_dim": head_dim,
         "starvla.groot.cross_attention_dim": dimensions["qwen_hidden_dim"],
         "starvla.groot.feed_forward_dim": dimensions["feed_forward_dim"],
         "starvla.groot.ada_norm_epsilon": GROOT_DIT_NORM_EPS,
@@ -1494,7 +1409,7 @@ def build_groot_metadata(
             build_qwen3vl_image_metadata(
                 vla_config,
                 qwen,
-                ["image_0"],
+                image_names,
                 variant_label="GR00T",
             )
         ))
@@ -1503,21 +1418,11 @@ def build_groot_metadata(
             build_qwen25vl_image_metadata(
                 vla_config,
                 qwen,
-                ["image_0"],
+                image_names,
                 variant_label="GR00T",
             )
         ))
     stats = _load_json(policy_dir / "dataset_statistics.json")
-    if set(stats) != {"oxe_bridge", "oxe_rt1"}:
-        raise StarVLAError(f"unexpected official GR00T normalization profiles: {sorted(stats)}")
-    state_dimensions = sorted(
-        {
-            len(profile.get("state", {}).get("q01", []))
-            for profile in stats.values()
-        }
-    )
-    if state_dimensions != [8]:
-        raise StarVLAError(f"unexpected official GR00T state statistics dimensions: {state_dimensions}")
     metadata.update(
         normalization_metadata(
             stats, dimensions["action_dim"], variant["default_unnorm_key"]
@@ -1535,7 +1440,7 @@ def build_pi_metadata(
     text_filename: str,
     mmproj_filename: str,
 ) -> dict[str, Any]:
-    """Build the released Qwen2.5-VL legacy PI executable contract."""
+    """Build the Qwen2.5-VL legacy PI executable contract."""
     if variant.get("framework") != "pi" or variant.get("backbone") != "qwen2_5_vl":
         raise StarVLAError("legacy PI metadata requires the qwen25_pi catalog variant")
     config = load_pi_config(policy_dir, surgery_manifest, str(variant["backbone"]))
@@ -1545,118 +1450,42 @@ def build_pi_metadata(
     vla_config = config.get("datasets", {}).get("vla_data", {})
     qwen = _validate_pinned_qwen25vl_contract(hf_dir)
 
-    if dimensions != PI_OFFICIAL_DIMENSIONS:
-        raise StarVLAError(f"unexpected official legacy PI tensor dimensions: {dimensions}")
+    if dimensions != PI_SUPPORTED_DIMENSIONS:
+        raise StarVLAError(f"unsupported legacy PI tensor dimensions: {dimensions}")
     if qwen["hidden_size"] != dimensions["qwen_hidden_dim"]:
         raise StarVLAError(
             "legacy PI cross-attention dimension does not match the staged Qwen backbone"
         )
 
-    actual_action_config = {
-        "action_model_type": action_config.get("action_model_type"),
-        "hidden_size": action_config.get("hidden_size"),
-        "action_hidden_dim": action_config.get("action_hidden_dim"),
-        "add_pos_embed": action_config.get("add_pos_embed"),
-        "max_seq_len": action_config.get("max_seq_len"),
-        "action_dim": action_config.get("action_dim"),
-        "state_dim": action_config.get("state_dim"),
-        "future_action_window_size": action_config.get("future_action_window_size"),
-        "action_horizon": action_config.get("action_horizon"),
-        "past_action_window_size": action_config.get("past_action_window_size"),
-        "repeated_diffusion_steps": action_config.get("repeated_diffusion_steps"),
-        "noise_beta_alpha": action_config.get("noise_beta_alpha"),
-        "noise_beta_beta": action_config.get("noise_beta_beta"),
-        "noise_s": action_config.get("noise_s"),
-        "num_timestep_buckets": action_config.get("num_timestep_buckets"),
-        "num_inference_timesteps": action_config.get("num_inference_timesteps"),
-        "num_target_vision_tokens": action_config.get("num_target_vision_tokens"),
-    }
-    required_action_config = {
-        "action_model_type": "DiT-Qwen",
-        "hidden_size": 2048,
-        "action_hidden_dim": 2048,
-        "add_pos_embed": True,
-        "max_seq_len": 1024,
-        "action_dim": 7,
-        "state_dim": 7,
-        "future_action_window_size": 15,
-        "action_horizon": 16,
-        "past_action_window_size": 0,
-        "repeated_diffusion_steps": 8,
-        "noise_beta_alpha": 1.5,
-        "noise_beta_beta": 1.0,
-        "noise_s": 0.999,
-        "num_timestep_buckets": 1000,
-        "num_inference_timesteps": 4,
-        "num_target_vision_tokens": 32,
-    }
-    if actual_action_config != required_action_config:
-        raise StarVLAError(
-            f"unexpected official legacy PI action config: {actual_action_config}"
+    action_horizon = int(
+        action_config.get(
+            "action_horizon",
+            int(action_config.get("future_action_window_size", 15)) + 1,
         )
-
-    actual_diffusion_config = {
-        "input_embedding_dim": diffusion_config.get("input_embedding_dim"),
-        "attention_head_dim": diffusion_config.get("attention_head_dim"),
-        "num_attention_heads": diffusion_config.get("num_attention_heads"),
-        "cross_attention_dim": diffusion_config.get("cross_attention_dim"),
-        "dropout": diffusion_config.get("dropout"),
-        "final_dropout": diffusion_config.get("final_dropout"),
-        "interleave_self_attention": diffusion_config.get("interleave_self_attention"),
-        "use_canonical_forward": diffusion_config.get("use_canonical_forward"),
-        "norm_type": diffusion_config.get("norm_type"),
-        "num_layers": diffusion_config.get("num_layers"),
-        "output_dim": diffusion_config.get("output_dim"),
-        "positional_embeddings": diffusion_config.get("positional_embeddings"),
-    }
-    required_diffusion_config = {
-        "input_embedding_dim": 2048,
-        "attention_head_dim": 64,
-        "num_attention_heads": 32,
-        "cross_attention_dim": 2048,
-        "dropout": 0.2,
-        "final_dropout": True,
-        "interleave_self_attention": True,
-        "use_canonical_forward": False,
-        "norm_type": "ada_norm",
-        "num_layers": 16,
-        "output_dim": 1024,
-        "positional_embeddings": None,
-    }
-    if actual_diffusion_config != required_diffusion_config:
-        raise StarVLAError(
-            f"unexpected official legacy PI diffusion config: {actual_diffusion_config}"
-        )
-    if framework.get("name") != "QwenPI":
-        raise StarVLAError(
-            f"unexpected official legacy PI framework name: {framework.get('name')!r}"
-        )
-    qwen_config = framework.get("qwenvl", {})
-    if (
-        qwen_config.get("vl_hidden_dim") != dimensions["qwen_hidden_dim"]
-        or qwen_config.get("attn_implementation") != "flash_attention_2"
-    ):
-        raise StarVLAError(
-            f"unexpected official legacy PI Qwen contract: {qwen_config}"
-        )
-
-    required_cot = (
-        "Your task is {instruction}. To identify the key objects for your task. "
-        "Locate their bounding boxes in [x1,y1,x2,y2] format."
     )
+    if action_horizon != 16:
+        raise StarVLAError(f"unsupported PI action horizon: {action_horizon}")
+    head_count = int(diffusion_config.get("num_attention_heads", 0))
+    head_dim = int(diffusion_config.get("attention_head_dim", 0))
+    if head_count * head_dim != dimensions["dit_width"]:
+        raise StarVLAError("PI attention config does not match checkpoint shapes")
     cot_template = str(vla_config.get("CoT_prompt", ""))
+    image_names = vla_config.get("obs", ["image_0"])
+    image_size = vla_config.get("image_size", [224, 224])
+    if not cot_template:
+        raise StarVLAError("PI CoT_prompt must not be empty")
     if (
-        cot_template != required_cot
-        or vla_config.get("obs") != ["image_0"]
-        or vla_config.get("image_size") != [224, 224]
-        or vla_config.get("default_image_resolution") != [3, 224, 224]
-        or vla_config.get("data_mix") != "bridge_rt_1"
-        or vla_config.get("action_type") != "delta_ee"
+        not isinstance(image_names, list)
+        or not isinstance(image_size, list)
+        or len(image_size) != 2
+        or any(type(value) is not int or value <= 0 for value in image_size)
     ):
-        raise StarVLAError(f"unexpected official legacy PI VLA config: {vla_config}")
+        raise StarVLAError("PI image configuration is invalid")
 
     num_steps = int(action_config["num_inference_timesteps"])
     timestep_buckets = int(action_config["num_timestep_buckets"])
+    if num_steps <= 0 or timestep_buckets <= 0:
+        raise StarVLAError("PI timestep counts must be positive")
     continuous_times = [step / float(num_steps) for step in range(num_steps)]
     timestep_ids = [int(value * timestep_buckets) for value in continuous_times]
     hidden_tuple_indices = list(
@@ -1680,14 +1509,14 @@ def build_pi_metadata(
         "starvla.prompt.cot_template": cot_template,
         "starvla.conditioning.hidden_tuple_indices": hidden_tuple_indices,
         "starvla.action.dimension": dimensions["action_dim"],
-        "starvla.action.horizon": 16,
+        "starvla.action.horizon": action_horizon,
         "starvla.action.continuous_dimensions": [0, 1, 2, 3, 4, 5],
         "starvla.action.binary_dimensions": [6],
         "starvla.state.dimension": dimensions["state_dim"],
         "starvla.pi.dit_width": dimensions["dit_width"],
         "starvla.pi.block_count": dimensions["block_count"],
-        "starvla.pi.attention_head_count": 32,
-        "starvla.pi.attention_head_dim": 64,
+        "starvla.pi.attention_head_count": head_count,
+        "starvla.pi.attention_head_dim": head_dim,
         "starvla.pi.cross_attention_dim": dimensions["qwen_hidden_dim"],
         "starvla.pi.feed_forward_dim": dimensions["feed_forward_dim"],
         "starvla.pi.mlp_hidden_dimension": dimensions["mlp_hidden_dim"],
@@ -1703,7 +1532,7 @@ def build_pi_metadata(
     image_metadata = build_qwen25vl_image_metadata(
         vla_config,
         qwen,
-        ["image_0"],
+        image_names,
         variant_label="legacy PI",
     )
     image_metadata.update(
@@ -1711,8 +1540,8 @@ def build_pi_metadata(
             "starvla.image.framework_inference_pre_resize": True,
             "starvla.image.framework_inference_pre_resize_config_key":
                 "datasets.vla_data.image_size",
-            "starvla.image.framework_inference_pre_resize_width": 224,
-            "starvla.image.framework_inference_pre_resize_height": 224,
+            "starvla.image.framework_inference_pre_resize_width": image_size[1],
+            "starvla.image.framework_inference_pre_resize_height": image_size[0],
         }
     )
     for key in (
@@ -1730,20 +1559,6 @@ def build_pi_metadata(
         metadata[key] = image_metadata[key]
 
     stats = _load_json(policy_dir / "dataset_statistics.json")
-    if set(stats) != {"oxe_bridge", "oxe_rt1"}:
-        raise StarVLAError(
-            f"unexpected official legacy PI normalization profiles: {sorted(stats)}"
-        )
-    state_dimensions = sorted(
-        {
-            len(profile.get("state", {}).get("q01", []))
-            for profile in stats.values()
-        }
-    )
-    if state_dimensions != [8]:
-        raise StarVLAError(
-            f"unexpected official legacy PI state statistics dimensions: {state_dimensions}"
-        )
     metadata.update(
         normalization_metadata(
             stats, dimensions["action_dim"], variant["default_unnorm_key"]
@@ -1766,12 +1581,11 @@ def build_pi_v3_metadata(
     config = load_pi_v3_config(
         policy_dir, surgery_manifest, str(variant["backbone"])
     )
-    full_config = _load_yaml(policy_dir / "config.full.yaml")
     framework = config.get("framework", {})
     action = framework.get("action_model", {})
     diffusion = action.get("diffusion_model_cfg", {})
     vla = config.get("datasets", {}).get("vla_data", {})
-    image_names = full_config.get("datasets", {}).get("vla_data", {}).get("obs")
+    image_names = vla.get("obs", ["image_0"])
     qwen = _validate_pinned_qwen3vl_contract(hf_dir)
 
     expected_dimensions = {
@@ -1780,16 +1594,22 @@ def build_pi_v3_metadata(
         "action_dim": action.get("action_dim"),
         "block_count": diffusion.get("num_layers"),
     }
-    if framework.get("name") != "QwenPI_v3" or any(
-        dimensions[key] != value for key, value in expected_dimensions.items()
-    ):
+    if any(dimensions[key] != value for key, value in expected_dimensions.items()):
         raise StarVLAError("PI-v3 config does not match the checkpoint tensor shapes")
-    if not isinstance(image_names, list) or not image_names:
+    if not isinstance(image_names, list) or not image_names or any(
+        not isinstance(name, str) or not name for name in image_names
+    ):
         raise StarVLAError("PI-v3 config does not define observation image names")
 
     horizon = int(action["action_horizon"])
     num_steps = int(action["num_inference_timesteps"])
     timestep_buckets = int(action["num_timestep_buckets"])
+    if horizon != 16:
+        raise StarVLAError(f"unsupported PI-v3 action horizon: {horizon}")
+    if num_steps <= 0 or timestep_buckets <= 0:
+        raise StarVLAError("PI-v3 timestep counts must be positive")
+    if not str(vla.get("CoT_prompt", "")):
+        raise StarVLAError("PI-v3 CoT_prompt must not be empty")
     processor_size = qwen["processor_size"]
     metadata: dict[str, Any] = {
         "general.architecture": "starvla-policy",
@@ -1877,21 +1697,13 @@ def convert_policy(
             f"surgery variant {surgery_manifest.get('variant')!r} has no policy converter"
         )
 
-    validate_official_surgery_manifest(surgery_manifest, variant, catalog)
+    validate_surgery_manifest(surgery_manifest, variant, catalog)
     verify_staged_assets(
         hf_dir, surgery_manifest.get("qwen_assets", {}), component="Qwen"
     )
     verify_staged_assets(
         policy_dir, surgery_manifest.get("policy_assets", {}), component="policy"
     )
-    verify_staged_tensors_against_checkpoint(
-        policy_dir,
-        surgery_manifest.get("policy_output", {}),
-        surgery_manifest,
-        variant,
-        component="policy",
-    )
-
     tensors = load_policy_tensors(policy_dir)
     dimensions = validators[framework](tensors)
     metadata_args = (

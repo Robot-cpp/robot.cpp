@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage and convert the official Qwen2.5-VL StarVLA FAST checkpoint."""
+"""Stage and convert a Qwen2.5-VL StarVLA FAST checkpoint."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from starvla_checkpoint import (
     inventory_summary,
     load_catalog,
     load_checkpoint_state,
-    official_bundle_uuid,
+    bundle_uuid,
     portable_source_record,
     sha256_file,
     staged_qwen_asset_hashes,
@@ -109,15 +109,7 @@ POLICY_FILENAME = "policy-qwen25-fast.gguf"
 STAGING_MANIFEST_FILENAME = "qwen25-fast-staging-manifest.json"
 BUNDLE_MANIFEST_FILENAME = "conversion_manifest.json"
 
-COT_PROMPT = (
-    "Your task is {instruction}. To identify the key objects for your task. "
-    "Locate their bounding boxes in [x1,y1,x2,y2] format."
-)
 ACTION_NAMES = ["x", "y", "z", "roll", "pitch", "yaw", "gripper"]
-EXPECTED_NORMALIZATION_PROFILES = {
-    "bridge_dataset",
-    "fractal20220817_data",
-}
 
 ACTION_TOKEN_MAP_TENSOR = "starvla.policy.fast.action_token_map"
 CODEC_TOKEN_OFFSETS_TENSOR = "starvla.policy.fast.codec.token_offsets"
@@ -165,7 +157,7 @@ def validate_catalog_contract(
     ]
     if entry.get("policy_tensors") not in (None, []):
         mismatches.append("policy_tensors: FAST must not split a separate policy head")
-    official_bundle_uuid(entry, catalog)
+    bundle_uuid(entry, catalog)
 
     qwen_name, qwen_entry = get_qwen_asset(catalog, entry)
     if qwen_name != QWEN_ASSET_KEY:
@@ -592,18 +584,11 @@ def build_fast_runtime_policy(
     codec = validate_fast_codec(codec_dir, codec_entry)
     effective = effective_fast_config(source_dir)
     stats = load_json_object(source_dir / "dataset_statistics.json")
-    if set(stats) != EXPECTED_NORMALIZATION_PROFILES or any(
-        not isinstance(profile, dict)
-        or not isinstance(profile.get("state"), dict)
-        for profile in stats.values()
-    ):
-        raise StarVLAError("unexpected official FAST normalization profiles")
     arrays = compile_fast_runtime_tensors(qwen_dir, codec_dir)
     offsets = arrays[CODEC_TOKEN_OFFSETS_TENSOR]
     token_bytes = arrays[CODEC_TOKEN_BYTES_TENSOR]
     if (
-        effective.get("cot_prompt") != COT_PROMPT
-        or effective.get("image_count") != 1
+        effective.get("image_count") != 1
         or effective.get("action_dim") != ACTION_DIM
         or effective.get("action_horizon") != ACTION_HORIZON
     ):
@@ -630,7 +615,7 @@ def build_fast_runtime_policy(
         "starvla.action.continuous_dimensions": list(range(ACTION_DIM - 1)),
         "starvla.action.binary_dimensions": [ACTION_DIM - 1],
         "starvla.image.count": effective["image_count"],
-        "starvla.image.names": ["image_0"],
+        "starvla.image.names": effective["image_names"],
         "starvla.image.processor_min_pixels": processor["min_pixels"],
         "starvla.image.processor_max_pixels": processor["max_pixels"],
         "starvla.image.patch_size": processor["patch_size"],
@@ -862,7 +847,7 @@ def build_bundle_manifest(
         raise StarVLAError("FAST policy component has an unexpected filename")
     return {
         "schema_version": 1,
-        "kind": "starvla_qwen25_fast_official_gguf_bundle",
+        "kind": "starvla_qwen25_fast_gguf_bundle",
         "variant": VARIANT_KEY,
         "framework": FRAMEWORK,
         "backbone": BACKBONE,
@@ -970,32 +955,46 @@ def effective_fast_config(source_dir: Path) -> dict[str, Any]:
         raise StarVLAError(f"failed to load FAST config.yaml: {exc}") from exc
     if not isinstance(source, dict):
         raise StarVLAError("FAST config.yaml must contain an object")
+    framework = source.get("framework")
+    datasets = source.get("datasets")
+    if not isinstance(framework, dict) or not isinstance(datasets, dict):
+        raise StarVLAError("FAST config.yaml is missing framework or datasets")
+    action = framework.get("action_model")
+    vla = datasets.get("vla_data")
+    if not isinstance(action, dict) or not isinstance(vla, dict):
+        raise StarVLAError("FAST config.yaml is missing action_model or vla_data")
+    action_dim = action.get("action_dim")
+    future_window = action.get("future_action_window_size")
+    cot_prompt = vla.get("CoT_prompt")
+    image_names = vla.get("obs")
+    image_size = vla.get("image_size")
+    if type(action_dim) is not int or type(future_window) is not int:
+        raise StarVLAError("FAST action dimensions must be integers")
+    if not isinstance(cot_prompt, str) or not cot_prompt:
+        raise StarVLAError("FAST CoT_prompt must be a non-empty string")
+    if not isinstance(image_names, list) or not image_names or any(
+        not isinstance(name, str) or not name for name in image_names
+    ):
+        raise StarVLAError("FAST obs must be a non-empty list of image names")
+    if (
+        not isinstance(image_size, list)
+        or len(image_size) != 2
+        or any(type(value) is not int or value <= 0 for value in image_size)
+    ):
+        raise StarVLAError("FAST image_size must contain two positive integers")
     return {
         "schema_version": 1,
-        "framework": "QwenFast",
+        "framework": str(framework.get("framework_py", "QwenFast")),
         "backbone": BACKBONE,
         "action_model": "autoregressive_vlm_lm_head",
-        "action_dim": ACTION_DIM,
-        "action_horizon": ACTION_HORIZON,
-        "cot_prompt": COT_PROMPT,
-        "image_count": 1,
-        "image_size": [224, 224],
+        "action_dim": action_dim,
+        "action_horizon": future_window + 1,
+        "cot_prompt": cot_prompt,
+        "image_count": len(image_names),
+        "image_names": image_names,
+        "image_size": image_size,
         "generation": dict(GENERATION_CONTRACT),
         "source_config_sha256": sha256_file(source_dir / "config.yaml"),
-        "resolved_overrides": {
-            "framework.action_model.action_model_type": {
-                "source": source.get("framework", {})
-                .get("action_model", {})
-                .get("action_model_type"),
-                "effective": "FAST",
-                "authority": "pinned_QwenFast_factory",
-            },
-            "framework.action_model.action_horizon": {
-                "source": None,
-                "effective": ACTION_HORIZON,
-                "authority": "future_action_window_size_plus_current_step",
-            },
-        },
     }
 
 
@@ -1008,12 +1007,10 @@ def stage_checkpoint(
     staging_dir: Path,
     catalog: Mapping[str, Any],
     max_shard_size: int,
-    verify_hash: bool,
 ) -> dict[str, Any]:
     entry, qwen_entry, codec_entry = validate_catalog_contract(catalog)
     report = preflight(catalog, source_dir, qwen_dir, codec_dir)
-    if verify_hash:
-        verify_checkpoint_file(checkpoint, entry)
+    verify_checkpoint_file(checkpoint, entry)
     if staging_dir.exists():
         raise StarVLAError(f"refusing to overwrite staging directory: {staging_dir}")
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -1054,20 +1051,18 @@ def stage_checkpoint(
         codec = validate_fast_codec(codec_dir, codec_entry)
         manifest = {
             "schema_version": 1,
-            "kind": "starvla_qwen25_fast_official_checkpoint_staging",
+            "kind": "starvla_qwen25_fast_checkpoint_staging",
             "variant": VARIANT_KEY,
             "framework": FRAMEWORK,
             "backbone": BACKBONE,
             "model_type": MODEL_TYPE,
-            "bundle_uuid": official_bundle_uuid(entry, catalog),
+            "bundle_uuid": bundle_uuid(entry, catalog),
             "source": {
                 "repo_id": entry["repo_id"],
                 "revision": entry["revision"],
                 "checkpoint": str(checkpoint.resolve()),
                 "checkpoint_size": checkpoint.stat().st_size,
-                "checkpoint_sha256": entry["checkpoint"]["sha256"]
-                if verify_hash
-                else sha256_file(checkpoint),
+                "checkpoint_sha256": entry["checkpoint"]["sha256"],
                 "starvla_revision": catalog["source_revisions"]["starvla"],
                 "llama_cpp_revision": catalog["source_revisions"]["llama_cpp"],
                 "qwen_repo_id": qwen_entry["repo_id"],
@@ -1107,12 +1102,12 @@ def validate_staging_manifest(
     entry, qwen_entry, codec_entry = validate_catalog_contract(catalog)
     expected = {
         "schema_version": 1,
-        "kind": "starvla_qwen25_fast_official_checkpoint_staging",
+        "kind": "starvla_qwen25_fast_checkpoint_staging",
         "variant": VARIANT_KEY,
         "framework": FRAMEWORK,
         "backbone": BACKBONE,
         "model_type": MODEL_TYPE,
-        "bundle_uuid": official_bundle_uuid(entry, catalog),
+        "bundle_uuid": bundle_uuid(entry, catalog),
     }
     mismatches = [
         f"{key}: expected {value!r}, got {manifest.get(key)!r}"
@@ -1363,7 +1358,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--stage-only", action="store_true")
-    parser.add_argument("--skip-hash-check", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -1425,7 +1419,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             staging_dir=args.staging_dir,
             catalog=catalog,
             max_shard_size=args.max_shard_size,
-            verify_hash=not args.skip_hash_check,
         )
         print(f"staging manifest: {args.staging_dir / STAGING_MANIFEST_FILENAME}")
         if args.stage_only:

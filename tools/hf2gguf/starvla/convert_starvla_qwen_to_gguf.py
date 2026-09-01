@@ -20,9 +20,8 @@ from starvla_checkpoint import (
     default_text_filename,
     get_variant,
     load_catalog,
-    validate_official_surgery_manifest,
+    validate_surgery_manifest,
     verify_staged_assets,
-    verify_staged_tensors_against_checkpoint,
 )
 
 
@@ -122,7 +121,7 @@ def verify_llama_checkout(path: Path, expected_revision: str) -> Path:
     if worktree_changes:
         raise StarVLAError(
             "llama.cpp has tracked or untracked worktree changes; "
-            f"use the clean pinned revision for official conversion:\n{worktree_changes}"
+            f"use the clean pinned revision for conversion:\n{worktree_changes}"
         )
     return root
 
@@ -203,16 +202,8 @@ def main() -> int:
         catalog = load_catalog(args.catalog)
         variant_name = str(manifest.get("variant", ""))
         variant = get_variant(catalog, variant_name)
-        validate_official_surgery_manifest(manifest, variant, catalog)
+        validate_surgery_manifest(manifest, variant, catalog)
         verify_staged_assets(args.hf_dir, manifest.get("qwen_assets", {}), component="Qwen")
-        verify_staged_tensors_against_checkpoint(
-            args.hf_dir,
-            manifest.get("vlm_output", {}),
-            manifest,
-            variant,
-            component="vlm",
-        )
-
         expected_revision = str(manifest.get("source", {}).get("llama_cpp_revision", ""))
         llama_root = verify_llama_checkout(args.llama_root, expected_revision)
 

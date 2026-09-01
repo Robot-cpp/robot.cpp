@@ -108,14 +108,10 @@ engine RNG。
 成功结果只暴露最终 actions、`chunk_size`、`action_dim` 和分阶段耗时。中间 hidden
 states、normalized actions 和 token IDs 保留在实现内部。
 
-## 数值和后端约定
+## 运行时约定
 
 - 默认 text 和 mmproj GGUF 为 BF16，常规 policy GGUF 为 FP32。
 - Qwen KV cache 使用 BF16。
-- GR00T 在 decoder residual layer boundary 使用 BF16 舍入；CUDA 后端在设备上原地
-  完成舍入，其他后端使用通用 tensor 读写。其余层内计算沿用 llama.cpp backend 的类型选择。
-- CUDA 上捕获多个 Qwen hidden states 时，输出先按 BF16 舍入写入连续的设备缓冲区，
-  decode 完成后统一传回主机。单输出和其他后端仍使用通用 tensor 读写。
 - OFT 和 Qwen2.5 PI 启用 text flash attention；其他 variant 使用 non-flash text
   attention。
 - policy 输出先检查 shape 和有限值，再按 GGUF 中的 q01/q99、mask 和二值阈值进行
@@ -151,9 +147,8 @@ patch 的 submodule。具体命令见转换 README。
 
 ## 转换流程
 
-[`checkpoint_catalog.json`](../tools/hf2gguf/starvla/checkpoint_catalog.json) 是七个 variant
-的单一配置来源，保存 repository、revision、文件大小、SHA256、tensor inventory、转换路径、
-normalization profile。
+[`checkpoint_catalog.json`](../tools/hf2gguf/starvla/checkpoint_catalog.json) 定义七个 variant
+的拓扑，并固定官方 release 和共享 Qwen 资源的 revision、大小与 SHA256。
 
 日常转换只使用统一入口：
 
@@ -165,14 +160,39 @@ tools/hf2gguf/starvla/convert.sh <variant>
 staging、调用对应 converter，并在成功后留下三个 GGUF 和
 `conversion_manifest.json`。中断或失败时临时目录会被删除，已有输出目录不会被覆盖。
 
+当前 StarVLA 训练脚本保存的 checkpoint 也使用同一入口。训练目录至少需要：
+
+```text
+<run-dir>/
+  config.yaml
+  dataset_statistics.json
+  checkpoints/steps_<N>_pytorch_model.pt
+  # 或 checkpoints/steps_<N>_model.safetensors
+```
+
+转换时选择结构相同的 variant：
+
+```bash
+tools/hf2gguf/starvla/convert.sh oft /path/to/output \
+  --checkpoint /path/to/run/checkpoints/steps_5000_model.safetensors
+```
+
+checkpoint 位于 `checkpoints/` 或 `final_model/` 时会自动找到 run directory；其他目录结构
+通过 `--source-dir` 指定。归一化统计包含多个 profile 且没有 catalog 默认项时，必须通过
+`--unnorm-key` 选择。转换器支持训练脚本写出的扁平 `.pt` state dict 和 `.safetensors`，
+不接受 optimizer state 或分布式训练 shard。训练目录不需要 release 中可能存在的
+`config.json`、`config.full.yaml` 或 `summary.jsonl`。
+
+本地 checkpoint、`config.yaml` 和 `dataset_statistics.json` 的哈希会写入临时 catalog，
+后续的 tensor inventory、shape、staging 和最终 bundle 校验与官方 release 使用同一路径。
+
 非 FAST variant 由 `convert_starvla_all.sh` 串联以下步骤：
 
-1. `inspect_starvla_checkpoint.py` 检查 checkpoint identity 和 tensor inventory。
-2. `starvla_surgery.py` 将 checkpoint 拆成 HF Qwen staging 和 policy staging。
-3. `convert_starvla_qwen_to_gguf.py` 调用固定 llama.cpp converter 生成 text/mmproj。
-4. `convert_starvla_policy_to_gguf.py` 写入 policy metadata 和 tensors。
-5. `validate_starvla_bundle.py` 重新读取三个组件，检查 dtype、shape、UUID 和文件名。
-6. 所有检查成功后发布文件，`conversion_manifest.json` 最后写入。
+1. `starvla_surgery.py` 校验 checkpoint 并拆成 HF Qwen staging 和 policy staging。
+2. `convert_starvla_qwen_to_gguf.py` 调用固定 llama.cpp converter 生成 text/mmproj。
+3. `convert_starvla_policy_to_gguf.py` 写入 policy metadata 和 tensors。
+4. `validate_starvla_bundle.py` 重新读取三个组件，检查 dtype、shape、UUID 和文件名。
+5. 所有检查成功后发布文件，`conversion_manifest.json` 最后写入。
 
 FAST 使用 `convert_starvla_qwen25_fast.py`，额外编译 action tokenizer 和 FAST codec 数据。
 转换器拒绝错误 revision、dirty llama.cpp converter、不完整下载和已存在的输出文件。
@@ -237,9 +257,9 @@ episode 状态以及推理耗时。
 
 ### 同一 backbone/framework 的新 checkpoint
 
-1. 在 `checkpoint_catalog.json` 添加固定 revision、大小、SHA256、文件清单、tensor
-   inventory 和 normalization profile。
-2. 检查 `starvla_checkpoint.py` 的 effective config 是否需要 checkpoint-specific 修正。
+1. 先用对应 variant 的 `--checkpoint` 入口验证结构和推理结果。
+2. 需要作为官方 release 固定时，再向 `checkpoint_catalog.json` 添加 revision、大小、
+   SHA256、文件清单和 tensor inventory。
 3. 用 converter 和 bundle validator 生成新 bundle。
 4. 运行小型单测、CUDA smoke 和 Bridge profile。
 

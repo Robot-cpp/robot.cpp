@@ -16,7 +16,7 @@ import convert_starvla_qwen25_fast as converter  # noqa: E402
 from starvla_checkpoint import (  # noqa: E402
     StarVLAError,
     load_catalog,
-    official_bundle_uuid,
+    bundle_uuid,
 )
 
 
@@ -30,7 +30,7 @@ def runtime_inputs() -> tuple[dict[str, object], dict[str, object], dict[str, ob
     catalog = load_catalog()
     entry, qwen, codec = converter.validate_catalog_contract(catalog)
     manifest = {
-        "bundle_uuid": official_bundle_uuid(entry, catalog),
+        "bundle_uuid": bundle_uuid(entry, catalog),
         "source": {
             "starvla_revision": catalog["source_revisions"]["starvla"],
             "llama_cpp_revision": catalog["source_revisions"]["llama_cpp"],

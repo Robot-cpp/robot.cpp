@@ -14,13 +14,13 @@ from typing import Any
 import numpy as np
 
 from convert_starvla_policy_to_gguf import (
-    GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE,
+    GROOT_SUPPORTED_DIMENSIONS_BY_BACKBONE,
     GROOT_TENSOR_MAP,
     OFT_ACTION_TOKEN_ID,
     OFT_TENSOR_MAP,
-    PI_OFFICIAL_DIMENSIONS,
+    PI_SUPPORTED_DIMENSIONS,
     PI_TENSOR_MAP,
-    PI_V3_OFFICIAL_DIMENSIONS,
+    PI_V3_SUPPORTED_DIMENSIONS,
     PI_V3_TENSOR_MAP,
     build_groot_metadata,
     build_oft_metadata,
@@ -40,7 +40,7 @@ from starvla_checkpoint import (
     load_catalog,
     portable_source_record,
     sha256_file,
-    validate_official_surgery_manifest,
+    validate_surgery_manifest,
     verify_staged_assets,
     verify_staged_components_against_checkpoint,
 )
@@ -879,7 +879,7 @@ def main() -> int:
         variant = get_variant(catalog, args.variant)
         framework = str(variant["framework"])
         backbone = str(variant["backbone"])
-        validate_official_surgery_manifest(surgery_manifest, variant, catalog)
+        validate_surgery_manifest(surgery_manifest, variant, catalog)
         verify_staged_assets(args.hf_dir, surgery_manifest.get("qwen_assets", {}), component="Qwen")
         verify_staged_assets(args.policy_dir, surgery_manifest.get("policy_assets", {}), component="policy")
         verify_staged_components_against_checkpoint(
@@ -909,7 +909,7 @@ def main() -> int:
             )
         elif framework == "groot":
             groot_dimensions = dict(
-                GROOT_OFFICIAL_DIMENSIONS_BY_BACKBONE[backbone]
+                GROOT_SUPPORTED_DIMENSIONS_BY_BACKBONE[backbone]
             )
             expected_policy_metadata = build_groot_metadata(
                 args.policy_dir,
@@ -926,7 +926,7 @@ def main() -> int:
                 args.hf_dir,
                 variant,
                 surgery_manifest,
-                dict(PI_OFFICIAL_DIMENSIONS),
+                dict(PI_SUPPORTED_DIMENSIONS),
                 args.text.name,
                 args.mmproj.name,
             )
@@ -936,7 +936,7 @@ def main() -> int:
                 args.hf_dir,
                 variant,
                 surgery_manifest,
-                dict(PI_V3_OFFICIAL_DIMENSIONS),
+                dict(PI_V3_SUPPORTED_DIMENSIONS),
                 args.text.name,
                 args.mmproj.name,
             )

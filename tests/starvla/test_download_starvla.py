@@ -138,6 +138,23 @@ class DownloadCliDryRunTest(unittest.TestCase):
         ]
         self.assertIn("checkpoints/steps_10000_pytorch_model.pt", policy_files)
 
+    def test_skip_checkpoint_keeps_fast_base_weights(self) -> None:
+        manifest = self.run_downloader(
+            "--variant",
+            "qwen25_fast",
+            "--include-fast-weights",
+            "--skip-checkpoint",
+        )
+        self.assertTrue(manifest["skip_checkpoint"])
+        action_files = manifest["downloads"][
+            "asset:qwen2_5_vl_3b_instruct_action"
+        ]["requested_files"]
+        self.assertIn("model-00001-of-00002.safetensors", action_files)
+        policy_files = manifest["downloads"]["variant:qwen25_fast"][
+            "requested_files"
+        ]
+        self.assertNotIn("checkpoints/steps_10000_pytorch_model.pt", policy_files)
+
 
 if __name__ == "__main__":
     unittest.main()
