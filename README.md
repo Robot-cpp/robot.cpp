@@ -246,6 +246,55 @@ This section lists converted GGUF models that can be used directly with `model-s
       <td>f32</td>
       <td><a href="https://huggingface.co/robotcpp/pi0-libero-f32">pi0-libero-f32</a></td>
     </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL OFT</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-OFT-Bridge-RT-1">StarVLA/Qwen3VL-OFT-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-oft-bridge-bf16">starvla-qwen3-oft-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL GR00T</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-GR00T-Bridge-RT-1">StarVLA/Qwen3VL-GR00T-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-groot-bridge-bf16">starvla-qwen3-groot-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL PI_v3</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-PI_v3-Bridge-RT_1">StarVLA/Qwen3VL-PI_v3-Bridge-RT_1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-pi-v3-bridge-bf16">starvla-qwen3-pi-v3-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL OFT</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-OFT-Bridge-RT-1">StarVLA/Qwen-OFT-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-oft-bridge-bf16">starvla-qwen25-oft-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL GR00T</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-GR00T-Bridge-RT-1">StarVLA/Qwen-GR00T-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-groot-bridge-bf16">starvla-qwen25-groot-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL PI</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-PI-Bridge-RT-1">StarVLA/Qwen-PI-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-pi-bridge-bf16">starvla-qwen25-pi-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL FAST</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-FAST-Bridge-RT-1">StarVLA/Qwen-FAST-Bridge-RT-1</a></td>
+      <td>bf16 + codec</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-fast-bridge-bf16">starvla-qwen25-fast-bridge-bf16</a></td>
+    </tr>
   </tbody>
 </table>
 
