@@ -174,7 +174,7 @@ The StarVLA A100 results use an A100-PCIE-40GB with 8 CPU threads,
 | pi0@libero (bf16*)            |             1954 |                635 |       57 |         267 |   66 |             498 |
 | starvla/oft@bridge            |                - |                  - |        - |           - |   50 |               - |
 | starvla/groot@bridge          |                - |                  - |        - |           - |   54 |               - |
-| starvla/pi_v3@bridge          |                - |                  - |        - |           - |  168 |               - |
+| starvla/pi_v3@bridge          |                - |                  - |        - |           - |  112 |               - |
 | starvla/qwen25_oft@bridge     |                - |                  - |        - |           - |   42 |               - |
 | starvla/qwen25_groot@bridge   |                - |                  - |        - |           - |   51 |               - |
 | starvla/qwen25_pi@bridge      |                - |                  - |        - |           - |  101 |               - |

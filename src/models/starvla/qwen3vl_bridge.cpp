@@ -213,6 +213,10 @@ struct LayerCapture {
     std::vector<uint8_t> seen;
     std::vector<uint8_t> rounded_layers;
     std::vector<uint8_t> rounded_deepstack_layers;
+#ifdef ROBOTCPP_STARVLA_CUDA
+    QwenBF16CaptureCuda cuda_capture;
+    size_t cuda_captured = 0;
+#endif
     std::string error;
 
     void disable() {
@@ -226,9 +230,28 @@ struct LayerCapture {
         seen.clear();
         rounded_layers.clear();
         rounded_deepstack_layers.clear();
+#ifdef ROBOTCPP_STARVLA_CUDA
+        cuda_captured = 0;
+#endif
         error.clear();
     }
 };
+
+bool finish_layer_capture(LayerCapture & capture) {
+#ifdef ROBOTCPP_STARVLA_CUDA
+    if (capture.cuda_captured == 0) {
+        return true;
+    }
+    if (capture.cuda_captured != capture.seen.size()) {
+        capture.error = "Qwen-VL hidden states span multiple backends";
+        return false;
+    }
+    return qwen_bf16_capture_download_cuda(
+        capture.cuda_capture, capture.values.data(), capture.values.size(),
+        capture.error);
+#endif
+    return true;
+}
 
 void begin_layer_boundary_tracking(LayerCapture & capture, size_t layer_count) {
     if (!capture.bf16_residual_layer_boundaries) {
@@ -393,6 +416,7 @@ bool observe_text_and_capture_layers(ggml_tensor * tensor, bool ask, void * user
             return false;
         }
         bool rounded_on_device = false;
+        bool captured_on_device = false;
 #ifdef ROBOTCPP_STARVLA_CUDA
         if ((round_layer || round_deepstack) && tensor->type == GGML_TYPE_F32) {
             const QwenBF16RoundStatus status =
@@ -402,7 +426,30 @@ bool observe_text_and_capture_layers(ggml_tensor * tensor, bool ask, void * user
             }
             rounded_on_device = status == QwenBF16RoundStatus::success;
         }
+        if (slot >= 0 && capture->seen.size() > 1 &&
+            tensor->type == GGML_TYPE_F32) {
+            const QwenBF16RoundStatus status = qwen_bf16_capture_cuda(
+                tensor, count, static_cast<size_t>(slot) * count,
+                capture->values.size(), capture->cuda_capture, capture->error);
+            if (status == QwenBF16RoundStatus::error) {
+                return false;
+            }
+            captured_on_device = status == QwenBF16RoundStatus::success;
+            if (captured_on_device) {
+                ++capture->cuda_captured;
+                capture->seen[static_cast<size_t>(slot)] = 1;
+            }
+        }
 #endif
+        if (captured_on_device) {
+            if (round_layer) {
+                capture->rounded_layers[static_cast<size_t>(layer)] = 1;
+            } else if (round_deepstack) {
+                capture->rounded_deepstack_layers[
+                    static_cast<size_t>(deepstack_layer)] = 1;
+            }
+            return true;
+        }
         std::vector<float> rounded;
         if (!rounded_on_device || slot >= 0) {
             rounded.resize(count);
@@ -1484,6 +1531,9 @@ bool Qwen3VLBridge::extract_layer_hidden_states(
             throw std::runtime_error("failed to evaluate the Qwen3-VL multimodal batch");
         }
         if (!capture.error.empty()) {
+            throw std::runtime_error(capture.error);
+        }
+        if (!finish_layer_capture(capture)) {
             throw std::runtime_error(capture.error);
         }
         std::string boundary_error;
