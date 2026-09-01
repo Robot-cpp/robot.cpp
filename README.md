@@ -57,6 +57,10 @@ git submodule update --init --recursive
 ./tools/apply_patches.sh
 ```
 
+The launch scripts below configure and build `model-server` automatically. For
+a manual StarVLA build, enable `ROBOT_CPP_BUILD_STARVLA`; see the
+[Robot Server build instructions](robot_server/README.md#manual-build).
+
 This section introduces three usage paths to help you quickly understand the repository:
 
 * Starting `model-server` and connecting it to a minimal dummy `model-client`.
@@ -96,6 +100,14 @@ After downloading, run `model-server` like this:
 
 For general local setups, we provide ready-to-use build-and-launch shells for three platforms. You can modify the environment variables inside the scripts, or override them directly with `export`. See [robot_server/README.md](robot_server/README.md) for details.
 
+For example, from the repository root on Linux with CUDA:
+
+```bash
+export ROBOT_CPP_ROOT="$PWD"
+export GGUF_DIR=/path/to/smolvla-so101-fp32
+bash robot_server/shell/launch_robot_server_linux_cuda.sh
+```
+
 | Backend | macOS                                                   | Linux                                                    | Windows                                                     |
 | ------- | ------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
 | CUDA    | -                                                       | `robot_server/shell/launch_robot_server_linux_cuda.sh` | `robot_server/shell/launch_robot_server_windows_cuda.bat` |
@@ -128,7 +140,7 @@ We provide a build-to-run example in `robot_client/shell/cpp_client_example.sh`.
 | `ROBOT_CPP_ROOT`   | unset; required                          | Repository root.                                                                               |
 | `BUILD_DIR`        | `${ROBOT_CPP_ROOT}/build_robot_client` | C++ client CMake build directory.                                                              |
 | `PORT`             | `5555`                                 | Server port used by the client.                                                                |
-| `BUILD_CLIENT`     | `0`                                    | Whether to force rebuild the client. Set to`1` to rebuild even if the binary already exists. |
+| `BUILD_CLIENT`     | `0`                                    | Whether to force rebuild the client. Set to `1` to rebuild even if the binary already exists. |
 | `CMAKE_BIN`        | `cmake`                                | CMake command path, useful for selecting a custom CMake binary.                                |
 
 Then run:

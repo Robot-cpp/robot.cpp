@@ -57,6 +57,10 @@ git submodule update --init --recursive
 ./tools/apply_patches.sh
 ```
 
+下文的启动脚本会自动配置并编译 `model-server`。手动构建 StarVLA 时需要开启
+`ROBOT_CPP_BUILD_STARVLA`，详见
+[Robot Server 构建说明](robot_server/README_ZH.md#手动构建)。
+
 我们介绍三类使用案例来帮助你快速了解本仓库：
 
 * model-server的启动，其与最小dummy model-client通信的案例。
@@ -96,6 +100,14 @@ git submodule update --init --recursive
 
 对于更加一般的情况，我们也提供了三个平台的开箱即用编译+启动的shell，可以通过修改shell里的环境变量，或者直接export的形式来快速在本机实现启动。详情参见 [robot_server/README_ZH.md](robot_server/README_ZH.md)
 
+例如，在 Linux CUDA 环境中从仓库根目录运行：
+
+```bash
+export ROBOT_CPP_ROOT="$PWD"
+export GGUF_DIR=/path/to/smolvla-so101-fp32
+bash robot_server/shell/launch_robot_server_linux_cuda.sh
+```
+
 | Backend | macOS                                                   | Linux                                                    | Windows                                                     |
 | ------- | ------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
 | CUDA    | -                                                       | `robot_server/shell/launch_robot_server_linux_cuda.sh` | `robot_server/shell/launch_robot_server_windows_cuda.bat` |
@@ -128,7 +140,7 @@ python robot_client/examples/python/minimal_example.py
 | `ROBOT_CPP_ROOT` | 无，必须设置                             | 仓库根目录。                                                           |
 | `BUILD_DIR`      | `${ROBOT_CPP_ROOT}/build_robot_client` | C++ client 的 CMake build 目录                                         |
 | `PORT`           | `5555`                                 | client 连接的 server port                                              |
-| `BUILD_CLIENT`   | `0`                                    | 是否强制重新build client。设为`1` 时即使 binary 已存在也会重新 build |
+| `BUILD_CLIENT`   | `0`                                    | 是否强制重新build client。设为 `1` 时即使 binary 已存在也会重新 build |
 | `CMAKE_BIN`      | `cmake`                                | 使用的 CMake 命令路径，可用于指定自定义 CMake                          |
 
 然后运行下面的bash：
