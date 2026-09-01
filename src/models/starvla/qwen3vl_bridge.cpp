@@ -1,5 +1,9 @@
 #include "models/starvla/qwen3vl_bridge.h"
 
+#ifdef ROBOTCPP_STARVLA_CUDA
+#include "models/starvla/qwen_bf16_round_cuda.h"
+#endif
+
 #include "ggml.h"
 #include "gguf.h"
 #include "llama.h"
@@ -388,8 +392,27 @@ bool observe_text_and_capture_layers(ggml_tensor * tensor, bool ask, void * user
             capture->error = "Qwen3-VL hidden-state capture byte range is invalid";
             return false;
         }
-        std::vector<float> rounded(count);
-        if (tensor->type == GGML_TYPE_F32) {
+        bool rounded_on_device = false;
+#ifdef ROBOTCPP_STARVLA_CUDA
+        if ((round_layer || round_deepstack) && tensor->type == GGML_TYPE_F32) {
+            const QwenBF16RoundStatus status =
+                qwen_bf16_round_cuda(tensor, count, capture->error);
+            if (status == QwenBF16RoundStatus::error) {
+                return false;
+            }
+            rounded_on_device = status == QwenBF16RoundStatus::success;
+        }
+#endif
+        std::vector<float> rounded;
+        if (!rounded_on_device || slot >= 0) {
+            rounded.resize(count);
+        }
+        if (rounded_on_device) {
+            if (slot >= 0) {
+                ggml_backend_tensor_get(tensor, rounded.data(), 0,
+                                        count * sizeof(float));
+            }
+        } else if (tensor->type == GGML_TYPE_F32) {
             std::vector<float> source(count);
             ggml_backend_tensor_get(tensor, source.data(), 0, count * sizeof(float));
             for (size_t index = 0; index < count; ++index) {
@@ -426,9 +449,11 @@ bool observe_text_and_capture_layers(ggml_tensor * tensor, bool ask, void * user
                              ggml_type_name(tensor->type);
             return false;
         }
-        if (round_layer || round_deepstack) {
+        if ((round_layer || round_deepstack) && !rounded_on_device) {
             ggml_backend_tensor_set(tensor, rounded.data(), 0,
                                     count * sizeof(float));
+        }
+        if (round_layer || round_deepstack) {
             if (round_layer) {
                 capture->rounded_layers[static_cast<size_t>(layer)] = 1;
             } else {

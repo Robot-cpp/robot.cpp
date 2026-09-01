@@ -112,8 +112,8 @@ states、normalized actions 和 token IDs 保留在实现内部。
 
 - 默认 text 和 mmproj GGUF 为 BF16，常规 policy GGUF 为 FP32。
 - Qwen KV cache 使用 BF16。
-- GR00T 在 decoder residual layer boundary 使用 BF16 舍入；其余层内计算沿用
-  llama.cpp backend 的类型选择。
+- GR00T 在 decoder residual layer boundary 使用 BF16 舍入；CUDA 后端在设备上原地
+  完成舍入，其他后端使用通用 tensor 读写。其余层内计算沿用 llama.cpp backend 的类型选择。
 - OFT 和 Qwen2.5 PI 启用 text flash attention；其他 variant 使用 non-flash text
   attention。
 - policy 输出先检查 shape 和有限值，再按 GGUF 中的 q01/q99、mask 和二值阈值进行
