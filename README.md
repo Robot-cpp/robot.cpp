@@ -54,6 +54,7 @@ We also provide two tools to support robot model development:
 git clone https://github.com/Robot-cpp/robot.cpp
 cd robot.cpp
 git submodule update --init --recursive
+./tools/apply_patches.sh
 ```
 
 This section introduces three usage paths to help you quickly understand the repository:

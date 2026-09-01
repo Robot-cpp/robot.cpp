@@ -18,6 +18,7 @@
 git clone https://github.com/Robot-cpp/robot.cpp
 cd robot.cpp
 git submodule update --init --recursive
+./tools/apply_patches.sh
 ```
 
 #### 创建 Python 环境
@@ -193,4 +194,3 @@ SO101Platform.get_observation()
   -> BasePolicy.select_action()
   -> SO101Platform.send_action()
 ```
-

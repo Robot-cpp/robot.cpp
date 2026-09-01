@@ -20,6 +20,7 @@ The conda environment name is `lerobot-demo`.
 git clone https://github.com/Robot-cpp/robot.cpp
 cd robot.cpp
 git submodule update --init --recursive
+./tools/apply_patches.sh
 ```
 
 #### Create the Python environment
@@ -200,4 +201,3 @@ SO101Platform.get_observation()
   -> BasePolicy.select_action()
   -> SO101Platform.send_action()
 ```
-

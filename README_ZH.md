@@ -54,6 +54,7 @@ Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cp
 git clone https://github.com/Robot-cpp/robot.cpp
 cd robot.cpp
 git submodule update --init --recursive
+./tools/apply_patches.sh
 ```
 
 我们介绍三类使用案例来帮助你快速了解本仓库：

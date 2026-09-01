@@ -128,7 +128,7 @@ The runtime needs two llama.cpp patches maintained in this repository. See
 scope.
 
 ```bash
-./tools/llama_cpp/apply_starvla_patches.sh
+./tools/apply_patches.sh
 cmake -S . -B build_cuda \
   -DGGML_CUDA=ON \
   -DBUILD_TESTING=ON \

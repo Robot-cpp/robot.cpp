@@ -132,14 +132,14 @@ llama.cpp commit 和两份 patch：
 主仓库提交 patch 文件，不推进 llama.cpp submodule 指针。运行时构建前执行：
 
 ```bash
-./tools/llama_cpp/apply_starvla_patches.sh
-./tools/llama_cpp/apply_starvla_patches.sh --check
+./tools/apply_patches.sh
+./tools/apply_patches.sh --check
 ```
 
 需要恢复干净 submodule 时执行：
 
 ```bash
-./tools/llama_cpp/apply_starvla_patches.sh --revert
+./tools/apply_patches.sh --revert
 ```
 
 转换 Qwen GGUF 时必须使用同一 commit 的干净 detached worktree，不能使用已应用 runtime
@@ -201,7 +201,7 @@ FAST 使用 `convert_starvla_qwen25_fast.py`，额外编译 action tokenizer 和
 
 ```bash
 git submodule update --init --recursive
-./tools/llama_cpp/apply_starvla_patches.sh
+./tools/apply_patches.sh
 
 cmake -S . -B build_cuda \
   -DGGML_CUDA=ON \
@@ -280,7 +280,7 @@ episode 状态以及推理耗时。
 
 ## 常见问题
 
-- CMake 报缺少 overlay：运行 `apply_starvla_patches.sh --check`，并确认 llama.cpp commit
+- CMake 报缺少 overlay：运行 `tools/apply_patches.sh --check`，并确认 llama.cpp commit
   没有变化。
 - bundle UUID 不一致：不要混用不同转换目录的 policy、text 和 mmproj。
 - normalization profile 报错：确认 policy 中的首个 profile 与 checkpoint catalog 的默认值一致。

@@ -30,7 +30,7 @@ if(ROBOT_CPP_BUILD_STARVLA)
        ROBOT_CPP_LLAMA_GRAPH_PATCH_INDEX EQUAL -1)
         message(FATAL_ERROR
             "StarVLA requires the pinned llama.cpp overlay. Run "
-            "`./tools/llama_cpp/apply_starvla_patches.sh` from the repository root, "
+            "`./tools/apply_patches.sh` from the repository root, "
             "then configure again.")
     endif()
     unset(ROBOT_CPP_QWEN3VL_MTMD_SOURCE)
