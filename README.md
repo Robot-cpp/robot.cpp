@@ -54,7 +54,12 @@ We also provide two tools to support robot model development:
 git clone https://github.com/Robot-cpp/robot.cpp
 cd robot.cpp
 git submodule update --init --recursive
+./tools/apply_patches.sh
 ```
+
+The launch scripts below configure and build `model-server` automatically. For
+a manual StarVLA build, enable `ROBOT_CPP_BUILD_STARVLA`; see the
+[Robot Server build instructions](robot_server/README.md#manual-build).
 
 This section introduces three usage paths to help you quickly understand the repository:
 
@@ -95,6 +100,14 @@ After downloading, run `model-server` like this:
 
 For general local setups, we provide ready-to-use build-and-launch shells for three platforms. You can modify the environment variables inside the scripts, or override them directly with `export`. See [robot_server/README.md](robot_server/README.md) for details.
 
+For example, from the repository root on Linux with CUDA:
+
+```bash
+export ROBOT_CPP_ROOT="$PWD"
+export GGUF_DIR=/path/to/smolvla-so101-fp32
+bash robot_server/shell/launch_robot_server_linux_cuda.sh
+```
+
 | Backend | macOS                                                   | Linux                                                    | Windows                                                     |
 | ------- | ------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
 | CUDA    | -                                                       | `robot_server/shell/launch_robot_server_linux_cuda.sh` | `robot_server/shell/launch_robot_server_windows_cuda.bat` |
@@ -127,7 +140,7 @@ We provide a build-to-run example in `robot_client/shell/cpp_client_example.sh`.
 | `ROBOT_CPP_ROOT`   | unset; required                          | Repository root.                                                                               |
 | `BUILD_DIR`        | `${ROBOT_CPP_ROOT}/build_robot_client` | C++ client CMake build directory.                                                              |
 | `PORT`             | `5555`                                 | Server port used by the client.                                                                |
-| `BUILD_CLIENT`     | `0`                                    | Whether to force rebuild the client. Set to`1` to rebuild even if the binary already exists. |
+| `BUILD_CLIENT`     | `0`                                    | Whether to force rebuild the client. Set to `1` to rebuild even if the binary already exists. |
 | `CMAKE_BIN`        | `cmake`                                | CMake command path, useful for selecting a custom CMake binary.                                |
 
 Then run:
@@ -150,20 +163,33 @@ See the [SO-101 deployment guide](eval/lerobot_so101/README.md).
 
 ## ⚡ Performance
 
-We benchmark Robot.cpp on several platforms. Each measurement uses 5 warmup runs and 100 loop runs. The reported latency is the average time from receiving the image, through preprocessing and forward inference, to producing a usable action chunk, measured in milliseconds. All state projectors remain in f32 precision.
+We benchmark Robot.cpp on several platforms. Each measurement uses 5 warmup runs and 100 loop runs. The reported latency is the average time from receiving the image, through preprocessing and forward inference, to producing a usable action chunk, measured in milliseconds. State projectors, where present, remain in f32 precision.
 
 For the LIBERO setting, the input contains two 256x256 images and an 8-dimensional state. For the SO-101 real-robot setting, the input contains one 224x224 image and a 6-dimensional state.
 
 For SmolVLA preprocessing, we follow the official default setting: images are first resized to 512x512.
 
-| Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
-| ---------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
-| smolvla@libero (bf16*) |              527 |                216 |       28 |         116 |   43 |             282 |
-| smolvla@libero (f32)   |              577 |                236 |       32 |         142 |   42 |             299 |
-| smolvla@so-101 (bf16*) |              339 |                145 |       23 |          77 |   36 |             184 |
-| smolvla@so-101 (f32)   |              396 |                158 |       24 |          92 |   34 |             200 |
-| pi0@libero (f32)       |             1839 |                710 |       83 | OOM/offload |   71 |             956 |
-| pi0@libero (bf16*)     |             1954 |                635 |       57 |         267 |   66 |             498 |
+For StarVLA, the input contains one 224x224 image and no robot state. Qwen and
+the multimodal projector use bf16; OFT, GR00T, PI, and PI_v3 policies use f32.
+FAST stores its action codec in the policy GGUF.
+The StarVLA A100 results use an A100-PCIE-40GB with 8 CPU threads,
+`n_ctx=2048`, `n_batch=2048`, and noise seed 0.
+
+| Model                         | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
+| ----------------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
+| smolvla@libero (bf16*)        |              527 |                216 |       28 |         116 |   43 |             282 |
+| smolvla@libero (f32)          |              577 |                236 |       32 |         142 |   42 |             299 |
+| smolvla@so-101 (bf16*)        |              339 |                145 |       23 |          77 |   36 |             184 |
+| smolvla@so-101 (f32)          |              396 |                158 |       24 |          92 |   34 |             200 |
+| pi0@libero (f32)              |             1839 |                710 |       83 | OOM/offload |   71 |             956 |
+| pi0@libero (bf16*)            |             1954 |                635 |       57 |         267 |   66 |             498 |
+| starvla/oft@bridge            |                - |                  - |        - |           - |   50 |               - |
+| starvla/groot@bridge          |                - |                  - |        - |           - |   54 |               - |
+| starvla/pi_v3@bridge          |                - |                  - |        - |           - |  112 |               - |
+| starvla/qwen25_oft@bridge     |                - |                  - |        - |           - |   42 |               - |
+| starvla/qwen25_groot@bridge   |                - |                  - |        - |           - |   51 |               - |
+| starvla/qwen25_pi@bridge      |                - |                  - |        - |           - |  101 |               - |
+| starvla/qwen25_fast@bridge    |                - |                  - |        - |           - |  386 |               - |
 
 > `bf16*`: on Mac, f16 results are used in place of bf16 because current Mac bf16 support is not ideal.
 > `OOM/offload`: pi0@libero (f32) runs out of memory on RTX 3060 and triggers offload, so we do not report a latency number for now.
@@ -229,6 +255,55 @@ This section lists converted GGUF models that can be used directly with `model-s
     <tr>
       <td>f32</td>
       <td><a href="https://huggingface.co/robotcpp/pi0-libero-f32">pi0-libero-f32</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL OFT</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-OFT-Bridge-RT-1">StarVLA/Qwen3VL-OFT-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-oft-bridge-bf16">starvla-qwen3-oft-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL GR00T</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-GR00T-Bridge-RT-1">StarVLA/Qwen3VL-GR00T-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-groot-bridge-bf16">starvla-qwen3-groot-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL PI_v3</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-PI_v3-Bridge-RT_1">StarVLA/Qwen3VL-PI_v3-Bridge-RT_1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-pi-v3-bridge-bf16">starvla-qwen3-pi-v3-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL OFT</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-OFT-Bridge-RT-1">StarVLA/Qwen-OFT-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-oft-bridge-bf16">starvla-qwen25-oft-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL GR00T</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-GR00T-Bridge-RT-1">StarVLA/Qwen-GR00T-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-groot-bridge-bf16">starvla-qwen25-groot-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL PI</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-PI-Bridge-RT-1">StarVLA/Qwen-PI-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-pi-bridge-bf16">starvla-qwen25-pi-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL FAST</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-FAST-Bridge-RT-1">StarVLA/Qwen-FAST-Bridge-RT-1</a></td>
+      <td>bf16 + codec</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-fast-bridge-bf16">starvla-qwen25-fast-bridge-bf16</a></td>
     </tr>
   </tbody>
 </table>
