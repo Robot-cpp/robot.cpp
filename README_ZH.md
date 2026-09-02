@@ -151,7 +151,9 @@ bash robot_client/shell/cpp_client_example.sh
 
 ### 🧪 model-server在仿真平台上的使用（以LIBERO为例）
 
-详见 [LIBERO 仿真评测说明](eval/libero/README_ZH.md)。
+详见 [LIBERO 仿真评测说明](eval/libero/README_ZH.md)。在 WidowX Bridge 任务上运行
+StarVLA，并比较 Python checkpoint 与 GGUF 的方法见
+[SimplerEnv Bridge 说明](eval/simpler_env/README_ZH.md)。
 
 ### 🦾 model-server在真机平台上的使用（以SO-101为例）
 
@@ -345,6 +347,7 @@ robot.cpp/
 ├── eval/
 │   ├── base_platform.py           # 真机 platform 的统一基类
 │   ├── libero/                    # LIBERO 仿真评测
+│   ├── simpler_env/               # SimplerEnv WidowX / Bridge 仿真评测
 │   └── lerobot_so101/             # SO-101 真机相关脚本与示例
 └── third_party/
     ├── llama.cpp/                 # ggml / llama.cpp 后端
@@ -401,6 +404,7 @@ robot.cpp 的设计与实现受益于多个优秀的开源项目：
 * [llama.cpp](https://github.com/ggerganov/llama.cpp)：提供了轻量化本地推理、GGML/GGUF 生态与跨平台后端基础，本项目在其工程哲学和底层能力上继续构建机器人模型推理框架。
 * [LeRobot](https://github.com/huggingface/lerobot)：提供了机器人数据、策略训练与真实机器人接入的参考实现，本项目的 SO-101 真机示例与部分评测流程参考了 LeRobot 生态。
 * [LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO)：提供了机器人仿真任务与评测基准，本项目的 LIBERO 仿真评测流程基于其任务环境与 benchmark 设计。
+* [SimplerEnv](https://github.com/simpler-env/SimplerEnv)：提供了 real-to-sim 机器人评测环境，本项目的 StarVLA Bridge 成功率评测使用其 WidowX 任务集与官方 visual-matching 资产。
 * [OpenPI](https://github.com/Physical-Intelligence/openpi)：提供了pi0策略模型与相关开源实现，本项目的 pi0 相关 runtime、转换与评测工作参考了 OpenPI 的模型设计。
 
 感谢这些项目和社区为机器人学习与端侧推理生态做出的贡献。
