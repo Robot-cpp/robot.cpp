@@ -21,6 +21,10 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 GGML_NATIVE="${GGML_NATIVE:-OFF}"
 GGML_OPENMP="${GGML_OPENMP:-OFF}"
+ROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA:-OFF}"
+if [ "${MODEL_TYPE}" = "starvla" ]; then
+    ROBOT_CPP_BUILD_STARVLA=ON
+fi
 
 SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
@@ -32,7 +36,8 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_OPENMP="${GGML_OPENMP}" \
         -DGGML_CUDA=ON \
         -DGGML_METAL=OFF \
-        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
+        -DROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA}"
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" --target model-server -j8
@@ -68,6 +73,17 @@ case "${MODEL_TYPE}" in
             --tokenizer "${TOKENIZER_GGUF}"
             --state-gguf "${STATE_GGUF}"
             --action-decoder "${ACTION_DECODER_GGUF}"
+        )
+        ;;
+    starvla)
+        LLM_GGUF="${LLM_GGUF:?LLM_GGUF must be set for StarVLA}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:?MMPROJ_GGUF must be set for StarVLA}"
+        POLICY_GGUF="${POLICY_GGUF:?POLICY_GGUF must be set for StarVLA}"
+        MODEL_ARGS=(
+            --model-type starvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${MMPROJ_GGUF}"
+            --policy "${POLICY_GGUF}"
         )
         ;;
     *)

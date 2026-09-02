@@ -26,8 +26,15 @@ def make_random_state(dim: int, seed: int) -> np.ndarray:
     return rng.uniform(-1.0, 1.0, size=(dim,)).astype(np.float32)
 
 
-def make_random_observation(width: int, height: int, state_dim: int, prompt: str, image_names: list[str]) -> dict:
-    return {
+def make_random_observation(
+    width: int,
+    height: int,
+    state_dim: int,
+    initial_noise_dim: int,
+    prompt: str,
+    image_names: list[str],
+) -> dict:
+    observation = {
         "images": [
             {
                 "name": image_name,
@@ -38,6 +45,9 @@ def make_random_observation(width: int, height: int, state_dim: int, prompt: str
         "state": make_random_state(state_dim, seed=1),
         "prompt": prompt,
     }
+    if initial_noise_dim:
+        observation["initial_noise"] = make_random_state(initial_noise_dim, seed=2)
+    return observation
 
 
 def ordered_columns(rows: list[dict[str, float]]) -> list[str]:
@@ -141,6 +151,7 @@ def main() -> int:
     parser.add_argument("--height", type=int, default=224)
     parser.add_argument("--image-name", action="append")
     parser.add_argument("--state-dim", type=int, default=6)
+    parser.add_argument("--initial-noise-dim", type=int, default=0)
     parser.add_argument("--prompt", default=os.environ.get("SMOLVLA_PROMPT", "grab the block."))
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--loops", type=int, default=10)
@@ -167,6 +178,7 @@ def main() -> int:
         width=args.width,
         height=args.height,
         state_dim=args.state_dim,
+        initial_noise_dim=args.initial_noise_dim,
         prompt=args.prompt,
         image_names=image_names,
     )

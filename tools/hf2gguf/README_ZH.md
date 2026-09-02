@@ -8,6 +8,8 @@
 
 - `smolvla/`：将 SmolVLA的lerobot-style的checkpoint 转成四个 GGUF component。
 - `pi0/`：将 pi0的lerobot-style的checkpoint 转成六个 split GGUF component。
+- `starvla/`：转换七个 StarVLA Qwen3-VL 和 Qwen2.5-VL checkpoint，支持范围和命令见
+  [`starvla/README.md`](starvla/README.md)。
 - `environment.yaml`：converter conda 环境。
 
 ## 使用说明

@@ -7,9 +7,9 @@ set -e
 #       bash robot_server/test/test_server_latency.sh <model-type> <backend> <test-suite>
 #
 # Positional args:
-#   $1: model-type, e.g. smolvla / pi0
+#   $1: model-type, e.g. smolvla / pi0 / starvla
 #   $2: backend, e.g. mac-cpu / mac-metal / linux-cpu / linux-cuda
-#   $3: test-suite, e.g. smolvla-libero / smolvla-so101 / pi0-libero
+#   $3: test-suite, e.g. smolvla-libero / smolvla-so101 / pi0-libero / starvla-bridge
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
@@ -38,6 +38,17 @@ case "${MODEL_TYPE}" in
         STATE_GGUF="${STATE_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.state.gguf}"
         ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf}"
         LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"
+        ;;
+    starvla)
+        mapfile -t LLM_CANDIDATES < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name 'qwen-*.gguf' -print)
+        mapfile -t MMPROJ_CANDIDATES < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name 'mmproj-*.gguf' -print)
+        mapfile -t POLICY_CANDIDATES < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name '*policy*.gguf' -print)
+        [[ ${#LLM_CANDIDATES[@]} -eq 1 ]] || { echo "expected one Qwen GGUF in ${GGUF_DIR}" >&2; exit 1; }
+        [[ ${#MMPROJ_CANDIDATES[@]} -eq 1 ]] || { echo "expected one mmproj GGUF in ${GGUF_DIR}" >&2; exit 1; }
+        [[ ${#POLICY_CANDIDATES[@]} -eq 1 ]] || { echo "expected one policy GGUF in ${GGUF_DIR}" >&2; exit 1; }
+        LLM_GGUF="${LLM_GGUF:-${LLM_CANDIDATES[0]}}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:-${MMPROJ_CANDIDATES[0]}}"
+        POLICY_GGUF="${POLICY_GGUF:-${POLICY_CANDIDATES[0]}}"
         ;;
     *)
         echo "unsupported MODEL_TYPE=${MODEL_TYPE}" >&2
@@ -99,6 +110,12 @@ case "${TEST_SUITE}" in
         IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
         STATE_DIM="${STATE_DIM:-8}"
         ;;
+    starvla-bridge)
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-image_0}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
+        STATE_DIM="${STATE_DIM:-0}"
+        ;;
     *)
         echo "unsupported TEST_SUITE=${TEST_SUITE}" >&2
         exit 1
@@ -108,6 +125,7 @@ WARMUP="${WARMUP:-5}"
 LOOPS="${LOOPS:-100}"
 SERVER_WAIT_S="${SERVER_WAIT_S:-120}"
 DTYPE="${DTYPE:-f32}"
+NOISE_SEED="${NOISE_SEED:--1}"
 
 PYTHON="${PYTHON:-python3}"
 # ====================================
@@ -155,12 +173,13 @@ run_latency_case() {
     TOKENIZER_GGUF="${TOKENIZER_GGUF:-}" \
     STATE_GGUF="${STATE_GGUF:-}" \
     ACTION_DECODER_GGUF="${ACTION_DECODER_GGUF:-}" \
+    POLICY_GGUF="${POLICY_GGUF:-}" \
     HOST="${HOST}" \
     PORT="${PORT}" \
     THREADS="${threads}" \
     TASK="${PROMPT}" \
     NOISE_MODE="gaussian" \
-    NOISE_SEED="-1" \
+    NOISE_SEED="${NOISE_SEED}" \
     bash "${LAUNCH_SHELL}" "${MODEL_TYPE}" >"${server_log}" 2>&1 &
     SERVER_PID=$!
 

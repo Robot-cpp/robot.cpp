@@ -1,0 +1,267 @@
+diff --git a/ggml/include/ggml-backend.h b/ggml/include/ggml-backend.h
+index d0c7e5a..d86d0b3 100644
+--- a/ggml/include/ggml-backend.h
++++ b/ggml/include/ggml-backend.h
+@@ -215,6 +215,8 @@ extern "C" {
+     typedef ggml_backend_buffer_type_t * (*ggml_backend_dev_get_extra_bufts_t)(ggml_backend_dev_t device);
+     // Set the abort callback for the backend
+     typedef void                         (*ggml_backend_set_abort_callback_t)(ggml_backend_t backend, ggml_abort_callback abort_callback, void * abort_callback_data);
++    // Enable or disable native graph capture/cache for one backend instance.
++    typedef void                         (*ggml_backend_set_native_graphs_enabled_t)(ggml_backend_t backend, bool enabled);
+     // Get a list of feature flags supported by the backend (returns a NULL-terminated array)
+     struct ggml_backend_feature {
+         const char * name;
+diff --git a/ggml/src/ggml-cuda/common.cuh b/ggml/src/ggml-cuda/common.cuh
+index 1081750..fb7c279 100644
+--- a/ggml/src/ggml-cuda/common.cuh
++++ b/ggml/src/ggml-cuda/common.cuh
+@@ -1373,6 +1373,8 @@ struct ggml_backend_cuda_context {
+     int curr_stream_no = 0;
+ 
+ #ifdef USE_CUDA_GRAPH
++    bool cuda_graphs_enabled = true;
++
+     // Map from first_node_ptr to cuda_graph - allows multiple graphs per context
+     // when the computation is split across CPU/GPU (e.g., with --n-cpu-moe)
+     std::unordered_map<const void *, std::unique_ptr<ggml_cuda_graph>> cuda_graphs;
+@@ -1405,6 +1407,9 @@ struct ggml_backend_cuda_context {
+     // Check if any CUDA graph is enabled for this context (used by kernels that need to know
+     // if graphs are in use without having access to the specific graph key)
+     bool any_cuda_graph_enabled() const {
++        if (!cuda_graphs_enabled) {
++            return false;
++        }
+         for (const auto & [key, graph] : cuda_graphs) {
+             if (graph && graph->is_enabled()) {
+                 return true;
+@@ -1415,6 +1420,9 @@ struct ggml_backend_cuda_context {
+ 
+     // Check if any CUDA graph has an instance for this context
+     bool any_cuda_graph_has_instance() const {
++        if (!cuda_graphs_enabled) {
++            return false;
++        }
+         for (const auto & [key, graph] : cuda_graphs) {
+             if (graph && graph->instance != nullptr) {
+                 return true;
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index 8d21b22..42f7838 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -3085,6 +3085,23 @@ static void ggml_backend_cuda_synchronize(ggml_backend_t backend) {
+     GGML_UNUSED(backend);
+ }
+ 
++static void ggml_backend_cuda_set_native_graphs_enabled(ggml_backend_t backend, bool enabled) {
++    ggml_backend_cuda_context * cuda_ctx = (ggml_backend_cuda_context *) backend->context;
++
++#ifdef USE_CUDA_GRAPH
++    if (cuda_ctx->cuda_graphs_enabled == enabled) {
++        return;
++    }
++
++    ggml_backend_cuda_synchronize(backend);
++    cuda_ctx->cuda_graphs.clear();
++    cuda_ctx->cuda_graphs_enabled = enabled;
++#else
++    GGML_UNUSED(cuda_ctx);
++    GGML_UNUSED(enabled);
++#endif
++}
++
+ #ifdef USE_CUDA_GRAPH
+ static bool ggml_cuda_graph_check_compability(ggml_cgraph * cgraph) {
+ 
+@@ -4202,8 +4219,8 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+         }
+ 
+ #ifdef USE_CUDA_GRAPH
+-        ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
+         if (use_cuda_graph && cuda_graph_update_required) { // End CUDA graph capture
++            ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
+             if (graph->graph != nullptr) {
+                 CUDA_CHECK(cudaGraphDestroy(graph->graph));
+                 graph->graph = nullptr;
+@@ -4240,6 +4257,10 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+ 
+ #ifdef USE_CUDA_GRAPH
+ static bool ggml_cuda_graph_set_enabled(ggml_backend_cuda_context * cuda_ctx, const void * graph_key) {
++    if (!cuda_ctx->cuda_graphs_enabled) {
++        return false;
++    }
++
+     ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
+ 
+     if (graph->graph == nullptr) {
+@@ -4267,10 +4288,8 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend,
+ #ifdef USE_CUDA_GRAPH
+     graph_key = ggml_cuda_graph_get_key(cgraph);
+ 
+-    ggml_cuda_graph_set_enabled(cuda_ctx, graph_key);
+-
+-    ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
+-    if (graph->is_enabled()) {
++    if (ggml_cuda_graph_set_enabled(cuda_ctx, graph_key)) {
++        ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
+         const bool graph_compatible = ggml_cuda_graph_check_compability(cgraph);
+         if (graph_compatible) {
+             const bool properties_changed = ggml_cuda_graph_update_required(cuda_ctx, cgraph);
+@@ -5400,6 +5419,9 @@ static void * ggml_backend_cuda_reg_get_proc_address(ggml_backend_reg_t reg, con
+     if (strcmp(name, "ggml_backend_get_features") == 0) {
+         return (void *)ggml_backend_cuda_get_features;
+     }
++    if (strcmp(name, "ggml_backend_set_native_graphs_enabled") == 0) {
++        return (void *)ggml_backend_cuda_set_native_graphs_enabled;
++    }
+     return nullptr;
+ }
+ 
+diff --git a/include/llama.h b/include/llama.h
+index 2ea2267..aa6c656 100644
+--- a/include/llama.h
++++ b/include/llama.h
+@@ -969,6 +969,10 @@ extern "C" {
+     // Set abort callback
+     LLAMA_API void llama_set_abort_callback(struct llama_context * ctx, ggml_abort_callback abort_callback, void * abort_callback_data);
+ 
++    // Enable or disable native graph capture/cache for each context backend
++    // that exposes this optional capability. Direct graph computation remains enabled.
++    LLAMA_API void llama_set_backend_native_graphs_enabled(struct llama_context * ctx, bool enabled);
++
+     // Wait until all computations are finished
+     // This is automatically done when using one of the functions below to obtain the computation results
+     // and is not necessary to call it explicitly in most cases
+diff --git a/src/llama-context.cpp b/src/llama-context.cpp
+index 71a5939..a705255 100644
+--- a/src/llama-context.cpp
++++ b/src/llama-context.cpp
+@@ -1031,6 +1031,21 @@ void llama_context::set_abort_callback(bool (*abort_callback)(void * data), void
+     }
+ }
+ 
++void llama_context::set_backend_native_graphs_enabled(bool enabled) {
++    for (auto & backend : backends) {
++        auto * reg = ggml_backend_dev_backend_reg(ggml_backend_get_device(backend.get()));
++        if (reg == nullptr) {
++            continue;
++        }
++        auto * set_enabled = reinterpret_cast<ggml_backend_set_native_graphs_enabled_t>(
++            ggml_backend_reg_get_proc_address(
++                reg, "ggml_backend_set_native_graphs_enabled"));
++        if (set_enabled != nullptr) {
++            set_enabled(backend.get(), enabled);
++        }
++    }
++}
++
+ void llama_context::set_embeddings(bool value) {
+     LLAMA_LOG_DEBUG("%s: value = %d\n", __func__, value);
+ 
+@@ -3365,6 +3380,10 @@ void llama_set_abort_callback(llama_context * ctx, bool (*abort_callback)(void *
+     ctx->set_abort_callback(abort_callback, abort_callback_data);
+ }
+ 
++void llama_set_backend_native_graphs_enabled(llama_context * ctx, bool enabled) {
++    ctx->set_backend_native_graphs_enabled(enabled);
++}
++
+ void llama_set_embeddings(llama_context * ctx, bool embeddings) {
+     ctx->set_embeddings(embeddings);
+ }
+diff --git a/src/llama-context.h b/src/llama-context.h
+index 92d1b0c..d1354a4 100644
+--- a/src/llama-context.h
++++ b/src/llama-context.h
+@@ -105,6 +105,7 @@ struct llama_context {
+     void set_n_threads(int32_t n_threads, int32_t n_threads_batch);
+ 
+     void set_abort_callback(bool (*abort_callback)(void * data), void * abort_callback_data);
++    void set_backend_native_graphs_enabled(bool enabled);
+ 
+     void set_embeddings (bool value);
+     void set_causal_attn(bool value);
+diff --git a/tools/mtmd/clip.cpp b/tools/mtmd/clip.cpp
+index 513b94f..4e63c93 100644
+--- a/tools/mtmd/clip.cpp
++++ b/tools/mtmd/clip.cpp
+@@ -2973,6 +2973,26 @@ void clip_free(clip_ctx * ctx) {
+     delete ctx;
+ }
+ 
++void clip_set_backend_native_graphs_enabled(clip_ctx * ctx, bool enabled) {
++    if (ctx == nullptr) {
++        return;
++    }
++
++    for (ggml_backend_t backend : ctx->backend_ptrs) {
++        ggml_backend_dev_t dev = ggml_backend_get_device(backend);
++        ggml_backend_reg_t reg = dev ? ggml_backend_dev_backend_reg(dev) : nullptr;
++        if (reg == nullptr) {
++            continue;
++        }
++        auto * set_enabled = reinterpret_cast<ggml_backend_set_native_graphs_enabled_t>(
++            ggml_backend_reg_get_proc_address(
++                reg, "ggml_backend_set_native_graphs_enabled"));
++        if (set_enabled != nullptr) {
++            set_enabled(backend, enabled);
++        }
++    }
++}
++
+ // deprecated
+ size_t clip_embd_nbytes(const struct clip_ctx * ctx) {
+     const int32_t nx = ctx->model.hparams.image_size;
+diff --git a/tools/mtmd/clip.h b/tools/mtmd/clip.h
+index a859b38..d63d43d 100644
+--- a/tools/mtmd/clip.h
++++ b/tools/mtmd/clip.h
+@@ -51,6 +51,10 @@ struct clip_init_result clip_init(const char * fname, struct clip_context_params
+ 
+ void clip_free(struct clip_ctx * ctx);
+ 
++// Enable or disable native graph capture/cache for each CLIP backend that
++// exposes this optional capability. Direct graph computation remains enabled.
++void clip_set_backend_native_graphs_enabled(struct clip_ctx * ctx, bool enabled);
++
+ size_t clip_embd_nbytes(const struct clip_ctx * ctx);
+ size_t clip_embd_nbytes_by_img(const struct clip_ctx * ctx, int img_w, int img_h);
+ 
+diff --git a/tools/mtmd/mtmd.cpp b/tools/mtmd/mtmd.cpp
+index 87da687..5fa1bc3 100644
+--- a/tools/mtmd/mtmd.cpp
++++ b/tools/mtmd/mtmd.cpp
+@@ -628,6 +628,19 @@ void mtmd_free(mtmd_context * ctx) {
+     delete ctx;
+ }
+ 
++void mtmd_set_backend_native_graphs_enabled(mtmd_context * ctx, bool enabled) {
++    if (ctx == nullptr) {
++        return;
++    }
++
++    if (ctx->ctx_v != nullptr) {
++        clip_set_backend_native_graphs_enabled(ctx->ctx_v, enabled);
++    }
++    if (ctx->ctx_a != nullptr) {
++        clip_set_backend_native_graphs_enabled(ctx->ctx_a, enabled);
++    }
++}
++
+ struct mtmd_tokenizer {
+     mtmd_context * ctx;
+     std::vector<const mtmd_bitmap *> bitmaps;
+diff --git a/tools/mtmd/mtmd.h b/tools/mtmd/mtmd.h
+index e364174..7cf3af7 100644
+--- a/tools/mtmd/mtmd.h
++++ b/tools/mtmd/mtmd.h
+@@ -110,6 +110,10 @@ MTMD_API mtmd_context * mtmd_init_from_file(const char * mmproj_fname,
+ 
+ MTMD_API void mtmd_free(mtmd_context * ctx);
+ 
++// Enable or disable native graph capture/cache for each media backend that
++// exposes this optional capability. Direct graph computation remains enabled.
++MTMD_API void mtmd_set_backend_native_graphs_enabled(mtmd_context * ctx, bool enabled);
++
+ // whether we need to set non-causal mask before llama_decode
+ // if chunk is nullptr, we assume the default case where chunk is an image chunk
+ MTMD_API bool mtmd_decode_use_non_causal(const mtmd_context * ctx, const mtmd_input_chunk * chunk);

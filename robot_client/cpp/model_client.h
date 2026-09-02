@@ -21,6 +21,7 @@ struct ModelImage {
 struct ModelObservation {
     std::vector<ModelImage> images;
     std::vector<float> state;
+    std::vector<float> initial_noise;
     std::string prompt = "grab the block.";
 };
 

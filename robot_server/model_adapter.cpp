@@ -30,8 +30,9 @@ bool model_adapter::predict(const proto::predict_request & req, proto::predict_r
         image.stride_bytes = static_cast<int>(src.stride_bytes);
         obs.images.push_back(image);
     }
-    obs.state = req.state;
-    obs.task  = req.task;
+    obs.state         = req.state;
+    obs.initial_noise = req.initial_noise;
+    obs.task          = req.task;
 
     robotcpp::model_result result;
     if (!model_->predict(obs, result, error)) {

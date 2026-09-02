@@ -9,7 +9,7 @@ from typing import Any
 
 
 MAGIC = 0x414C5653
-VERSION = 3
+VERSION = 4
 HEADER_SIZE = 32
 
 OP_HEALTH = 1
@@ -21,8 +21,8 @@ STATUS_OK = 0
 IMAGE_RAW_RGB_U8 = 1
 
 HEADER = struct.Struct("<IHHHHIIQI")
-PREDICT_REQ_V2_FIXED = struct.Struct("<III")
-PREDICT_REQ_V2_IMAGE = struct.Struct("<IIIIIIQ")
+PREDICT_REQ_FIXED = struct.Struct("<IIII")
+PREDICT_REQ_IMAGE = struct.Struct("<IIIIIIQ")
 PREDICT_RESP_FIXED = struct.Struct("<IIII")
 PREDICT_RESP_METRIC = struct.Struct("<Id")
 
@@ -76,6 +76,7 @@ def _recv_message(sock: socket.socket) -> tuple[int, int, int, bytes]:
 def encode_predict_observation(observation: dict[str, Any]) -> bytes:
     images = observation["images"]
     state = state_to_list(observation["state"])
+    initial_noise = state_to_list(observation.get("initial_noise"))
     prompt = str(observation["prompt"])
     if not images:
         raise ValueError("observation.images must contain at least one image")
@@ -88,13 +89,14 @@ def encode_predict_observation(observation: dict[str, Any]) -> bytes:
         encoded_images.append((name, rgb, width, height, stride))
 
     payload = bytearray()
-    payload += PREDICT_REQ_V2_FIXED.pack(
+    payload += PREDICT_REQ_FIXED.pack(
         len(encoded_images),
         len(state),
+        len(initial_noise),
         len(prompt_bytes),
     )
     for name, rgb, width, height, stride in encoded_images:
-        payload += PREDICT_REQ_V2_IMAGE.pack(
+        payload += PREDICT_REQ_IMAGE.pack(
             IMAGE_RAW_RGB_U8,
             len(name),
             width,
@@ -104,6 +106,8 @@ def encode_predict_observation(observation: dict[str, Any]) -> bytes:
             len(rgb),
         )
     for value in state:
+        payload += struct.pack("<f", float(value))
+    for value in initial_noise:
         payload += struct.pack("<f", float(value))
     payload += prompt_bytes
     for name, rgb, _width, _height, _stride in encoded_images:

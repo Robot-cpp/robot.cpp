@@ -80,6 +80,10 @@ bool Pi0Model::predict(const observation & obs, model_result & out, std::string 
         error = "Pi0 model is not initialized";
         return false;
     }
+    if (!obs.initial_noise.empty()) {
+        error = "Pi0 does not accept explicit initial noise";
+        return false;
+    }
     if (obs.images.empty()) {
         error = "Pi0 requires at least one image";
         return false;

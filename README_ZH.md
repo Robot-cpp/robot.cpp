@@ -54,7 +54,12 @@ Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cp
 git clone https://github.com/Robot-cpp/robot.cpp
 cd robot.cpp
 git submodule update --init --recursive
+./tools/apply_patches.sh
 ```
+
+下文的启动脚本会自动配置并编译 `model-server`。手动构建 StarVLA 时需要开启
+`ROBOT_CPP_BUILD_STARVLA`，详见
+[Robot Server 构建说明](robot_server/README_ZH.md#手动构建)。
 
 我们介绍三类使用案例来帮助你快速了解本仓库：
 
@@ -95,6 +100,14 @@ git submodule update --init --recursive
 
 对于更加一般的情况，我们也提供了三个平台的开箱即用编译+启动的shell，可以通过修改shell里的环境变量，或者直接export的形式来快速在本机实现启动。详情参见 [robot_server/README_ZH.md](robot_server/README_ZH.md)
 
+例如，在 Linux CUDA 环境中从仓库根目录运行：
+
+```bash
+export ROBOT_CPP_ROOT="$PWD"
+export GGUF_DIR=/path/to/smolvla-so101-fp32
+bash robot_server/shell/launch_robot_server_linux_cuda.sh
+```
+
 | Backend | macOS                                                   | Linux                                                    | Windows                                                     |
 | ------- | ------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
 | CUDA    | -                                                       | `robot_server/shell/launch_robot_server_linux_cuda.sh` | `robot_server/shell/launch_robot_server_windows_cuda.bat` |
@@ -127,7 +140,7 @@ python robot_client/examples/python/minimal_example.py
 | `ROBOT_CPP_ROOT` | 无，必须设置                             | 仓库根目录。                                                           |
 | `BUILD_DIR`      | `${ROBOT_CPP_ROOT}/build_robot_client` | C++ client 的 CMake build 目录                                         |
 | `PORT`           | `5555`                                 | client 连接的 server port                                              |
-| `BUILD_CLIENT`   | `0`                                    | 是否强制重新build client。设为`1` 时即使 binary 已存在也会重新 build |
+| `BUILD_CLIENT`   | `0`                                    | 是否强制重新build client。设为 `1` 时即使 binary 已存在也会重新 build |
 | `CMAKE_BIN`      | `cmake`                                | 使用的 CMake 命令路径，可用于指定自定义 CMake                          |
 
 然后运行下面的bash：
@@ -156,6 +169,11 @@ bash robot_client/shell/cpp_client_example.sh
 
 其中对于smolvla的preprocess设定，参考官方的基本设定，即首先会将图片变成512*512。
 
+StarVLA 使用一张 224x224 图像且不输入 robot state。Qwen 和 multimodal projector
+使用 bf16，OFT、GR00T、PI 和 PI_v3 policy 使用 f32；FAST 的 policy GGUF 保存 action
+codec。A100 数据在 A100-PCIE-40GB、8 个 CPU 线程、`n_ctx=2048`、`n_batch=2048` 和
+noise seed 0 下测得。
+
 | Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
 | ---------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
 | smolvla@libero (bf16*) |              527 |                216 |       28 |         116 |   43 |             282 |
@@ -164,15 +182,24 @@ bash robot_client/shell/cpp_client_example.sh
 | smolvla@so-101 (f32)   |              396 |                158 |       24 |          92 |   34 |             200 |
 | pi0@libero (f32)       |             1839 |                710 |       83 | OOM/offload |   71 |             956 |
 | pi0@libero (bf16*)     |             1954 |                635 |       57 |         267 |   66 |             498 |
+| starvla/oft@bridge            |                - |                  - |        - |           - |   50 |               - |
+| starvla/groot@bridge          |                - |                  - |        - |           - |   54 |               - |
+| starvla/pi_v3@bridge          |                - |                  - |        - |           - |  112 |               - |
+| starvla/qwen25_oft@bridge     |                - |                  - |        - |           - |   42 |               - |
+| starvla/qwen25_groot@bridge   |                - |                  - |        - |           - |   51 |               - |
+| starvla/qwen25_pi@bridge      |                - |                  - |        - |           - |  101 |               - |
+| starvla/qwen25_fast@bridge    |                - |                  - |        - |           - |  386 |               - |
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 > `OOM/offload`：pi0@libero (f32) 在 RTX 3060 上会 OOM 并触发 offload，因此暂时不报告 latency 数值。
 
 ---
 
-## 🧩 model-zoo
+## 🧩 Model Zoo
 
-这里整理一些已经转换好的 GGUF 模型，可以直接配合 `model-server` 做smoke test，以方便quick start！但针对自己的实际场景，我们推荐使用[hf2gguf](tools/hf2gguf/README_ZH.md)来生成自己的GGUF model！并且对于不同的部分，您还可以自定义不同的精度，来实现不同部分的精度组合（事实上，不同部分的最优精度通常是不同的），我们的例子中，state proj始终保持f32精度，其他的gguf随着precision精度变化而变化，您可以自行组合，探索更好更高效的性能tradeoff！
+下表列出可直接配合 `model-server` 使用的 GGUF 模型。实际部署时，建议使用
+[`hf2gguf`](tools/hf2gguf/README_ZH.md) 转换自己的 checkpoint。各组件可以分别选择
+精度；表中示例的 state projector 固定为 f32，其余组件采用标注的精度。
 
 <table>
   <thead>
@@ -229,6 +256,55 @@ bash robot_client/shell/cpp_client_example.sh
     <tr>
       <td>f32</td>
       <td><a href="https://huggingface.co/robotcpp/pi0-libero-f32">pi0-libero-f32</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL OFT</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-OFT-Bridge-RT-1">StarVLA/Qwen3VL-OFT-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-oft-bridge-bf16">starvla-qwen3-oft-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL GR00T</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-GR00T-Bridge-RT-1">StarVLA/Qwen3VL-GR00T-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-groot-bridge-bf16">starvla-qwen3-groot-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen3-VL PI_v3</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen3VL-PI_v3-Bridge-RT_1">StarVLA/Qwen3VL-PI_v3-Bridge-RT_1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen3-pi-v3-bridge-bf16">starvla-qwen3-pi-v3-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL OFT</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-OFT-Bridge-RT-1">StarVLA/Qwen-OFT-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-oft-bridge-bf16">starvla-qwen25-oft-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL GR00T</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-GR00T-Bridge-RT-1">StarVLA/Qwen-GR00T-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-groot-bridge-bf16">starvla-qwen25-groot-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL PI</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-PI-Bridge-RT-1">StarVLA/Qwen-PI-Bridge-RT-1</a></td>
+      <td>bf16 + f32 policy</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-pi-bridge-bf16">starvla-qwen25-pi-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>StarVLA Qwen2.5-VL FAST</td>
+      <td>Bridge</td>
+      <td><a href="https://huggingface.co/StarVLA/Qwen-FAST-Bridge-RT-1">StarVLA/Qwen-FAST-Bridge-RT-1</a></td>
+      <td>bf16 + codec</td>
+      <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-fast-bridge-bf16">starvla-qwen25-fast-bridge-bf16</a></td>
     </tr>
   </tbody>
 </table>
