@@ -358,7 +358,9 @@ robot.cpp/
 │       ├── ggml_backend.*         # Shared ggml backend / buffer / scheduler abstractions
 │       ├── gguf_loader.*          # Shared GGUF loading abstraction
 │       ├── smolvla/               # SmolVLA runtime implementation
-│       └── pi0/                   # pi0 runtime implementation
+│       ├── pi0/                   # pi0 runtime implementation
+│       ├── starvla/               # StarVLA Qwen / policy runtime implementation
+│       └── bitvla/                # BitVLA I2S runtime implementation
 ├── robot_server/
 │   ├── model-server.cpp           # Persistent daemon entrypoint; listens for local TCP requests
 │   ├── protocol.*                 # Little-endian binary protocol
@@ -374,6 +376,10 @@ robot.cpp/
 │   └── shell/                     # Client build and run scripts
 ├── tools/
 │   ├── hf2gguf/                   # Hugging Face checkpoint -> GGUF conversion tools
+│   │   ├── smolvla/
+│   │   ├── pi0/
+│   │   ├── starvla/
+│   │   └── bitvla/
 │   └── quant/                     # YAML-plan-based selective GGUF tensor quantization tool
 ├── eval/
 │   ├── base_platform.py           # Shared base class for real-robot platforms
@@ -411,7 +417,7 @@ If you use Robot.cpp in your project, please cite the GitHub repository to ackno
 
 ```bibtex
 @misc{robotcpp2026,
-    author = {Chuyan Xiong, Sutong Wang, Jie Huang, Hong Chang, Ruiping Wang},
+    author = {Chuyan Xiong, Jie Huang, Sutong Wang, Hong Chang, Ruiping Wang},
     title = {Robot.cpp: Run Your Robot Model Easily on Any Device},
     howpublished = {\url{https://github.com/Robot-cpp/robot.cpp}},
     year = {2026}
@@ -433,6 +439,8 @@ This repository also includes third-party open-source components, each under its
 Robot.cpp's design and implementation benefit from several excellent open-source projects:
 
 * [llama.cpp](https://github.com/ggerganov/llama.cpp): provides lightweight local inference, the GGML/GGUF ecosystem, and cross-platform backend foundations. This project continues building robot model inference capabilities on top of its engineering philosophy and low-level runtime.
+* [BitVLA](https://github.com/ustcwhy/BitVLA): provides the 1-bit VLA model, quantization method, and open-source checkpoints. The BitVLA runtime, GGUF conversion, and I2S weight packing in this project are based on its model and quantization implementation.
+* [StarVLA](https://github.com/starVLA/starVLA): provides a modular VLA development framework, Qwen3-VL / Qwen2.5-VL model architectures, and Bridge checkpoints. The StarVLA runtime, GGUF conversion, and SimplerEnv evaluation flow in this project build on its open-source work.
 * [LeRobot](https://github.com/huggingface/lerobot): provides reference implementations for robot data, policy training, and real-robot integration. The SO-101 real-robot example and parts of the evaluation flow in this project are inspired by the LeRobot ecosystem.
 * [LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO): provides robot simulation tasks and evaluation benchmarks. The LIBERO simulation evaluation flow in this project is based on its task environments and benchmark design.
 * [SimplerEnv](https://github.com/simpler-env/SimplerEnv): provides real-to-sim robot evaluation environments. The StarVLA Bridge success-rate evaluation uses its WidowX task suite and official visual-matching assets.

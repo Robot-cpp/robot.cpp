@@ -360,7 +360,9 @@ robot.cpp/
 │       ├── ggml_backend.*         # ggml backend / buffer / scheduler 等公共抽象
 │       ├── gguf_loader.*          # GGUF 读取的公共抽象
 │       ├── smolvla/               # SmolVLA runtime实现
-│       └── pi0/                   # pi0 runtime实现
+│       ├── pi0/                   # pi0 runtime实现
+│       ├── starvla/               # StarVLA Qwen / policy runtime实现
+│       └── bitvla/                # BitVLA I2S runtime实现
 ├── robot_server/
 │   ├── model-server.cpp           # 常驻 daemon 入口，监听本机 TCP 请求
 │   ├── protocol.*                 # little-endian 二进制协议
@@ -376,6 +378,10 @@ robot.cpp/
 │   └── shell/                     # client 编译与运行脚本
 ├── tools/
 │   ├── hf2gguf/                   # Hugging Face checkpoint -> GGUF 转换工具
+│   │   ├── smolvla/
+│   │   ├── pi0/
+│   │   ├── starvla/
+│   │   └── bitvla/
 │   └── quant/                     # 基于 YAML plan 的 GGUF tensor 选择性量化工具
 ├── eval/
 │   ├── base_platform.py           # 真机 platform 的统一基类
@@ -413,7 +419,7 @@ Robot.cpp 由中国科学院计算技术研究所智能算法安全全国重点�
 
 ```bibtex
 @misc{robotcpp2026,
-    author = {Chuyan Xiong, Sutong Wang, Jie Huang, Hong Chang, Ruiping Wang},
+    author = {Chuyan Xiong, Jie Huang, Sutong Wang, Hong Chang, Ruiping Wang},
     title = {Robot.cpp: Run Your Robot Model Easily on Any Device},
     howpublished = {\url{https://github.com/Robot-cpp/robot.cpp}},
     year = {2026}
@@ -435,6 +441,8 @@ robot.cpp 源码使用 Apache License, Version 2.0 开源。完整协议文本�
 robot.cpp 的设计与实现受益于多个优秀的开源项目：
 
 * [llama.cpp](https://github.com/ggerganov/llama.cpp)：提供了轻量化本地推理、GGML/GGUF 生态与跨平台后端基础，本项目在其工程哲学和底层能力上继续构建机器人模型推理框架。
+* [BitVLA](https://github.com/ustcwhy/BitVLA)：提供了 1-bit VLA 模型、量化方法与开源 checkpoint；本项目的 BitVLA runtime、GGUF 转换和 I2S 权重打包基于其模型与量化实现。
+* [StarVLA](https://github.com/starVLA/starVLA)：提供了模块化的 VLA 开发框架，以及基于 Qwen3-VL / Qwen2.5-VL 的模型架构与 Bridge checkpoint；本项目的 StarVLA runtime、GGUF 转换和 SimplerEnv 评测流程均构建于其开源工作之上。
 * [LeRobot](https://github.com/huggingface/lerobot)：提供了机器人数据、策略训练与真实机器人接入的参考实现，本项目的 SO-101 真机示例与部分评测流程参考了 LeRobot 生态。
 * [LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO)：提供了机器人仿真任务与评测基准，本项目的 LIBERO 仿真评测流程基于其任务环境与 benchmark 设计。
 * [SimplerEnv](https://github.com/simpler-env/SimplerEnv)：提供了 real-to-sim 机器人评测环境，本项目的 StarVLA Bridge 成功率评测使用其 WidowX 任务集与官方 visual-matching 资产。
