@@ -442,6 +442,7 @@ robot.cpp 的设计与实现受益于多个优秀的开源项目：
 
 * [llama.cpp](https://github.com/ggerganov/llama.cpp)：提供了轻量化本地推理、GGML/GGUF 生态与跨平台后端基础，本项目在其工程哲学和底层能力上继续构建机器人模型推理框架。
 * [BitVLA](https://github.com/ustcwhy/BitVLA)：提供了 1-bit VLA 模型、量化方法与开源 checkpoint；本项目的 BitVLA runtime、GGUF 转换和 I2S 权重打包基于其模型与量化实现。
+* [BitNet](https://github.com/microsoft/BitNet)：本项目 BitVLA 的 I2S 权重打包格式参考了 bitnet.cpp 的 I2_S 实现。
 * [StarVLA](https://github.com/starVLA/starVLA)：提供了模块化的 VLA 开发框架，以及基于 Qwen3-VL / Qwen2.5-VL 的模型架构与 Bridge checkpoint；本项目的 StarVLA runtime、GGUF 转换和 SimplerEnv 评测流程均构建于其开源工作之上。
 * [LeRobot](https://github.com/huggingface/lerobot)：提供了机器人数据、策略训练与真实机器人接入的参考实现，本项目的 SO-101 真机示例与部分评测流程参考了 LeRobot 生态。
 * [LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO)：提供了机器人仿真任务与评测基准，本项目的 LIBERO 仿真评测流程基于其任务环境与 benchmark 设计。
