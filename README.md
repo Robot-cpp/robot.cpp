@@ -204,7 +204,7 @@ See robot_server/test/test_server_latency.sh for the benchmark.
 
 ## 🧩 Model Zoo
 
-This section lists converted GGUF models that can be used directly with `model-server` for smoke tests and quick starts. For your own real-world scenarios, we recommend using [`hf2gguf`](tools/hf2gguf/README.md) to generate your own GGUF models. Different components can also use different precisions; in practice, the best precision choice is often component-specific. In our examples, the state projector always stays in f32, while the other GGUF files follow the listed precision. You can mix and match them to explore better accuracy/performance tradeoffs.
+This section lists converted GGUF models that can be used directly with `model-server` for smoke tests and quick starts. For your own real-world scenarios, we recommend using [`hf2gguf`](tools/hf2gguf/README.md) to generate your own GGUF models. Different components can also use different precisions; in practice, the best precision choice is often component-specific. In the SmolVLA / pi0 examples, the state projector stays in f32, while the other GGUF files follow the listed precision. You can mix and match them to explore better accuracy/performance tradeoffs. BitVLA I2S files also contain unquantized BF16/F32 tensors.
 
 <table>
   <thead>
@@ -310,6 +310,34 @@ This section lists converted GGUF models that can be used directly with `model-s
       <td><a href="https://huggingface.co/StarVLA/Qwen-FAST-Bridge-RT-1">StarVLA/Qwen-FAST-Bridge-RT-1</a></td>
       <td>bf16 + codec</td>
       <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-fast-bridge-bf16">starvla-qwen25-fast-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Spatial</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_spatial-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_spatial-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-spatial-i2s">bitvla-libero-spatial-i2s</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Object</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_object-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_object-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-object-i2s">bitvla-libero-object-i2s</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Goal</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_goal-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_goal-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-goal-i2s">bitvla-libero-goal-i2s</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Long / LIBERO-10</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_long-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_long-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-long-i2s">bitvla-libero-long-i2s</a></td>
     </tr>
   </tbody>
 </table>

@@ -205,7 +205,8 @@ BitVLA 的 LIBERO 性能测试设定使用两张已缩放和裁剪的 224×224 R
 
 下表列出可直接配合 `model-server` 使用的 GGUF 模型。实际部署时，建议使用
 [`hf2gguf`](tools/hf2gguf/README_ZH.md) 转换自己的 checkpoint。各组件可以分别选择
-精度；表中示例的 state projector 固定为 f32，其余组件采用标注的精度。
+精度；SmolVLA / pi0 示例的 state projector 固定为 f32，其余组件采用标注的精度。
+BitVLA 的 I2S 文件同时包含未量化的 BF16/F32 tensor。
 
 <table>
   <thead>
@@ -311,6 +312,34 @@ BitVLA 的 LIBERO 性能测试设定使用两张已缩放和裁剪的 224×224 R
       <td><a href="https://huggingface.co/StarVLA/Qwen-FAST-Bridge-RT-1">StarVLA/Qwen-FAST-Bridge-RT-1</a></td>
       <td>bf16 + codec</td>
       <td><a href="https://huggingface.co/robotcpp/starvla-qwen25-fast-bridge-bf16">starvla-qwen25-fast-bridge-bf16</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Spatial</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_spatial-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_spatial-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-spatial-i2s">bitvla-libero-spatial-i2s</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Object</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_object-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_object-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-object-i2s">bitvla-libero-object-i2s</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Goal</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_goal-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_goal-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-goal-i2s">bitvla-libero-goal-i2s</a></td>
+    </tr>
+    <tr>
+      <td>BitVLA</td>
+      <td>LIBERO-Long / LIBERO-10</td>
+      <td><a href="https://huggingface.co/hongyuw/ft-bitvla-bitsiglipL-224px-libero_long-bf16">hongyuw/ft-bitvla-bitsiglipL-224px-libero_long-bf16</a></td>
+      <td>I2S</td>
+      <td><a href="https://huggingface.co/robotcpp/bitvla-libero-long-i2s">bitvla-libero-long-i2s</a></td>
     </tr>
   </tbody>
 </table>
