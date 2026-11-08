@@ -165,9 +165,9 @@ StarVLA，并比较 Python checkpoint 与 GGUF 的方法见
 
 ## ⚡ 性能
 
-我们在不同的平台测试了我们的实现性能，我们对模型进行5次warmup，100次loop，取其从收到图片开始包括process，forward，到输出可用action chunk的latency平均值（单位：ms）。所有state projector均保持f32精度。
+我们在不同的平台测试了我们的实现性能，我们对模型进行5次warmup，100次loop，取其从收到图片开始包括process，forward，到输出可用action chunk的latency平均值（单位：ms）。SmolVLA 和 pi0 的 state projector 保持 f32 精度。
 
-其中，对libero设定，输入为两张256x256的图片，输入的state维度为8；对so101的真机设定，输入为一张224x224的图片，输入的state维度为6。
+其中，对 SmolVLA / pi0 的 LIBERO 设定，输入为两张256x256的图片，输入的state维度为8；对so101的真机设定，输入为一张224x224的图片，输入的state维度为6。
 
 其中对于smolvla的preprocess设定，参考官方的基本设定，即首先会将图片变成512*512。
 
@@ -176,21 +176,25 @@ StarVLA 使用一张 224x224 图像且不输入 robot state。Qwen 和 multimoda
 codec。A100 数据在 A100-PCIE-40GB、8 个 CPU 线程、`n_ctx=2048`、`n_batch=2048` 和
 noise seed 0 下测得。
 
-| Model                  | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
-| ---------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
-| smolvla@libero (bf16*) |              527 |                216 |       28 |         116 |   43 |             282 |
-| smolvla@libero (f32)   |              577 |                236 |       32 |         142 |   42 |             299 |
-| smolvla@so-101 (bf16*) |              339 |                145 |       23 |          77 |   36 |             184 |
-| smolvla@so-101 (f32)   |              396 |                158 |       24 |          92 |   34 |             200 |
-| pi0@libero (f32)       |             1839 |                710 |       83 | OOM/offload |   71 |             956 |
-| pi0@libero (bf16*)     |             1954 |                635 |       57 |         267 |   66 |             498 |
-| starvla/oft@bridge            |                - |                  - |        - |           - |   50 |               - |
-| starvla/groot@bridge          |                - |                  - |        - |           - |   54 |               - |
-| starvla/pi_v3@bridge          |                - |                  - |        - |           - |  112 |               - |
-| starvla/qwen25_oft@bridge     |                - |                  - |        - |           - |   42 |               - |
-| starvla/qwen25_groot@bridge   |                - |                  - |        - |           - |   51 |               - |
-| starvla/qwen25_pi@bridge      |                - |                  - |        - |           - |  101 |               - |
-| starvla/qwen25_fast@bridge    |                - |                  - |        - |           - |  386 |               - |
+BitVLA 的 LIBERO 性能测试设定使用两张已缩放和裁剪的 224×224 RGB 图像、八维 state，输出 8×7 action chunk。
+具体测试可以参照robot_server/test/test_server_latency.sh。
+
+| Model                       | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 | RTX 3090 | RTX 3060    | A100 | Jetson AGX Orin |
+| --------------------------- | ---------------: | -----------------: | -------: | -------: | ----------: | ---: | --------------: |
+| smolvla@libero (bf16*)      |              527 |                216 |       28 |        — |         116 |   43 |             282 |
+| smolvla@libero (f32)        |              577 |                236 |       32 |        — |         142 |   42 |             299 |
+| smolvla@so-101 (bf16*)      |              339 |                145 |       23 |        — |          77 |   36 |             184 |
+| smolvla@so-101 (f32)        |              396 |                158 |       24 |        — |          92 |   34 |             200 |
+| pi0@libero (f32)            |             1839 |                710 |       83 |        — | OOM/offload |   71 |             956 |
+| pi0@libero (bf16*)          |             1954 |                635 |       57 |        — |         267 |   66 |             498 |
+| bitvla@libero (I2S)         |                — |                  — |       17 |       39 |           — |    — |               — |
+| starvla/oft@bridge          |                — |                  — |        — |        — |           — |   50 |               — |
+| starvla/groot@bridge        |                — |                  — |        — |        — |           — |   54 |               — |
+| starvla/pi_v3@bridge        |                — |                  — |        — |        — |           — |  112 |               — |
+| starvla/qwen25_oft@bridge   |                — |                  — |        — |        — |           — |   42 |               — |
+| starvla/qwen25_groot@bridge |                — |                  — |        — |        — |           — |   51 |               — |
+| starvla/qwen25_pi@bridge    |                — |                  — |        — |        — |           — |  101 |               — |
+| starvla/qwen25_fast@bridge  |                — |                  — |        — |        — |           — |  386 |               — |
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 > `OOM/offload`：pi0@libero (f32) 在 RTX 3060 上会 OOM 并触发 offload，因此暂时不报告 latency 数值。

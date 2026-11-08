@@ -9,6 +9,8 @@ readonly PATCH_DIR="${REPO_ROOT}/patches/llama.cpp"
 readonly PATCHES=(
     "${PATCH_DIR}/0001-qwen3vl-vision-parity.patch"
     "${PATCH_DIR}/0002-per-context-native-graph-control.patch"
+    "${PATCH_DIR}/0004-bitvla-custom-cuda.patch"
+    "${PATCH_DIR}/0005-bitvla-native-i2s.patch"
 )
 
 usage() {

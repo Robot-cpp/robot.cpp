@@ -65,9 +65,10 @@ static void print_usage(const char * prog) {
                  "       %s --model-type pi0 --vit <path> --mmproj <path> --llm <path> --tokenizer <path> --state-gguf "
                  "<path> --action-decoder <path> [options]\n"
                  "       %s --model-type starvla --llm <path> --mmproj <path> --policy <path> [options]\n"
+                 "       %s --model-type bitvla --llm <path> --mmproj <path> --state-proj <path> --action-expert <path> [options]\n"
                  "\n"
                  "Common options:\n"
-                 "  --model-type <type>      smolvla|pi0|starvla\n"
+                 "  --model-type <type>      smolvla|pi0|starvla|bitvla\n"
                  "                           (default: smolvla)\n"
                  "\n"
                  "SmolVLA options:\n"
@@ -100,7 +101,7 @@ static void print_usage(const char * prog) {
                  "  --noise-seed <n>         RNG seed, <0 means auto (default: -1)\n"
                  "  --verbosity <n>          Log verbosity (default: 0)\n"
                  "  -h, --help               Show this help\n",
-                 prog, prog, prog);
+                 prog, prog, prog, prog);
 }
 
 // TODO: may need to be cleaned up and optimized
@@ -200,10 +201,11 @@ static bool parse_args(int argc, char ** argv, server_args & args) {
         std::fprintf(stderr, "Error: StarVLA does not support --noise-mode debug-sin; use Gaussian noise\n");
         return false;
     }
-    if (args.model_type == robotcpp::model_type::smolvla) {
+    if (args.model_type == robotcpp::model_type::smolvla || args.model_type == robotcpp::model_type::bitvla) {
         if (args.llm_path.empty() || args.mmproj_path.empty() || args.state_proj_path.empty() ||
             args.action_expert_path.empty()) {
-            std::fprintf(stderr, "Error: smolvla requires --llm --mmproj --state-proj --action-expert\n");
+            std::fprintf(stderr, "Error: %s requires --llm --mmproj --state-proj --action-expert\n",
+                         robotcpp::model_type_name(args.model_type));
             return false;
         }
     } else if (args.model_type == robotcpp::model_type::pi0) {

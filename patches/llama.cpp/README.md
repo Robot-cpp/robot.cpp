@@ -1,7 +1,7 @@
 # llama.cpp patches
 
 The project pins `third_party/llama.cpp` at commit
-`3e941b813b1acbbf06c2203a94ceb33d84748c1e`. The repository applies two
+`3e941b813b1acbbf06c2203a94ceb33d84748c1e`. The repository applies four
 changes that are not available through that revision's public APIs:
 
 1. `0001-qwen3vl-vision-parity.patch` uses the position interpolation and exact
@@ -10,6 +10,13 @@ changes that are not available through that revision's public APIs:
    disable CUDA graph capture for the text and vision contexts owned by one
    StarVLA instance. This avoids retained CUDA graphs growing memory use during
    long runs without changing the setting for other llama.cpp users.
+3. `0004-bitvla-custom-cuda.patch` lets a GGML custom operation provide a CUDA
+   callback. Operations without that callback retain their existing backend behavior.
+4. `0005-bitvla-native-i2s.patch` registers BitVLA's matrix-wide I2S storage in
+   GGML and the Python GGUF reader, including its packed allocation size.
+
+The filenames retain their original numbering; there is no `0003` in the current
+patch set. Use the list in `tools/apply_patches.sh` rather than filling numbering gaps.
 
 Apply the repository patch set after initializing submodules and before building:
 

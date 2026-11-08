@@ -32,8 +32,18 @@ under `robot_server/shell`. After running a script, the corresponding
 | CPU     | `robot_server/shell/launch_robot_server_mac_cpu.sh`   | `robot_server/shell/launch_robot_server_linux_cpu.sh`  | `robot_server/shell/launch_robot_server_windows_cpu.bat`  |
 | Metal   | `robot_server/shell/launch_robot_server_mac_metal.sh` | -                                                        | -                                                           |
 
-The Linux CUDA script supports SmolVLA, pi0, and StarVLA. The other launch
-scripts currently support SmolVLA and pi0.
+Model support in the launch scripts (✅ integrated; — not yet tested):
+
+| Model | macOS CPU | macOS Metal | Linux CPU | Linux CUDA | Windows CPU | Windows CUDA |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| StarVLA | — | — | — | ✅ | — | — |
+| BitVLA | ✅ | — | ✅ | ✅ | — | — |
+
+Note: For BitVLA on Mac M4 Pro, use the CPU backend for now. Metal INT8 operations may
+perform worse than CPU operations; further investigation and validation are needed
+before Mac Metal support is released.
 
 ### Set Variables
 
@@ -44,7 +54,7 @@ Common variables:
 | Variable           | Description                                                                         | Default                                                                       |
 | ------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `ROBOT_CPP_ROOT` | Repository root.                                                                    | Must be set explicitly                                                        |
-| `MODEL_TYPE`     | Model type: `smolvla`, `pi0`, or `starvla`.                                      | `smolvla`                                                                   |
+| `MODEL_TYPE`     | Model type: `smolvla`, `pi0`, `starvla`, or `bitvla`.                                      | `smolvla`                                                                   |
 | `GGUF_DIR`       | Directory containing GGUF files.                                                    | Must be set explicitly                                                        |
 | `BUILD_DIR`      | CMake build directory.                                                              | macOS / Linux defaults use `build_{mac/linux}_{cpu/metal/cuda}`             |
 | `HOST`           | Server listen address.                                                              | `127.0.0.1`                                                                  |
@@ -66,6 +76,15 @@ SmolVLA variables:
 | `VISION_GGUF`        | Full path to the SmolVLA vision/mmproj GGUF.   | `${GGUF_DIR}/mmproj-smolvla-f32.gguf`        |
 | `STATE_PROJ_GGUF`    | Full path to the SmolVLA state projector GGUF. | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
 | `ACTION_EXPERT_GGUF` | Full path to the SmolVLA action expert GGUF.   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
+
+BitVLA variables (Mac CPU / Linux CPU / Linux CUDA):
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `LLM_GGUF` | BitVLA llm GGUF | `${GGUF_DIR}/bitvla-llm-i2s.gguf` |
+| `VISION_GGUF` | BitVLA vision GGUF | `${GGUF_DIR}/bitvla-vision-i2s.gguf` |
+| `STATE_PROJ_GGUF` | BitVLA proprio GGUF | `${GGUF_DIR}/bitvla-proprio-i2s.gguf` |
+| `ACTION_EXPERT_GGUF` | BitVLA action GGUF | `${GGUF_DIR}/bitvla-action-i2s.gguf` |
 
 pi0 variables:
 

@@ -7,9 +7,9 @@ set -e
 #       bash robot_server/test/test_server_latency.sh <model-type> <backend> <test-suite>
 #
 # Positional args:
-#   $1: model-type, e.g. smolvla / pi0 / starvla
+#   $1: model-type, e.g. smolvla / pi0 / starvla / bitvla
 #   $2: backend, e.g. mac-cpu / mac-metal / linux-cpu / linux-cuda
-#   $3: test-suite, e.g. smolvla-libero / smolvla-so101 / pi0-libero / starvla-bridge
+#   $3: test-suite, e.g. smolvla-libero / smolvla-so101 / pi0-libero / starvla-bridge / bitvla-libero
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
@@ -28,6 +28,13 @@ case "${MODEL_TYPE}" in
         VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/mmproj-smolvla-f32.gguf}"
         STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/state-proj-smolvla-f32.gguf}"
         ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
+        ;;
+    bitvla)
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/bitvla-llm-i2s.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/bitvla-vision-i2s.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/bitvla-proprio-i2s.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/bitvla-action-i2s.gguf}"
+        DTYPE="${DTYPE:-i2s}"
         ;;
     pi0)
         # pi0 defaults are resolved from MODEL_BASENAME by launch scripts.
@@ -83,6 +90,11 @@ case "${BACKEND}" in
         ;;
 esac
 
+if [[ "${MODEL_TYPE}" == "bitvla" && "${BACKEND}" == "mac-metal" ]]; then
+    echo "BitVLA latency supports mac-cpu, linux-cpu, and linux-cuda" >&2
+    exit 1
+fi
+
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5569}"
 THREADS="${THREADS:-8}"
@@ -108,6 +120,12 @@ case "${TEST_SUITE}" in
         IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-observation.images.image,observation.images.image2}}"
         IMAGE_WIDTH="${IMAGE_WIDTH:-256}"
         IMAGE_HEIGHT="${IMAGE_HEIGHT:-256}"
+        STATE_DIM="${STATE_DIM:-8}"
+        ;;
+    bitvla-libero)
+        IMAGE_NAMES="${IMAGE_NAMES:-${IMAGE_NAME:-full_image,wrist_image}}"
+        IMAGE_WIDTH="${IMAGE_WIDTH:-224}"
+        IMAGE_HEIGHT="${IMAGE_HEIGHT:-224}"
         STATE_DIM="${STATE_DIM:-8}"
         ;;
     starvla-bridge)

@@ -41,6 +41,9 @@ set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/llama.cpp EXCLUDE_FROM_ALL)
+if(GGML_CUDA)
+    get_target_property(CMAKE_CUDA_ARCHITECTURES ggml-cuda CUDA_ARCHITECTURES)
+endif()
 if(NOT TARGET ggml OR NOT TARGET llama)
     message(FATAL_ERROR "llama.cpp must provide ggml and llama targets")
 endif()
@@ -64,10 +67,13 @@ set(ROBOT_CPP_LLAMA_INCLUDE_DIRS
 
 set(SMOLVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/smolvla)
 set(STARVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/starvla)
+set(BITVLA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/models/bitvla)
 set(ROBOT_SERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_server)
 set(ROBOT_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/robot_client)
 
 add_library(robotcpp_model_common STATIC
+    src/models/image_preprocess.cpp
+    src/models/image_preprocess.h
     src/models/ggml_backend.cpp
     src/models/ggml_backend.h
     src/models/gguf_loader.cpp
@@ -188,10 +194,69 @@ if(NOT MSVC)
 endif()
 endif()
 
+add_library(bitvla_runtime STATIC
+    ${BITVLA_DIR}/optimization_policy.cpp
+    ${BITVLA_DIR}/graph_ops.cpp
+    ${BITVLA_DIR}/component.cpp
+    ${BITVLA_DIR}/i2s.cpp
+    ${BITVLA_DIR}/ops.cpp
+    ${BITVLA_DIR}/vision.cpp
+    ${BITVLA_DIR}/language.cpp
+    ${BITVLA_DIR}/projections.cpp
+)
+target_include_directories(bitvla_runtime PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${ROBOT_CPP_LLAMA_INCLUDE_DIRS}
+)
+target_link_libraries(bitvla_runtime PUBLIC robotcpp_model_common llama)
+target_compile_features(bitvla_runtime PUBLIC cxx_std_17)
+# The CPU softmax callback reuses this pinned ggml CPU kernel directly.
+target_include_directories(bitvla_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/src)
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+    include(CheckCXXSourceCompiles)
+    include(CMakePushCheckState)
+    cmake_push_check_state()
+    string(APPEND CMAKE_REQUIRED_FLAGS " -march=armv8.6-a+sme2")
+    check_cxx_source_compiles("
+        #include <arm_sme.h>
+        static uint64_t width() __arm_streaming { return svcntsw(); }
+        int main() { return int(width()); }" ROBOTCPP_BITVLA_HAS_CPU_SME)
+    cmake_pop_check_state()
+    if(ROBOTCPP_BITVLA_HAS_CPU_SME)
+        target_sources(bitvla_runtime PRIVATE ${BITVLA_DIR}/i2s_sme.cpp)
+        set_property(SOURCE ${BITVLA_DIR}/i2s_sme.cpp APPEND PROPERTY
+            COMPILE_OPTIONS "-march=armv8.6-a+sme2")
+        target_compile_definitions(bitvla_runtime PRIVATE BITVLA_USE_CPU_SME=1)
+    endif()
+endif()
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64" AND NOT MSVC)
+    set_source_files_properties(${BITVLA_DIR}/i2s.cpp PROPERTIES COMPILE_OPTIONS "-mavx2")
+endif()
+if(GGML_CUDA)
+    enable_language(CUDA)
+    # Approximate DIV can move BitVLA activations across int8 rounding ties.
+    # Keep the rest of ggml's CUDA fast math unchanged.
+    set_property(SOURCE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/src/ggml-cuda/binbcast.cu"
+        TARGET_DIRECTORY ggml-cuda APPEND PROPERTY COMPILE_OPTIONS --prec-div=true)
+    target_sources(bitvla_runtime PRIVATE ${BITVLA_DIR}/ops_cuda.cu ${BITVLA_DIR}/i2s_cuda.cu
+        ${BITVLA_DIR}/rms_cuda.cu ${BITVLA_DIR}/softmax_cuda.cu)
+    # Match ggml's original RMS reduction math; leave other model CUDA files unchanged.
+    set_source_files_properties(${BITVLA_DIR}/rms_cuda.cu ${BITVLA_DIR}/softmax_cuda.cu
+        PROPERTIES COMPILE_OPTIONS "-use_fast_math")
+    target_include_directories(bitvla_runtime PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/src/ggml-cuda)
+    target_compile_definitions(bitvla_runtime PRIVATE BITVLA_USE_CUDA=1)
+    set_property(TARGET bitvla_runtime PROPERTY CUDA_STANDARD 17)
+endif()
+
 add_library(robotcpp STATIC
     src/models/argument_parse.h
     src/models/model.h
     src/models/model_factory.cpp
+    ${BITVLA_DIR}/bitvla_model.cpp
+    ${BITVLA_DIR}/bitvla_model.h
     src/models/pi0/pi0_model.cpp
     src/models/pi0/pi0_model.h
     ${SMOLVLA_DIR}/smolvla_model.cpp
@@ -202,7 +267,7 @@ target_include_directories(robotcpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${SMOLVLA_DIR}
 )
-target_link_libraries(robotcpp PUBLIC smolvla_runtime pi0_engine)
+target_link_libraries(robotcpp PUBLIC smolvla_runtime pi0_engine bitvla_runtime)
 target_compile_features(robotcpp PUBLIC cxx_std_17)
 if(ROBOT_CPP_BUILD_STARVLA)
     target_sources(robotcpp PRIVATE

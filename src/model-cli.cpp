@@ -52,9 +52,10 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "Usage:\n");
     std::fprintf(stderr, "  %s --model-type smolvla [options]\n", prog);
     std::fprintf(stderr, "  %s --model-type pi0 [options]\n", prog);
+    std::fprintf(stderr, "  %s --model-type bitvla --llm <path> --mmproj <path> --state-proj <path> --action-expert <path> [options]\n", prog);
     std::fprintf(stderr, "  %s --model-type starvla --llm <path> --mmproj <path> --policy <path> [options]\n\n", prog);
     std::fprintf(stderr, "Common options:\n");
-    std::fprintf(stderr, "  --model-type <type>      smolvla|pi0|starvla\n"
+    std::fprintf(stderr, "  --model-type <type>      smolvla|pi0|starvla|bitvla\n"
                          "                           (default: smolvla)\n");
     std::fprintf(stderr, "  --image <path>           Input image (repeatable; order matches --image-name)\n");
     std::fprintf(stderr,
@@ -87,6 +88,11 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "  --n-batch <n>            Qwen batch size (default: 512)\n");
     std::fprintf(stderr, "  --n-ctx <n>              Qwen context size (default: 2048)\n");
     std::fprintf(stderr, "  --noise-seed <n>         GR00T/PI/PI_v3 noise seed, <0 means auto (default: -1)\n");
+    std::fprintf(stderr, "\nBitVLA options:\n");
+    std::fprintf(stderr, "  --llm <path>             BitNet language and tokenizer GGUF\n");
+    std::fprintf(stderr, "  --mmproj <path>          BitSigLIP vision and projector GGUF\n");
+    std::fprintf(stderr, "  --state-proj <path>      Proprio projector GGUF\n");
+    std::fprintf(stderr, "  --action-expert <path>   L1 action head GGUF\n");
 }
 
 bool parse_state(const char * csv, std::vector<float> & out) {

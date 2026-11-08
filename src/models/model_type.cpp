@@ -10,10 +10,11 @@ struct model_type_entry {
     const char * name;
 };
 
-constexpr std::array<model_type_entry, 3> MODEL_TYPES = {{
+constexpr std::array<model_type_entry, 4> MODEL_TYPES = {{
     {model_type::smolvla, "smolvla"},
     {model_type::pi0, "pi0"},
     {model_type::starvla, "starvla"},
+    {model_type::bitvla, "bitvla"},
 }};
 
 const model_type_entry * find_entry(model_type type) {

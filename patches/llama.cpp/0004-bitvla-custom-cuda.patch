@@ -1,0 +1,75 @@
+diff --git a/ggml/include/ggml.h b/ggml/include/ggml.h
+index 3357a0d99..6934a9fb3 100644
+--- a/ggml/include/ggml.h
++++ b/ggml/include/ggml.h
+@@ -2609,6 +2609,9 @@ extern "C" {
+ 
+     typedef void (*ggml_custom_op_t)(struct ggml_tensor * dst , int ith, int nth, void * userdata);
+ 
++    typedef void (*ggml_custom_cuda_op_t)(struct ggml_tensor * dst, void * stream, void * userdata);
++    GGML_API void ggml_custom_set_cuda(struct ggml_tensor * tensor, ggml_custom_cuda_op_t fun);
++
+     GGML_API struct ggml_tensor * ggml_custom_4d(
+             struct ggml_context * ctx,
+             enum ggml_type        type,
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index 8d21b2267..80080f4b2 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -2844,6 +2844,13 @@ static bool ggml_cuda_compute_forward(ggml_backend_cuda_context & ctx, struct gg
+         case GGML_OP_LOG:
+             ggml_cuda_op_log(ctx, dst);
+             break;
++        case GGML_OP_CUSTOM: {
++            ggml_custom_op_params params;
++            memcpy(&params, dst->op_params, sizeof(params));
++            if (!params.cuda_fun) return false;
++            params.cuda_fun(dst, reinterpret_cast<void *>(ctx.stream()), params.userdata);
++            break;
++        }
+         case GGML_OP_NONE:
+         case GGML_OP_RESHAPE:
+         case GGML_OP_VIEW:
+@@ -5105,6 +5112,11 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
+         case GGML_OP_RMS_NORM_BACK:
+             return ggml_is_contiguous(op->src[0]);
+             break;
++        case GGML_OP_CUSTOM: {
++            ggml_custom_op_params params;
++            memcpy(&params, op->op_params, sizeof(params));
++            return params.cuda_fun != nullptr;
++        }
+         case GGML_OP_NONE:
+         case GGML_OP_RESHAPE:
+         case GGML_OP_VIEW:
+diff --git a/ggml/src/ggml-impl.h b/ggml/src/ggml-impl.h
+index 62b76abbc..6300a6a5e 100644
+--- a/ggml/src/ggml-impl.h
++++ b/ggml/src/ggml-impl.h
+@@ -192,6 +192,7 @@ struct ggml_custom_op_params {
+     ggml_custom_op_t fun;
+     int              n_tasks;
+     void           * userdata;
++    ggml_custom_cuda_op_t cuda_fun;
+ };
+ 
+ // bitset
+diff --git a/ggml/src/ggml.c b/ggml/src/ggml.c
+index 191cf2fa1..8d63c6402 100644
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -5995,6 +5995,14 @@ struct ggml_tensor * ggml_map_custom3_inplace(
+     return ggml_map_custom3_impl(ctx, a, b, c, fun, n_tasks, userdata, true);
+ }
+ 
++void ggml_custom_set_cuda(struct ggml_tensor * tensor, ggml_custom_cuda_op_t fun) {
++    GGML_ASSERT(tensor->op == GGML_OP_CUSTOM);
++    struct ggml_custom_op_params params;
++    memcpy(&params, tensor->op_params, sizeof(params));
++    params.cuda_fun = fun;
++    ggml_set_op_params(tensor, &params, sizeof(params));
++}
++
+ struct ggml_tensor * ggml_custom_4d(
+         struct ggml_context * ctx,
+         enum ggml_type        type,

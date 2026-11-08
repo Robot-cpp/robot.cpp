@@ -165,9 +165,9 @@ See the [SO-101 deployment guide](eval/lerobot_so101/README.md).
 
 ## ⚡ Performance
 
-We benchmark Robot.cpp on several platforms. Each measurement uses 5 warmup runs and 100 loop runs. The reported latency is the average time from receiving the image, through preprocessing and forward inference, to producing a usable action chunk, measured in milliseconds. State projectors, where present, remain in f32 precision.
+We benchmark Robot.cpp on several platforms. Each measurement uses 5 warmup runs and 100 loop runs. The reported latency is the average time from receiving the image, through preprocessing and forward inference, to producing a usable action chunk, measured in milliseconds. SmolVLA and pi0 state projectors remain in f32 precision.
 
-For the LIBERO setting, the input contains two 256x256 images and an 8-dimensional state. For the SO-101 real-robot setting, the input contains one 224x224 image and a 6-dimensional state.
+For SmolVLA / pi0 on LIBERO, the input contains two 256x256 images and an 8-dimensional state. For the SO-101 real-robot setting, the input contains one 224x224 image and a 6-dimensional state.
 
 For SmolVLA preprocessing, we follow the official default setting: images are first resized to 512x512.
 
@@ -177,21 +177,25 @@ FAST stores its action codec in the policy GGUF.
 The StarVLA A100 results use an A100-PCIE-40GB with 8 CPU threads,
 `n_ctx=2048`, `n_batch=2048`, and noise seed 0.
 
-| Model                         | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 |    RTX 3060 | A100 | Jetson AGX Orin |
-| ----------------------------- | ---------------: | -----------------: | -------: | ----------: | ---: | --------------: |
-| smolvla@libero (bf16*)        |              527 |                216 |       28 |         116 |   43 |             282 |
-| smolvla@libero (f32)          |              577 |                236 |       32 |         142 |   42 |             299 |
-| smolvla@so-101 (bf16*)        |              339 |                145 |       23 |          77 |   36 |             184 |
-| smolvla@so-101 (f32)          |              396 |                158 |       24 |          92 |   34 |             200 |
-| pi0@libero (f32)              |             1839 |                710 |       83 | OOM/offload |   71 |             956 |
-| pi0@libero (bf16*)            |             1954 |                635 |       57 |         267 |   66 |             498 |
-| starvla/oft@bridge            |                - |                  - |        - |           - |   50 |               - |
-| starvla/groot@bridge          |                - |                  - |        - |           - |   54 |               - |
-| starvla/pi_v3@bridge          |                - |                  - |        - |           - |  112 |               - |
-| starvla/qwen25_oft@bridge     |                - |                  - |        - |           - |   42 |               - |
-| starvla/qwen25_groot@bridge   |                - |                  - |        - |           - |   51 |               - |
-| starvla/qwen25_pi@bridge      |                - |                  - |        - |           - |  101 |               - |
-| starvla/qwen25_fast@bridge    |                - |                  - |        - |           - |  386 |               - |
+The BitVLA LIBERO benchmark uses two resized and cropped 224×224 RGB images and an eight-dimensional state, and returns an 8×7 action chunk.
+See robot_server/test/test_server_latency.sh for the benchmark.
+
+| Model                       | Mac M4 Pro (CPU) | Mac M4 Pro (Metal) | RTX 4090 | RTX 3090 | RTX 3060    | A100 | Jetson AGX Orin |
+| --------------------------- | ---------------: | -----------------: | -------: | -------: | ----------: | ---: | --------------: |
+| smolvla@libero (bf16*)      |              527 |                216 |       28 |        — |         116 |   43 |             282 |
+| smolvla@libero (f32)        |              577 |                236 |       32 |        — |         142 |   42 |             299 |
+| smolvla@so-101 (bf16*)      |              339 |                145 |       23 |        — |          77 |   36 |             184 |
+| smolvla@so-101 (f32)        |              396 |                158 |       24 |        — |          92 |   34 |             200 |
+| pi0@libero (f32)            |             1839 |                710 |       83 |        — | OOM/offload |   71 |             956 |
+| pi0@libero (bf16*)          |             1954 |                635 |       57 |        — |         267 |   66 |             498 |
+| bitvla@libero (I2S)         |                — |                  — |       17 |       39 |           — |    — |               — |
+| starvla/oft@bridge          |                — |                  — |        — |        — |           — |   50 |               — |
+| starvla/groot@bridge        |                — |                  — |        — |        — |           — |   54 |               — |
+| starvla/pi_v3@bridge        |                — |                  — |        — |        — |           — |  112 |               — |
+| starvla/qwen25_oft@bridge   |                — |                  — |        — |        — |           — |   42 |               — |
+| starvla/qwen25_groot@bridge |                — |                  — |        — |        — |           — |   51 |               — |
+| starvla/qwen25_pi@bridge    |                — |                  — |        — |        — |           — |  101 |               — |
+| starvla/qwen25_fast@bridge  |                — |                  — |        — |        — |           — |  386 |               — |
 
 > `bf16*`: on Mac, f16 results are used in place of bf16 because current Mac bf16 support is not ideal.
 > `OOM/offload`: pi0@libero (f32) runs out of memory on RTX 3060 and triggers offload, so we do not report a latency number for now.

@@ -11,6 +11,7 @@ enum class model_type {
     smolvla,
     pi0,
     starvla,
+    bitvla,
 };
 
 const char * model_type_name(model_type type);
@@ -50,11 +51,12 @@ struct model_args {
     int threads     = 0;
     int verbosity   = 0;
 
-    // smolvla
+    // SmolVLA / BitVLA component paths
     std::string llm_path;
     std::string mmproj_path;
     std::string state_proj_path;
     std::string action_expert_path;
+    // SmolVLA runtime options
     int n_batch        = 512;
     int n_ctx          = 2048;
     int noise_mode     = 0;

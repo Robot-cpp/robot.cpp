@@ -27,7 +27,17 @@ git submodule update --init --recursive
 | CPU     | `robot_server/shell/launch_robot_server_mac_cpu.sh`   | `robot_server/shell/launch_robot_server_linux_cpu.sh`  | `robot_server/shell/launch_robot_server_windows_cpu.bat`  |
 | Metal   | `robot_server/shell/launch_robot_server_mac_metal.sh` | -                                                        | -                                                           |
 
-Linux CUDA 脚本支持 SmolVLA、pi0 和 StarVLA；其他启动脚本当前支持 SmolVLA 和 pi0。
+各模型的启动脚本支持情况（✅ 已接入；— 尚未测试）：
+
+| 模型 | macOS CPU | macOS Metal | Linux CPU | Linux CUDA | Windows CPU | Windows CUDA |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| StarVLA | — | — | — | ✅ | — | — |
+| BitVLA | ✅ | — | ✅ | ✅ | — | — |
+
+注：BitVLA 在 Mac M4 Pro 上暂时推荐 CPU 后端。Metal 的 INT8 运算性能可能不如 CPU，
+仍需进一步研究和验证；完成后再推出 Mac Metal 支持。
 
 ### 设置变量
 
@@ -38,7 +48,7 @@ Linux CUDA 脚本支持 SmolVLA、pi0 和 StarVLA；其他启动脚本当前支�
 | 变量               | 说明                                                      | 默认值                                                          |
 | ------------------ | --------------------------------------------------------- | --------------------------------------------------------------- |
 | `ROBOT_CPP_ROOT` | 仓库根目录                                                | 必须显式设置                                                    |
-| `MODEL_TYPE`     | 模型类型，可选 `smolvla`、`pi0` 或 `starvla`             | `smolvla`                                                     |
+| `MODEL_TYPE`     | 模型类型，可选 `smolvla`、`pi0`、`starvla` 或 `bitvla`             | `smolvla`                                                     |
 | `GGUF_DIR`       | GGUF 文件所在目录                                         | 必须显式设置                                                    |
 | `BUILD_DIR`      | CMake build 目录                                          | macOS / Linux 默认使用 `build_{mac/linux}_{cpu/metal/cuda}`    |
 | `HOST`           | server 监听地址                                           | `127.0.0.1`                                                   |
@@ -60,6 +70,15 @@ SmolVLA 变量：
 | `VISION_GGUF`        | SmolVLA vision/mmproj GGUF 完整路径   | `${GGUF_DIR}/mmproj-smolvla-f32.gguf`        |
 | `STATE_PROJ_GGUF`    | SmolVLA state projector GGUF 完整路径 | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
 | `ACTION_EXPERT_GGUF` | SmolVLA action expert GGUF 完整路径   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
+
+BitVLA 变量（Mac CPU / Linux CPU / Linux CUDA）：
+
+| 变量 | 说明 | 默认值 |
+| --- | --- | --- |
+| `LLM_GGUF` | BitVLA llm GGUF | `${GGUF_DIR}/bitvla-llm-i2s.gguf` |
+| `VISION_GGUF` | BitVLA vision GGUF | `${GGUF_DIR}/bitvla-vision-i2s.gguf` |
+| `STATE_PROJ_GGUF` | BitVLA proprio GGUF | `${GGUF_DIR}/bitvla-proprio-i2s.gguf` |
+| `ACTION_EXPERT_GGUF` | BitVLA action GGUF | `${GGUF_DIR}/bitvla-action-i2s.gguf` |
 
 pi0 变量：
 
