@@ -197,5 +197,24 @@ MODEL=robotcpp-pi0-libero-finetuned-v044
   --port 5555
 ```
 
+### Start BitVLA
+
+Use a `model-server` binary with BitVLA support and four I2S files from the same checkpoint.
+
+```bash
+GGUF_DIR=/path/to/bitvla-i2s
+
+./model-server \
+  --model-type bitvla \
+  --llm "${GGUF_DIR}/bitvla-llm-i2s.gguf" \
+  --mmproj "${GGUF_DIR}/bitvla-vision-i2s.gguf" \
+  --state-proj "${GGUF_DIR}/bitvla-proprio-i2s.gguf" \
+  --action-expert "${GGUF_DIR}/bitvla-action-i2s.gguf" \
+  --host 127.0.0.1 \
+  --port 5555
+```
+
+Supply one or two RGB images, eight raw state values, and a task instruction. The output is an 8×7 action chunk. The client selects cameras and supplies images in checkpoint training order; the model resizes each image to the vision encoder input size. The LIBERO two-image example uses `full_image` then `wrist_image`; BitVLA does not hard-code camera names.
+
 Replace `/path/to/...`, `GGUF_DIR`, and `MODEL` with the actual local GGUF model
 file paths. `model-server` currently listens only on `127.0.0.1`.

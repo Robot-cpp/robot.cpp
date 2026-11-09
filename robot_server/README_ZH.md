@@ -189,4 +189,23 @@ MODEL=robotcpp-pi0-libero-finetuned-v044
   --port 5555
 ```
 
+### 启动 BitVLA
+
+使用包含 BitVLA 支持的 `model-server`，四个 I2S 文件来自同一 checkpoint。
+
+```bash
+GGUF_DIR=/path/to/bitvla-i2s
+
+./model-server \
+  --model-type bitvla \
+  --llm "${GGUF_DIR}/bitvla-llm-i2s.gguf" \
+  --mmproj "${GGUF_DIR}/bitvla-vision-i2s.gguf" \
+  --state-proj "${GGUF_DIR}/bitvla-proprio-i2s.gguf" \
+  --action-expert "${GGUF_DIR}/bitvla-action-i2s.gguf" \
+  --host 127.0.0.1 \
+  --port 5555
+```
+
+输入为单张或两张 RGB 图像、八维原始 state 和任务指令；输出为 8×7 action chunk。客户端选择相机并按 checkpoint 的训练顺序传图；模型内部将原图缩放至视觉编码器所需尺寸。LIBERO 双图示例使用 `full_image`、`wrist_image` 顺序，相机名称不在 BitVLA 内部写死。
+
 其中 `/path/to/...`、`GGUF_DIR` 和 `MODEL` 需要替换为本地实际的 GGUF 模型文件路径。`model-server` 当前仅监听 `127.0.0.1`。
