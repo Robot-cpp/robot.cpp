@@ -61,7 +61,7 @@ git submodule update --init --recursive
 ```
 
 The launch scripts below configure and build `model-server` automatically.
-StarVLA is built by default; set `ROBOT_CPP_BUILD_STARVLA=OFF` to omit it. See the
+StarVLA is always included in the build. See the
 [Robot Server build instructions](robot_server/README.md#manual-build).
 
 This section introduces three usage paths to help you quickly understand the repository:

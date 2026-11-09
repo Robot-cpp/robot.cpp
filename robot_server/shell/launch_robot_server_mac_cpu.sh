@@ -20,7 +20,6 @@ NOISE_SEED="${NOISE_SEED:--1}"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
-ROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA:-ON}"
 # ====================================
 
 SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
@@ -34,8 +33,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=OFF \
-        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-        -DROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA}"
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \

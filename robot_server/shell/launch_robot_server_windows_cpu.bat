@@ -39,7 +39,6 @@ if not defined VERBOSITY set "VERBOSITY=0"
 
 if not defined SKIP_BUILD set "SKIP_BUILD=0"
 if not defined CMAKE_BIN set "CMAKE_BIN=cmake"
-if not defined ROBOT_CPP_BUILD_STARVLA set "ROBOT_CPP_BUILD_STARVLA=ON"
 if not defined CMAKE_GENERATOR set "CMAKE_GENERATOR=MinGW Makefiles"
 if not defined CMAKE_BUILD_TYPE set "CMAKE_BUILD_TYPE=Release"
 if not defined GGML_NATIVE set "GGML_NATIVE=OFF"
@@ -108,7 +107,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         ) else (
             "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
@@ -121,7 +119,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         )
     ) else (
@@ -136,7 +133,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         ) else (
             "%CMAKE_BIN%" -S "!ROBOT_CPP_ROOT!" -B "!BUILD_DIR!" -G "!CMAKE_GENERATOR!" ^
@@ -148,7 +144,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_OPENMP=!GGML_OPENMP! ^
                 -DGGML_CUDA=OFF ^
                 -DGGML_METAL=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         )
     )

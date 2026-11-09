@@ -67,7 +67,6 @@ Common variables:
 | `VERBOSITY`      | Model log verbosity.                                                                | `0`                                                                         |
 | `SKIP_BUILD`     | Whether to skip configure/build. Set to `1` to launch an existing binary.           | `0`                                                                         |
 | `CMAKE_BIN`      | CMake executable.                                                                   | `cmake`                                                                     |
-| `ROBOT_CPP_BUILD_STARVLA` | Include StarVLA when building; use `OFF` to omit it. Ignored with `SKIP_BUILD=1`. | `ON` |
 | `SERVER_BIN` | Optional path to an existing server; use with `SKIP_BUILD=1`. | `${BUILD_DIR}/bin/model-server` (Windows also checks configuration subdirectories) |
 
 All launchers also accept the model type as their first argument, overriding
@@ -138,8 +137,7 @@ export POLICY_GGUF="${GGUF_DIR}/starvla-oft-policy-fp32.gguf"
 bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
-All launch scripts configure CMake with `ROBOT_CPP_BUILD_STARVLA=ON` by default,
-regardless of the selected model. Set it to `OFF` only when building without StarVLA.
+StarVLA is always built, regardless of the model selected at launch.
 
 ### Manual Build
 
@@ -153,10 +151,7 @@ cmake -S . -B build_cuda \
 cmake --build build_cuda --target model-server -j
 ```
 
-`ROBOT_CPP_BUILD_STARVLA` defaults to `ON`; use
-`-DROBOT_CPP_BUILD_STARVLA=OFF` to omit StarVLA. Existing CMake build directories
-retain cached values, so pass `-DROBOT_CPP_BUILD_STARVLA=ON` if an older build has
-it disabled. Apply the repository's llama.cpp patches before configuring.
+Apply the repository's llama.cpp patches before configuring.
 
 ### Troubleshooting
 

@@ -40,7 +40,6 @@ if not defined VERBOSITY set "VERBOSITY=0"
 
 if not defined SKIP_BUILD set "SKIP_BUILD=0"
 if not defined CMAKE_BIN set "CMAKE_BIN=cmake"
-if not defined ROBOT_CPP_BUILD_STARVLA set "ROBOT_CPP_BUILD_STARVLA=ON"
 if not defined CMAKE_GENERATOR set "CMAKE_GENERATOR=Ninja"
 if not defined CMAKE_PLATFORM set "CMAKE_PLATFORM=x64"
 if not defined CMAKE_BUILD_TYPE set "CMAKE_BUILD_TYPE=Release"
@@ -153,7 +152,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON ^
                 !COMMON_CUDA_ARCH!
         ) else (
@@ -168,7 +166,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON ^
                 !COMMON_CUDA_ARCH!
         )
@@ -182,7 +179,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON ^
                 -DCMAKE_CUDA_ARCHITECTURES=!CMAKE_CUDA_ARCHITECTURES!
         ) else (
@@ -193,7 +189,6 @@ if not "!SKIP_BUILD!"=="1" (
                 -DGGML_CUDA=ON ^
                 -DGGML_METAL=OFF ^
                 -DBUILD_SHARED_LIBS=OFF ^
-                -DROBOT_CPP_BUILD_STARVLA=!ROBOT_CPP_BUILD_STARVLA! ^
                 -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
         )
     )
