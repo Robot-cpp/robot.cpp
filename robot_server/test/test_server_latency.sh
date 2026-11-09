@@ -47,9 +47,12 @@ case "${MODEL_TYPE}" in
         LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.llm.gguf}"
         ;;
     starvla)
-        mapfile -t LLM_CANDIDATES < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name 'qwen-*.gguf' -print)
-        mapfile -t MMPROJ_CANDIDATES < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name 'mmproj-*.gguf' -print)
-        mapfile -t POLICY_CANDIDATES < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name '*policy*.gguf' -print)
+        LLM_CANDIDATES=()
+        while IFS= read -r path; do LLM_CANDIDATES+=("${path}"); done < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name 'qwen-*.gguf' -print)
+        MMPROJ_CANDIDATES=()
+        while IFS= read -r path; do MMPROJ_CANDIDATES+=("${path}"); done < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name 'mmproj-*.gguf' -print)
+        POLICY_CANDIDATES=()
+        while IFS= read -r path; do POLICY_CANDIDATES+=("${path}"); done < <(find "${GGUF_DIR}" -maxdepth 1 -type f -name '*policy*.gguf' -print)
         [[ ${#LLM_CANDIDATES[@]} -eq 1 ]] || { echo "expected one Qwen GGUF in ${GGUF_DIR}" >&2; exit 1; }
         [[ ${#MMPROJ_CANDIDATES[@]} -eq 1 ]] || { echo "expected one mmproj GGUF in ${GGUF_DIR}" >&2; exit 1; }
         [[ ${#POLICY_CANDIDATES[@]} -eq 1 ]] || { echo "expected one policy GGUF in ${GGUF_DIR}" >&2; exit 1; }
