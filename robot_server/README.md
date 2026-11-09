@@ -39,7 +39,7 @@ Model support in the launch scripts (✅ integrated; — not yet tested):
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | StarVLA | ✅ | ✅ | — | ✅ | — | — |
-| BitVLA | ✅ | — | ✅ | ✅ | — | — |
+| BitVLA | ✅ | — | ✅ | ✅ | ✅ | ✅ |
 
 Note: For BitVLA on Mac M4 Pro, use the CPU backend for now. Metal INT8 operations may
 perform worse than CPU operations; further investigation and validation are needed
