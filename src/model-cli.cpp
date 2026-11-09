@@ -52,7 +52,10 @@ void print_usage(const char * prog) {
     std::fprintf(stderr, "Usage:\n");
     std::fprintf(stderr, "  %s --model-type smolvla [options]\n", prog);
     std::fprintf(stderr, "  %s --model-type pi0 [options]\n", prog);
-    std::fprintf(stderr, "  %s --model-type bitvla --llm <path> --mmproj <path> --state-proj <path> --action-expert <path> [options]\n", prog);
+    std::fprintf(
+        stderr,
+        "  %s --model-type bitvla --llm <path> --mmproj <path> --state-proj <path> --action-expert <path> [options]\n",
+        prog);
     std::fprintf(stderr, "  %s --model-type starvla --llm <path> --mmproj <path> --policy <path> [options]\n\n", prog);
     std::fprintf(stderr, "Common options:\n");
     std::fprintf(stderr, "  --model-type <type>      smolvla|pi0|starvla|bitvla\n"

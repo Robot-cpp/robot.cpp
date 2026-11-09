@@ -19,7 +19,9 @@ src/
     ├── gguf_loader.cpp
     ├── gguf_loader.h
     ├── smolvla/
-    └── pi0/
+    ├── pi0/
+    ├── starvla/
+    └── bitvla/
 ```
 
 ### `model-cli.cpp`

@@ -12,14 +12,17 @@
 
 namespace robotcpp::bitvla {
 
-struct LanguageOutput { std::vector<float> values; const ggml_tensor * tensor = nullptr; };
+struct LanguageOutput {
+    std::vector<float> values;
+    const ggml_tensor * tensor = nullptr;
+};
 
 // One weight file and reusable graph per model component.
 class component : private gguf_loader {
   public:
     component() = default;
     ~component();
-    component(const component &) = delete;
+    component(const component &)             = delete;
     component & operator=(const component &) = delete;
 
     void load(const std::string & path, int threads, int verbosity);
@@ -44,30 +47,30 @@ class component : private gguf_loader {
     void finish_language_graph(ggml_tensor * result, ggml_tensor * cosine, ggml_tensor * sine, int tokens);
     void invalidate_static_input() { static_input_ready_ = false; }
     LanguageOutput compute_for_action(component & vision, component & action, bool split_host_state_input,
-        const std::vector<float> & prompt_embeddings, const float * embeddings,
-        const std::vector<size_t> & image_positions, size_t proprio_position,
-        const std::vector<float> & state_features_host);
+                                      const std::vector<float> & prompt_embeddings, const float * embeddings,
+                                      const std::vector<size_t> & image_positions, size_t proprio_position,
+                                      const std::vector<float> & state_features_host);
     std::vector<float> read(ggml_tensor * tensor);
 
-    ggml_context * ctx = nullptr;
-    ggml_tensor * input = nullptr;
+    ggml_context * ctx   = nullptr;
+    ggml_tensor * input  = nullptr;
     ggml_tensor * output = nullptr;
-    int graph_size = 0;
+    int graph_size       = 0;
 
   private:
     // Inactive language states retain their own scheduler and activation allocations.
     struct graph_state {
         graph_state() = default;
         ~graph_state();
-        graph_state(const graph_state &) = delete;
+        graph_state(const graph_state &)             = delete;
         graph_state & operator=(const graph_state &) = delete;
-        ggml_context * ctx = nullptr;
-        ggml_tensor * input = nullptr;
-        ggml_tensor * output = nullptr;
-        int graph_size = 0;
-        int action_start = -1;
-        ggml_backend_sched_t scheduler = nullptr;
-        ggml_cgraph * graph = nullptr;
+        ggml_context * ctx                           = nullptr;
+        ggml_tensor * input                          = nullptr;
+        ggml_tensor * output                         = nullptr;
+        int graph_size                               = 0;
+        int action_start                             = -1;
+        ggml_backend_sched_t scheduler               = nullptr;
+        ggml_cgraph * graph                          = nullptr;
         std::vector<uint8_t> graph_memory;
     };
     void swap_graph_state(graph_state & state);
@@ -82,12 +85,12 @@ class component : private gguf_loader {
     ggml_cgraph * graph = nullptr;
     std::vector<uint8_t> graph_memory;
     std::list<std::unique_ptr<graph_state>> language_graphs;
-    int graph_action_start = -1;
+    int graph_action_start  = -1;
     int scheduler_verbosity = 0;
-    backend_mode mode_ = backend_mode::cpu;
+    backend_mode mode_      = backend_mode::cpu;
     OptimizationPolicy optimization_policy_;
     ggml_tensor * vision_lookup_ = nullptr;
-    bool static_input_ready_ = false;
+    bool static_input_ready_     = false;
 };
 
 void build_vision(component & model);
@@ -100,34 +103,44 @@ std::vector<float> decode_action(component & model, const std::vector<float> & h
 void build_language(component & model, int tokens, int action_start);
 std::vector<float> run_language(component & model, const std::vector<float> & embeddings);
 std::vector<float> run_language(component & model, const float * embeddings, std::size_t count);
-void copy_vision_to_language_input(ggml_tensor * destination, const ggml_tensor * source, const std::vector<size_t> & image_positions, size_t first_image_row);
-void set_language_nonimage_input(ggml_tensor * destination, const float * embeddings, size_t count, const std::vector<size_t> & image_positions);
-std::vector<float> run_language_with_device_images(component & model, const float * embeddings, size_t count, const std::vector<size_t> & image_positions);
+void copy_vision_to_language_input(ggml_tensor * destination, const ggml_tensor * source,
+                                   const std::vector<size_t> & image_positions, size_t first_image_row);
+void set_language_nonimage_input(ggml_tensor * destination, const float * embeddings, size_t count,
+                                 const std::vector<size_t> & image_positions);
+std::vector<float> run_language_with_device_images(component & model, const float * embeddings, size_t count,
+                                                   const std::vector<size_t> & image_positions);
 
 } // namespace robotcpp::bitvla
 
 namespace robotcpp::bitvla {
-void compute_language_with_device_images(component & model, const float * embeddings, size_t count, const std::vector<size_t> & image_positions);
+void compute_language_with_device_images(component & model, const float * embeddings, size_t count,
+                                         const std::vector<size_t> & image_positions);
 void copy_language_to_action_host_input(ggml_tensor * destination, const ggml_tensor * source);
 std::vector<float> decode_action_direct_host_input(component & model, const ggml_tensor * hidden);
+} // namespace robotcpp::bitvla
+
+namespace robotcpp::bitvla {
+void set_language_predict_input(ggml_tensor * destination, const float * embeddings, size_t count,
+                                const std::vector<size_t> & image_positions, size_t state_row, bool initialize_static);
+void compute_language_with_static_input(component & model, const float * embeddings, size_t count,
+                                        const std::vector<size_t> & image_positions, size_t state_row,
+                                        bool initialize_static);
+} // namespace robotcpp::bitvla
+
+namespace robotcpp::bitvla {
+void compute_language_with_host_state(component & model, const float * embeddings, size_t count,
+                                      const std::vector<size_t> & image_positions, size_t state_row,
+                                      const float * state_features, size_t state_count, bool initialize_static);
 }
 
 namespace robotcpp::bitvla {
-void set_language_predict_input(ggml_tensor * destination, const float * embeddings, size_t count, const std::vector<size_t> & image_positions, size_t state_row, bool initialize_static);
-void compute_language_with_static_input(component & model, const float * embeddings, size_t count, const std::vector<size_t> & image_positions, size_t state_row, bool initialize_static);
-}
-
-namespace robotcpp::bitvla {
-void compute_language_with_host_state(component & model, const float * embeddings, size_t count, const std::vector<size_t> & image_positions, size_t state_row, const float * state_features, size_t state_count, bool initialize_static);
-}
-
-namespace robotcpp::bitvla {
-void encode_proprio_to_host(component & model, const std::vector<float> & state, std::vector<float> & result, size_t offset = 0);
+void encode_proprio_to_host(component & model, const std::vector<float> & state, std::vector<float> & result,
+                            size_t offset = 0);
 }
 
 namespace robotcpp::bitvla {
 bool uses_split_host_state_input(const component & vision, const component & language, const component & action);
 void encode_vision_for_language(component & vision, component & language, const uint8_t * rgb, int stride,
-    float * embeddings, const std::vector<size_t> & image_positions, size_t & image_index);
+                                float * embeddings, const std::vector<size_t> & image_positions, size_t & image_index);
 std::vector<float> decode_language_output(component & action, const LanguageOutput & hidden);
-}
+} // namespace robotcpp::bitvla
