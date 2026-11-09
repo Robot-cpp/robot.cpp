@@ -32,18 +32,18 @@ under `robot_server/shell`. After running a script, the corresponding
 | CPU     | `robot_server/shell/launch_robot_server_mac_cpu.sh`   | `robot_server/shell/launch_robot_server_linux_cpu.sh`  | `robot_server/shell/launch_robot_server_windows_cpu.bat`  |
 | Metal   | `robot_server/shell/launch_robot_server_mac_metal.sh` | -                                                        | -                                                           |
 
-Model support in the launch scripts (✅ integrated; — not yet tested):
+Model selection in the launch scripts (✅ argument wiring is integrated):
 
 | Model | macOS CPU | macOS Metal | Linux CPU | Linux CUDA | Windows CPU | Windows CUDA |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | ✅ | ✅ | — | ✅ | — | — |
-| BitVLA | ✅ | — | ✅ | ✅ | — | — |
+| StarVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| BitVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-Note: For BitVLA on Mac M4 Pro, use the CPU backend for now. Metal INT8 operations may
-perform worse than CPU operations; further investigation and validation are needed
-before Mac Metal support is released.
+Script integration does not imply inference validation on every platform. The new
+Windows StarVLA/BitVLA branches have not been tested on Windows. For BitVLA on Mac,
+CPU remains recommended; the Metal launch path is experimental and may be slower.
 
 ### Set Variables
 
@@ -67,6 +67,13 @@ Common variables:
 | `VERBOSITY`      | Model log verbosity.                                                                | `0`                                                                         |
 | `SKIP_BUILD`     | Whether to skip configure/build. Set to `1` to launch an existing binary.           | `0`                                                                         |
 | `CMAKE_BIN`      | CMake executable.                                                                   | `cmake`                                                                     |
+| `ROBOT_CPP_BUILD_STARVLA` | Include StarVLA when building; use `OFF` to omit it. Ignored with `SKIP_BUILD=1`. | `ON` |
+| `SERVER_BIN` | Optional path to an existing server; use with `SKIP_BUILD=1`. | `${BUILD_DIR}/bin/model-server` (Windows also checks configuration subdirectories) |
+
+All launchers also accept the model type as their first argument, overriding
+`MODEL_TYPE`. The Mac CPU launcher defaults `MTMD_BACKEND_DEVICE=BLAS` for StarVLA
+vision; an explicit value such as `CPU` overrides it. The Metal launcher leaves
+device selection unchanged.
 
 SmolVLA variables:
 
@@ -77,7 +84,7 @@ SmolVLA variables:
 | `STATE_PROJ_GGUF`    | Full path to the SmolVLA state projector GGUF. | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
 | `ACTION_EXPERT_GGUF` | Full path to the SmolVLA action expert GGUF.   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
 
-BitVLA variables (Mac CPU / Linux CPU / Linux CUDA):
+BitVLA variables:
 
 | Variable | Description | Default |
 | --- | --- | --- |
@@ -98,7 +105,7 @@ pi0 variables:
 | `STATE_GGUF`          | Full path to the pi0 state GGUF.                 | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | Full path to the pi0 action decoder GGUF.        | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
-StarVLA variables (Linux CUDA):
+StarVLA variables:
 
 | Variable      | Description                           | Default  |
 | ------------- | ------------------------------------- | -------- |
@@ -131,8 +138,8 @@ export POLICY_GGUF="${GGUF_DIR}/starvla-oft-policy-fp32.gguf"
 bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
-The script automatically configures CMake with
-`ROBOT_CPP_BUILD_STARVLA=ON` when `MODEL_TYPE=starvla`.
+All launch scripts configure CMake with `ROBOT_CPP_BUILD_STARVLA=ON` by default,
+regardless of the selected model. Set it to `OFF` only when building without StarVLA.
 
 ### Manual Build
 
@@ -142,13 +149,14 @@ To build a StarVLA-enabled server without a launch script:
 cmake -S . -B build_cuda \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=ON \
-  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-  -DROBOT_CPP_BUILD_STARVLA=ON
+  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build_cuda --target model-server -j
 ```
 
-`ROBOT_CPP_BUILD_STARVLA` defaults to `OFF`; SmolVLA and pi0 builds do not need
-it.
+`ROBOT_CPP_BUILD_STARVLA` defaults to `ON`; use
+`-DROBOT_CPP_BUILD_STARVLA=OFF` to omit StarVLA. Existing CMake build directories
+retain cached values, so pass `-DROBOT_CPP_BUILD_STARVLA=ON` if an older build has
+it disabled. Apply the repository's llama.cpp patches before configuring.
 
 ### Troubleshooting
 
@@ -165,6 +173,19 @@ export PATH=/usr/local/cuda-12.4/bin:$PATH
 ## Method 2: Download a Prebuilt Release
 
 After downloading from the release page, run the commands below.
+
+The launch scripts can also use an existing package without rebuilding. For
+example, after setting the model variables above:
+
+```bash
+SKIP_BUILD=1 BUILD_DIR=/path/to/robotcpp-linux-x86_64-cuda12 \
+  bash robot_server/shell/launch_robot_server_linux_cuda.sh starvla
+```
+
+Alternatively, set `SERVER_BIN` to the executable's full path. On Windows,
+`SKIP_BUILD=1` skips compiler/toolkit discovery as well as the build. These options
+use the model support already compiled into the binary; they do not add support
+to older packages. Checkpoints are supplied separately.
 
 ### Start SmolVLA
 

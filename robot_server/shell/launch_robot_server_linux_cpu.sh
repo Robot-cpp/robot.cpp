@@ -4,7 +4,7 @@ set -euo pipefail
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 
-MODEL_TYPE="${MODEL_TYPE:-smolvla}"
+MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
 BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cpu}"
 
 HOST="${HOST:-127.0.0.1}"
@@ -19,11 +19,12 @@ VERBOSITY="${VERBOSITY:-0}"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
+ROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA:-ON}"
 GGML_NATIVE="${GGML_NATIVE:-OFF}"
 GGML_BLAS="${GGML_BLAS:-OFF}"
 GGML_OPENMP="${GGML_OPENMP:-OFF}"
 
-SERVER_BIN="${BUILD_DIR}/bin/model-server"
+SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     CMAKE_FLAGS=(
@@ -36,6 +37,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_CUDA=OFF
         -DGGML_METAL=OFF
         -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
+        -DROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA}"
     )
     if [ -n "${GGML_BLAS_VENDOR:-}" ]; then
         CMAKE_FLAGS+=(-DGGML_BLAS_VENDOR="${GGML_BLAS_VENDOR}")
@@ -91,6 +93,17 @@ case "${MODEL_TYPE}" in
             --tokenizer "${TOKENIZER_GGUF}"
             --state-gguf "${STATE_GGUF}"
             --action-decoder "${ACTION_DECODER_GGUF}"
+        )
+        ;;
+    starvla)
+        LLM_GGUF="${LLM_GGUF:?LLM_GGUF must be set for StarVLA}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:?MMPROJ_GGUF must be set for StarVLA}"
+        POLICY_GGUF="${POLICY_GGUF:?POLICY_GGUF must be set for StarVLA}"
+        MODEL_ARGS=(
+            --model-type starvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${MMPROJ_GGUF}"
+            --policy "${POLICY_GGUF}"
         )
         ;;
     *)

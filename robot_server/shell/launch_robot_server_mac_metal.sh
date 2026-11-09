@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 # ====== change these if needed ======
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
@@ -11,16 +11,20 @@ HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
 THREADS="${THREADS:-8}"
 TASK="${TASK:-grab the block.}"
+N_BATCH="${N_BATCH:-512}"
+N_CTX="${N_CTX:-2048}"
+VERBOSITY="${VERBOSITY:-0}"
 NOISE_MODE="${NOISE_MODE:-gaussian}"
 NOISE_SEED="${NOISE_SEED:--1}"
 
 SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
+ROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA:-ON}"
 
 
 # ====================================
 
-SERVER_BIN="${BUILD_DIR}/bin/model-server"
+SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     echo "== configure =="
@@ -32,7 +36,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=ON \
         -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-        -DROBOT_CPP_BUILD_STARVLA="$([ "${MODEL_TYPE}" = starvla ] && echo ON || echo OFF)"
+        -DROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA}"
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
@@ -48,6 +52,19 @@ case "${MODEL_TYPE}" in
         ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
         MODEL_ARGS=(
             --model-type smolvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${VISION_GGUF}"
+            --state-proj "${STATE_PROJ_GGUF}"
+            --action-expert "${ACTION_EXPERT_GGUF}"
+        )
+        ;;
+    bitvla)
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/bitvla-llm-i2s.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/bitvla-vision-i2s.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/bitvla-proprio-i2s.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/bitvla-action-i2s.gguf}"
+        MODEL_ARGS=(
+            --model-type bitvla
             --llm "${LLM_GGUF}"
             --mmproj "${VISION_GGUF}"
             --state-proj "${STATE_PROJ_GGUF}"
@@ -102,8 +119,8 @@ exec "${SERVER_BIN}" \
     --host "${HOST}" \
     --port "${PORT}" \
     --threads "${THREADS}" \
-    --n-batch 512 \
-    --n-ctx 2048 \
+    --n-batch "${N_BATCH}" \
+    --n-ctx "${N_CTX}" \
     --noise-mode "${NOISE_MODE}" \
     --noise-seed "${NOISE_SEED}" \
-    --verbosity 0
+    --verbosity "${VERBOSITY}"

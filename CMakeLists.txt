@@ -6,7 +6,7 @@ include(CTest)
 option(ROBOT_CPP_BUILD_ROBOT_SERVER "Build model-server target" ON)
 option(ROBOT_CPP_BUILD_MODEL_CLI "Build model-cli target" OFF)
 option(ROBOT_CPP_BUILD_ROBOT_CLIENT "Build C++ robot client targets" OFF)
-option(ROBOT_CPP_BUILD_STARVLA "Build the StarVLA runtime (requires llama.cpp overlay)" OFF)
+option(ROBOT_CPP_BUILD_STARVLA "Build the StarVLA runtime (requires llama.cpp overlay)" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
