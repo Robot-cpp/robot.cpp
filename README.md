@@ -202,6 +202,7 @@ See robot_server/test/test_server_latency.sh for the benchmark.
 
 > `bf16*`: on Mac, f16 results are used in place of bf16 because current Mac bf16 support is not ideal.
 > `OOM/offload`: pi0@libero (f32) runs out of memory on RTX 3060 and triggers offload, so we do not report a latency number for now.
+> **BitVLA on Metal:** I2S matrix multiplication can be accelerated with INT8 matrix multiplication. On our M4 Pro running macOS 15.6, the Metal INT8 paths we tested delivered lower peak throughput than CPU SME, limiting BitVLA’s performance advantage. We recommend the CPU backend for now. We are working to obtain additional devices to investigate this further and improve Metal support.
 
 ---
 

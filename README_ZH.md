@@ -201,6 +201,7 @@ BitVLA 的 LIBERO 性能测试设定使用两张已缩放和裁剪的 224×224 R
 
 > `bf16*`：在 Mac上使用 f16 结果替代 bf16，因为当前 Mac对 bf16 的支持不够好。
 > `OOM/offload`：pi0@libero (f32) 在 RTX 3060 上会 OOM 并触发 offload，因此暂时不报告 latency 数值。
+> **BitVLA Metal**：I2S 矩阵乘法可以通过 INT8 矩阵乘法加速。但在我们的 M4 Pro、macOS 15.6 上，已测试的 Metal INT8 路径实测峰值吞吐低于 CPU SME，限制了 BitVLA 性能优势的发挥，因此目前推荐使用 CPU 后端。我们正在寻找更多设备，继续研究这个问题并改进 Metal 支持。
 
 ---
 
