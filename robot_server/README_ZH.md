@@ -27,17 +27,17 @@ git submodule update --init --recursive
 | CPU     | `robot_server/shell/launch_robot_server_mac_cpu.sh`   | `robot_server/shell/launch_robot_server_linux_cpu.sh`  | `robot_server/shell/launch_robot_server_windows_cpu.bat`  |
 | Metal   | `robot_server/shell/launch_robot_server_mac_metal.sh` | -                                                        | -                                                           |
 
-各模型的启动脚本接入情况（✅ 已接入启动参数）：
+各模型的启动脚本支持情况（✅ 已接入；— 尚未测试）：
 
 | 模型 | macOS CPU | macOS Metal | Linux CPU | Linux CUDA | Windows CPU | Windows CUDA |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| BitVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| StarVLA | ✅ | ✅ | ✅ | ✅ | — | — |
+| BitVLA | ✅ | — | ✅ | ✅ | ✅ | ✅ |
 
-StarVLA 的 Windows 启动脚本尚未实机验证。Mac 上的 BitVLA 推荐 CPU 后端；
-Metal 路径为实验支持，性能可能更慢。
+注：BitVLA 在 Mac M4 Pro 上暂时推荐 CPU 后端。Metal 的 INT8 运算性能可能不如 CPU，
+仍需进一步研究和验证；完成后再推出 Mac Metal 支持。
 
 ### 设置变量
 
@@ -71,7 +71,7 @@ SmolVLA 变量：
 | `STATE_PROJ_GGUF`    | SmolVLA state projector GGUF 完整路径 | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
 | `ACTION_EXPERT_GGUF` | SmolVLA action expert GGUF 完整路径   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
 
-BitVLA 变量：
+BitVLA 变量（Mac CPU / Linux CPU / Linux CUDA）：
 
 | 变量 | 说明 | 默认值 |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ pi0 变量：
 | `STATE_GGUF`          | pi0 state GGUF 完整路径          | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | pi0 action decoder GGUF 完整路径 | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
-StarVLA 变量：
+StarVLA 变量（Linux CPU / Linux CUDA）：
 
 | 变量          | 说明                         | 默认值   |
 | ------------- | ---------------------------- | -------- |
