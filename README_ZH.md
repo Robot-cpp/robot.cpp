@@ -45,6 +45,8 @@ Robot.cpp是一个轻量化的on-device机器人模型推理框架，在llama.cp
 
 ## 📰 最新动态
 
+* 🙌 **2026.11.09**：Robot.cpp 正式支持 [**BitVLA**](https://github.com/ustcwhy/BitVLA)，并作为 BitVLA 的官方推理框架，提供基于 I2S 量化的轻量化推理实现。在 LIBERO 双图输入设定下，RTX 3090 上每个 action chunk 的推理延迟为 **39 ms**，相比原版 PyTorch eager（377.8 ms）和 `torch.compile`（209.2 ms）分别实现约 **9.7×、5.4× 加速**；RTX 4090 上进一步达到 **17 ms，约 58.8 Hz** 的 action chunk 生成频率。
+* 🙌 **2026.09.02**：Robot.cpp 正式支持 **StarVLA 系列模型**！本次新增覆盖以 Qwen3-VL / Qwen2.5-VL 为 backbone，采用 OFT、GR00T、PI和 FAST 四类 policy 架构的 7 个模型变体，并打通了 SimplerEnv Bridge 评测流程，便于复现与验证模型性能。在 A100 上，Robot.cpp 相较 StarVLA 原始 PyTorch `torch.compile` 版本实现了 1.06～2.10× 的推理加速（完整性能对比见 [PR #11](https://github.com/Robot-cpp/robot.cpp/pull/11)）,同时整个推理部署过程无需配置 Python 或 PyTorch 运行环境。
 * **2026.07.09**：Robot.cpp v0.1.0 发布，提供预编译二进制、性能测试和 SO-101 真机、LIBERO仿真示例
 * **2026.05.10**：我们开源了 [**pi0.cpp**](https://github.com/JJJYmmm/pi0.cpp)，作为面向 π0 机器人策略模型轻量化本地推理的早期公开原型。
 
@@ -187,7 +189,7 @@ BitVLA 的 LIBERO 性能测试设定使用两张已缩放和裁剪的 224×224 R
 | smolvla@so-101 (f32)        |              396 |                158 |       24 |        — |          92 |   34 |             200 |
 | pi0@libero (f32)            |             1839 |                710 |       83 |        — | OOM/offload |   71 |             956 |
 | pi0@libero (bf16*)          |             1954 |                635 |       57 |        — |         267 |   66 |             498 |
-| bitvla@libero (I2S)         |             1168 |                  — |       17 |       39 |           — |    — |               — |
+| bitvla@libero (I2S)         |             1168 |                  — |       17 |       39 |          87 |    — |               — |
 | starvla/oft@bridge          |                — |                  — |        — |        — |           — |   50 |               — |
 | starvla/groot@bridge        |                — |                  — |        — |        — |           — |   54 |               — |
 | starvla/pi_v3@bridge        |                — |                  — |        — |        — |           — |  112 |               — |

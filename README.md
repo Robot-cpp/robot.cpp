@@ -45,6 +45,8 @@ We also provide two tools to support robot model development:
 
 ## 📰 News
 
+* 🙌 **2026.11.09:** Robot.cpp now supports [**BitVLA**](https://github.com/ustcwhy/BitVLA) as its official inference framework, providing a lightweight inference implementation with I2S quantization. With two-image LIBERO inputs, latency is **39 ms per action chunk on RTX 3090**, delivering approximately **9.7× and 5.4× speedups** over the original PyTorch eager (377.8 ms) and `torch.compile` (209.2 ms) implementations, respectively. On **RTX 4090**, latency drops to **17 ms per action chunk**, equivalent to **58.8 Hz** action-chunk generation.
+* 🙌 **2026.09.02:** Robot.cpp now supports the **StarVLA model family**! This update covers seven model variants built on Qwen3-VL / Qwen2.5-VL backbones with four policy architectures: OFT, GR00T, PI, and FAST. It also integrates the SimplerEnv Bridge evaluation workflow to support reproducible performance evaluation. On A100, Robot.cpp achieves 1.06–2.10× faster inference than the original StarVLA PyTorch `torch.compile` implementation (see [PR #11](https://github.com/Robot-cpp/robot.cpp/pull/11) for the full comparison), without requiring a Python or PyTorch runtime for inference deployment.
 * **2026.07.09:** Robot.cpp v0.1.0 was released, providing prebuilt binaries, performance benchmarks, and SO-101 real-robot and LIBERO simulation examples.
 * **2026.05.10:** We open-sourced [**pi0.cpp**](https://github.com/JJJYmmm/pi0.cpp), an early public prototype for lightweight local inference of the π0 robot policy model.
 
@@ -188,7 +190,7 @@ See robot_server/test/test_server_latency.sh for the benchmark.
 | smolvla@so-101 (f32)        |              396 |                158 |       24 |        — |          92 |   34 |             200 |
 | pi0@libero (f32)            |             1839 |                710 |       83 |        — | OOM/offload |   71 |             956 |
 | pi0@libero (bf16*)          |             1954 |                635 |       57 |        — |         267 |   66 |             498 |
-| bitvla@libero (I2S)         |             1168 |                  — |       17 |       39 |           — |    — |               — |
+| bitvla@libero (I2S)         |             1168 |                  — |       17 |       39 |          87 |    — |               — |
 | starvla/oft@bridge          |                — |                  — |        — |        — |           — |   50 |               — |
 | starvla/groot@bridge        |                — |                  — |        — |        — |           — |   54 |               — |
 | starvla/pi_v3@bridge        |                — |                  — |        — |        — |           — |  112 |               — |
