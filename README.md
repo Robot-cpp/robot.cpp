@@ -191,7 +191,7 @@ See robot_server/test/test_server_latency.sh for the benchmark.
 | smolvla@so-101 (f32)        |              396 |                158 |       24 |        — |          92 |   34 |             200 |
 | pi0@libero (f32)            |             1839 |                710 |       83 |        — | OOM/offload |   71 |             956 |
 | pi0@libero (bf16*)          |             1954 |                635 |       57 |        — |         267 |   66 |             498 |
-| bitvla@libero (I2S)         |             1168 |                  — |       17 |       39 |          87 |    — |               — |
+| bitvla@libero (I2S)         |             1168 |                 —* |       17 |       39 |          87 |    — |               — |
 | starvla/oft@bridge          |                — |                  — |        — |        — |           — |   50 |               — |
 | starvla/groot@bridge        |                — |                  — |        — |        — |           — |   54 |               — |
 | starvla/pi_v3@bridge        |                — |                  — |        — |        — |           — |  112 |               — |
