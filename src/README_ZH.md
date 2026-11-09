@@ -122,6 +122,22 @@ STATE=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
 pi0 的 `--image-name` 必须和vit部分的metadata 里的 `pi0.image_keys` 一致。LIBERO v044 split checkpoint 使用 `observation.images.image` 和 `observation.images.image2`。
 
+#### BitVLA
+
+```bash
+GGUF_DIR=/path/to/bitvla-i2s
+STATE=0,0,0,0,0,0,0,0
+./build/bin/model-cli \
+  --model-type bitvla \
+  --llm "${GGUF_DIR}/bitvla-llm-i2s.gguf" \
+  --mmproj "${GGUF_DIR}/bitvla-vision-i2s.gguf" \
+  --state-proj "${GGUF_DIR}/bitvla-proprio-i2s.gguf" \
+  --action-expert "${GGUF_DIR}/bitvla-action-i2s.gguf" \
+  --image /path/to/full_image.png --image-name full_image \
+  --image /path/to/wrist_image.png --image-name wrist_image \
+  --state "${STATE}" --task "pick up the object" --threads 8
+```
+
 ### `models/model.h`
 
 `model.h` 定义了模型层的公共接口，是 `model-cli`、`model-server` 和具体模型之间的边界。
@@ -186,6 +202,22 @@ pi0 的模型实现目录，也采用“模型专用 engine + `Model` 子类”�
 * `vlm.*`：视觉语言模型相关阶段。
 * `action.*`：action 解码或采样逻辑。
 * `component_runtime.*`、`pi0_context.h`、`config.h`、`types.h`：组件运行时、上下文和配置类型。
+
+### `models/bitvla/`
+
+BitVLA 的模型实现目录。当前主要分为两层：
+
+* `bitvla_model.*`：实现 `robotcpp::Model`，负责校验 `model_args`、初始化模型组件、处理 `observation`、串联推理流程，并把输出转成 `model_result`。
+* `component.*`：模型组件的运行时，负责 GGUF 加载、backend 初始化、计算图构建与复用，以及输入输出管理。
+
+其他文件按模型内部阶段和算子拆分，例如：
+
+* `vision.cpp`：视觉分支。
+* `language.cpp`：语言模型。
+* `projections.cpp`：状态投影和 action 解码。
+* `graph_ops.*`：视觉与语言模型的计算图算子组合。
+* `ops.*`、`i2s.*`：自定义算子、激活量化和 I2S 权重计算。
+* `optimization_policy.*`：按 backend 选择优化路径。
 
 ## 推理调用路径
 

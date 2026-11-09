@@ -21,7 +21,9 @@ src/
     ├── gguf_loader.cpp
     ├── gguf_loader.h
     ├── smolvla/
-    └── pi0/
+    ├── pi0/
+    ├── starvla/
+    └── bitvla/
 ```
 
 ### `model-cli.cpp`
@@ -132,6 +134,22 @@ For pi0, `--image-name` must match `pi0.image_keys` in the ViT metadata. The
 LIBERO v044 split checkpoint uses `observation.images.image` and
 `observation.images.image2`.
 
+#### BitVLA
+
+```bash
+GGUF_DIR=/path/to/bitvla-i2s
+STATE=0,0,0,0,0,0,0,0
+./build/bin/model-cli \
+  --model-type bitvla \
+  --llm "${GGUF_DIR}/bitvla-llm-i2s.gguf" \
+  --mmproj "${GGUF_DIR}/bitvla-vision-i2s.gguf" \
+  --state-proj "${GGUF_DIR}/bitvla-proprio-i2s.gguf" \
+  --action-expert "${GGUF_DIR}/bitvla-action-i2s.gguf" \
+  --image /path/to/full_image.png --image-name full_image \
+  --image /path/to/wrist_image.png --image-name wrist_image \
+  --state "${STATE}" --task "pick up the object" --threads 8
+```
+
 ### `models/model.h`
 
 `model.h` defines the public model-layer interface. It is the boundary between
@@ -217,6 +235,26 @@ Other files are split by inference stage:
 - `action.*`: action decoding or sampling logic.
 - `component_runtime.*`, `pi0_context.h`, `config.h`, `types.h`: component
   runtime, context, and configuration types.
+
+### `models/bitvla/`
+
+BitVLA's implementation directory currently has two main layers:
+
+- `bitvla_model.*`: implements `robotcpp::Model`. It validates `model_args`,
+  initializes model components, processes `observation`, runs the inference
+  stages, and converts output to `model_result`.
+- `component.*`: runtime for model components. It handles GGUF loading, backend
+  initialization, graph construction and reuse, and input/output management.
+
+Other files are split by model stage and operator:
+
+- `vision.cpp`: vision branch.
+- `language.cpp`: language model.
+- `projections.cpp`: state projection and action decoding.
+- `graph_ops.*`: operator combinations for vision and language model graphs.
+- `ops.*`, `i2s.*`: custom operators, activation quantization, and I2S weight
+  computation.
+- `optimization_policy.*`: selects optimization paths for each backend.
 
 ## Inference Call Path
 
