@@ -33,7 +33,7 @@ git submodule update --init --recursive
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | — | — | — | ✅ | — | — |
+| StarVLA | ✅ | ✅ | — | ✅ | — | — |
 | BitVLA | ✅ | — | ✅ | ✅ | — | — |
 
 注：BitVLA 在 Mac M4 Pro 上暂时推荐 CPU 后端。Metal 的 INT8 运算性能可能不如 CPU，
