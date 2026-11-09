@@ -32,17 +32,18 @@ under `robot_server/shell`. After running a script, the corresponding
 | CPU     | `robot_server/shell/launch_robot_server_mac_cpu.sh`   | `robot_server/shell/launch_robot_server_linux_cpu.sh`  | `robot_server/shell/launch_robot_server_windows_cpu.bat`  |
 | Metal   | `robot_server/shell/launch_robot_server_mac_metal.sh` | -                                                        | -                                                           |
 
-Model selection in the launch scripts (✅ launch arguments integrated):
+Model support in the launch scripts (✅ integrated; — not yet tested):
 
 | Model | macOS CPU | macOS Metal | Linux CPU | Linux CUDA | Windows CPU | Windows CUDA |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| BitVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| StarVLA | ✅ | ✅ | ✅ | ✅ | — | — |
+| BitVLA | ✅ | — | ✅ | ✅ | ✅ | ✅ |
 
-StarVLA on Windows has not been tested on a Windows machine. For BitVLA on Mac,
-CPU is recommended; the Metal path is experimental and may be slower.
+Note: For BitVLA on Mac M4 Pro, use the CPU backend for now. Metal INT8 operations may
+perform worse than CPU operations; further investigation and validation are needed
+before Mac Metal support is released.
 
 ### Set Variables
 
@@ -76,7 +77,7 @@ SmolVLA variables:
 | `STATE_PROJ_GGUF`    | Full path to the SmolVLA state projector GGUF. | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
 | `ACTION_EXPERT_GGUF` | Full path to the SmolVLA action expert GGUF.   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
 
-BitVLA variables:
+BitVLA variables (Mac CPU / Linux CPU / Linux CUDA):
 
 | Variable | Description | Default |
 | --- | --- | --- |
@@ -97,7 +98,7 @@ pi0 variables:
 | `STATE_GGUF`          | Full path to the pi0 state GGUF.                 | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | Full path to the pi0 action decoder GGUF.        | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
-StarVLA variables:
+StarVLA variables (Linux CPU / Linux CUDA):
 
 | Variable      | Description                           | Default  |
 | ------------- | ------------------------------------- | -------- |

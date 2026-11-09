@@ -115,8 +115,6 @@ if not defined GGUF_DIR (
         set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\robotcpp-split"
     ) else if /I "!MODEL_TYPE!"=="bitvla" (
         set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\bitvla"
-    ) else if /I "!MODEL_TYPE!"=="starvla" (
-        rem StarVLA uses the three explicit GGUF paths below.
     ) else (
         echo unsupported MODEL_TYPE=!MODEL_TYPE! >&2
         exit /b 1
@@ -228,30 +226,6 @@ if /I "!MODEL_TYPE!"=="smolvla" (
         --mmproj "!VISION_GGUF!" ^
         --state-proj "!STATE_PROJ_GGUF!" ^
         --action-expert "!ACTION_EXPERT_GGUF!" ^
-        --task "!TASK!" ^
-        --host "!HOST!" ^
-        --port !PORT! ^
-        --threads !THREADS! ^
-        --n-batch !N_BATCH! ^
-        --n-ctx !N_CTX! ^
-        --noise-mode !NOISE_MODE! ^
-        --noise-seed !NOISE_SEED! ^
-        --verbosity !VERBOSITY!
-    exit /b !ERRORLEVEL!
-)
-
-if /I "!MODEL_TYPE!"=="starvla" (
-    for %%V in (LLM_GGUF MMPROJ_GGUF POLICY_GGUF) do (
-        if not defined %%V (
-            echo error: %%V must be set for StarVLA. >&2
-            exit /b 1
-        )
-    )
-    "!SERVER_BIN!" ^
-        --model-type starvla ^
-        --llm "!LLM_GGUF!" ^
-        --mmproj "!MMPROJ_GGUF!" ^
-        --policy "!POLICY_GGUF!" ^
         --task "!TASK!" ^
         --host "!HOST!" ^
         --port !PORT! ^
