@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
 # ====== change these if needed ======
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
@@ -11,9 +11,6 @@ HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
 THREADS="${THREADS:-8}"
 TASK="${TASK:-grab the block.}"
-N_BATCH="${N_BATCH:-512}"
-N_CTX="${N_CTX:-2048}"
-VERBOSITY="${VERBOSITY:-0}"
 NOISE_MODE="${NOISE_MODE:-gaussian}"
 NOISE_SEED="${NOISE_SEED:--1}"
 
@@ -23,7 +20,7 @@ CMAKE_BIN="${CMAKE_BIN:-cmake}"
 
 # ====================================
 
-SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
+SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     echo "== configure =="
@@ -50,19 +47,6 @@ case "${MODEL_TYPE}" in
         ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/action-expert-smolvla-f32.gguf}"
         MODEL_ARGS=(
             --model-type smolvla
-            --llm "${LLM_GGUF}"
-            --mmproj "${VISION_GGUF}"
-            --state-proj "${STATE_PROJ_GGUF}"
-            --action-expert "${ACTION_EXPERT_GGUF}"
-        )
-        ;;
-    bitvla)
-        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/bitvla-llm-i2s.gguf}"
-        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/bitvla-vision-i2s.gguf}"
-        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/bitvla-proprio-i2s.gguf}"
-        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/bitvla-action-i2s.gguf}"
-        MODEL_ARGS=(
-            --model-type bitvla
             --llm "${LLM_GGUF}"
             --mmproj "${VISION_GGUF}"
             --state-proj "${STATE_PROJ_GGUF}"
@@ -117,8 +101,8 @@ exec "${SERVER_BIN}" \
     --host "${HOST}" \
     --port "${PORT}" \
     --threads "${THREADS}" \
-    --n-batch "${N_BATCH}" \
-    --n-ctx "${N_CTX}" \
+    --n-batch 512 \
+    --n-ctx 2048 \
     --noise-mode "${NOISE_MODE}" \
     --noise-seed "${NOISE_SEED}" \
-    --verbosity "${VERBOSITY}"
+    --verbosity 0

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
 # ====== change these if needed ======
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
@@ -11,10 +11,8 @@ BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_mac_cpu}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5555}"
 THREADS="${THREADS:-8}"
+export MTMD_BACKEND_DEVICE=BLAS
 TASK="${TASK:-grab the block.}"
-N_BATCH="${N_BATCH:-512}"
-N_CTX="${N_CTX:-2048}"
-VERBOSITY="${VERBOSITY:-0}"
 NOISE_MODE="${NOISE_MODE:-gaussian}"
 NOISE_SEED="${NOISE_SEED:--1}"
 
@@ -22,7 +20,7 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 # ====================================
 
-SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
+SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     echo "== configure =="
@@ -103,10 +101,6 @@ case "${MODEL_TYPE}" in
         ;;
 esac
 
-if [ "${MODEL_TYPE}" = "starvla" ]; then
-    export MTMD_BACKEND_DEVICE="${MTMD_BACKEND_DEVICE:-BLAS}"
-fi
-
 echo "== launch server =="
 echo "model_type: ${MODEL_TYPE}"
 echo "host: ${HOST}"
@@ -120,8 +114,8 @@ exec "${SERVER_BIN}" \
     --host "${HOST}" \
     --port "${PORT}" \
     --threads "${THREADS}" \
-    --n-batch "${N_BATCH}" \
-    --n-ctx "${N_CTX}" \
+    --n-batch 512 \
+    --n-ctx 2048 \
     --noise-mode "${NOISE_MODE}" \
     --noise-seed "${NOISE_SEED}" \
-    --verbosity "${VERBOSITY}"
+    --verbosity 0

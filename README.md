@@ -60,8 +60,8 @@ git submodule update --init --recursive
 ./tools/apply_patches.sh
 ```
 
-The launch scripts below configure and build `model-server` automatically.
-StarVLA is always included in the build. See the
+The launch scripts below configure and build `model-server` automatically. For
+manual builds, see the
 [Robot Server build instructions](robot_server/README.md#manual-build).
 
 This section introduces three usage paths to help you quickly understand the repository:
