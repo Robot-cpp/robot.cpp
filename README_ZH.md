@@ -16,9 +16,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="macOS release" src="https://img.shields.io/badge/macOS-发布包-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Linux release" src="https://img.shields.io/badge/Linux-发布包-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Windows release" src="https://img.shields.io/badge/Windows-发布包-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases"><img alt="macOS release" src="https://img.shields.io/badge/macOS-发布包-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases"><img alt="Linux release" src="https://img.shields.io/badge/Linux-发布包-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases"><img alt="Windows release" src="https://img.shields.io/badge/Windows-发布包-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -84,7 +84,7 @@ git submodule update --init --recursive
 
 ##### 方法1：直接下载
 
-对于特定的一些平台与设定，我们已经预编译了一些`model-server`的二进制文件，可以直接在 [release page](https://github.com/Robot-cpp/robot.cpp/releases/latest) 下载下来直接用。
+对于特定的一些平台与设定，我们已经预编译了一些`model-server`的二进制文件，可以直接在 [release page](https://github.com/Robot-cpp/robot.cpp/releases) 下载下来直接用。
 
 下载之后，可以直接用下面的方式运行`model-server`：
 

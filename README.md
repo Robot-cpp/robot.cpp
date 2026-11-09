@@ -16,9 +16,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="macOS release" src="https://img.shields.io/badge/macOS-Release%20Package-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Linux release" src="https://img.shields.io/badge/Linux-Release%20Package-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
-  <a href="https://github.com/Robot-cpp/robot.cpp/releases/latest"><img alt="Windows release" src="https://img.shields.io/badge/Windows-Release%20Package-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases"><img alt="macOS release" src="https://img.shields.io/badge/macOS-Release%20Package-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases"><img alt="Linux release" src="https://img.shields.io/badge/Linux-Release%20Package-FCC624?style=for-the-badge&logo=linux&logoColor=black"></a>
+  <a href="https://github.com/Robot-cpp/robot.cpp/releases"><img alt="Windows release" src="https://img.shields.io/badge/Windows-Release%20Package-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -84,7 +84,7 @@ There are two ways to start `model-server`.
 
 ##### Option 1: Download a prebuilt binary
 
-For several platforms and configurations, we provide prebuilt `model-server` binaries on the [release page](https://github.com/Robot-cpp/robot.cpp/releases/latest).
+For several platforms and configurations, we provide prebuilt `model-server` binaries on the [release page](https://github.com/Robot-cpp/robot.cpp/releases).
 
 After downloading, run `model-server` like this:
 
