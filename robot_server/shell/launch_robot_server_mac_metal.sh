@@ -31,7 +31,8 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=ON \
-        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
+        -DROBOT_CPP_BUILD_STARVLA="$([ "${MODEL_TYPE}" = starvla ] && echo ON || echo OFF)"
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \
@@ -69,6 +70,17 @@ case "${MODEL_TYPE}" in
             --tokenizer "${TOKENIZER_GGUF}"
             --state-gguf "${STATE_GGUF}"
             --action-decoder "${ACTION_DECODER_GGUF}"
+        )
+        ;;
+    starvla)
+        LLM_GGUF="${LLM_GGUF:?LLM_GGUF must be set for StarVLA}"
+        MMPROJ_GGUF="${MMPROJ_GGUF:?MMPROJ_GGUF must be set for StarVLA}"
+        POLICY_GGUF="${POLICY_GGUF:?POLICY_GGUF must be set for StarVLA}"
+        MODEL_ARGS=(
+            --model-type starvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${MMPROJ_GGUF}"
+            --policy "${POLICY_GGUF}"
         )
         ;;
     *)
