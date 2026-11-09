@@ -4,7 +4,7 @@ set -euo pipefail
 ROBOT_CPP_ROOT="${ROBOT_CPP_ROOT:?ROBOT_CPP_ROOT must be set}"
 GGUF_DIR="${GGUF_DIR:?GGUF_DIR must be set}"
 
-MODEL_TYPE="${1:-${MODEL_TYPE:-smolvla}}"
+MODEL_TYPE="${MODEL_TYPE:-smolvla}"
 BUILD_DIR="${BUILD_DIR:-${ROBOT_CPP_ROOT}/build_linux_cuda}"
 
 HOST="${HOST:-127.0.0.1}"
@@ -22,7 +22,7 @@ CMAKE_BIN="${CMAKE_BIN:-cmake}"
 GGML_NATIVE="${GGML_NATIVE:-OFF}"
 GGML_OPENMP="${GGML_OPENMP:-OFF}"
 
-SERVER_BIN="${SERVER_BIN:-${BUILD_DIR}/bin/model-server}"
+SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
 if [ "${SKIP_BUILD}" != "1" ]; then
     echo "== configure =="

@@ -22,7 +22,6 @@ if not defined ROBOT_CPP_ROOT (
     exit /b 1
 )
 
-if not "%~1"=="" set "MODEL_TYPE=%~1"
 if not defined MODEL_TYPE set "MODEL_TYPE=smolvla"
 if not defined DTYPE set "DTYPE=f16"
 if not defined BUILD_DIR set "BUILD_DIR=!ROBOT_CPP_ROOT!\build-win-cpu-mingw"
@@ -44,23 +43,6 @@ if not defined CMAKE_BUILD_TYPE set "CMAKE_BUILD_TYPE=Release"
 if not defined GGML_NATIVE set "GGML_NATIVE=OFF"
 if not defined GGML_BLAS set "GGML_BLAS=OFF"
 if not defined GGML_OPENMP set "GGML_OPENMP=OFF"
-
-if not defined GGUF_DIR (
-    if /I "!MODEL_TYPE!"=="smolvla" (
-        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
-    ) else if /I "!MODEL_TYPE!"=="pi0" (
-        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\robotcpp-split"
-    ) else if /I "!MODEL_TYPE!"=="bitvla" (
-        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\bitvla"
-    ) else if /I "!MODEL_TYPE!"=="starvla" (
-        rem StarVLA uses the three explicit GGUF paths below.
-    ) else (
-        echo unsupported MODEL_TYPE=!MODEL_TYPE! >&2
-        exit /b 1
-    )
-)
-
-if "!SKIP_BUILD!"=="1" goto launch
 
 if not defined CC set "CC=gcc"
 if not defined CXX set "CXX=g++"
@@ -84,6 +66,19 @@ where mingw32-make >nul 2>&1
 if errorlevel 1 (
     echo error: mingw32-make not found. Install mingw-w64-ucrt-x86_64-make in MSYS2 UCRT64. >&2
     exit /b 1
+)
+
+if not defined GGUF_DIR (
+    if /I "!MODEL_TYPE!"=="smolvla" (
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
+    ) else if /I "!MODEL_TYPE!"=="pi0" (
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\robotcpp-split"
+    ) else if /I "!MODEL_TYPE!"=="bitvla" (
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\bitvla"
+    ) else (
+        echo unsupported MODEL_TYPE=!MODEL_TYPE! >&2
+        exit /b 1
+    )
 )
 
 if not "!SKIP_BUILD!"=="1" (
@@ -154,12 +149,9 @@ if not "!SKIP_BUILD!"=="1" (
     if errorlevel 1 exit /b 1
 )
 
-:launch
-if not defined SERVER_BIN (
-    set "SERVER_BIN=!BUILD_DIR!\bin\model-server.exe"
-    if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\bin\Release\model-server.exe"
-    if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\model-server.exe"
-)
+set "SERVER_BIN=!BUILD_DIR!\bin\model-server.exe"
+if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\bin\Release\model-server.exe"
+if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\model-server.exe"
 if not exist "!SERVER_BIN!" (
     echo error: model-server.exe not found under "!BUILD_DIR!" >&2
     exit /b 1
@@ -184,30 +176,6 @@ if /I "!MODEL_TYPE!"=="smolvla" (
         --mmproj "!VISION_GGUF!" ^
         --state-proj "!STATE_PROJ_GGUF!" ^
         --action-expert "!ACTION_EXPERT_GGUF!" ^
-        --task "!TASK!" ^
-        --host "!HOST!" ^
-        --port !PORT! ^
-        --threads !THREADS! ^
-        --n-batch !N_BATCH! ^
-        --n-ctx !N_CTX! ^
-        --noise-mode !NOISE_MODE! ^
-        --noise-seed !NOISE_SEED! ^
-        --verbosity !VERBOSITY!
-    exit /b !ERRORLEVEL!
-)
-
-if /I "!MODEL_TYPE!"=="starvla" (
-    for %%V in (LLM_GGUF MMPROJ_GGUF POLICY_GGUF) do (
-        if not defined %%V (
-            echo error: %%V must be set for StarVLA. >&2
-            exit /b 1
-        )
-    )
-    "!SERVER_BIN!" ^
-        --model-type starvla ^
-        --llm "!LLM_GGUF!" ^
-        --mmproj "!MMPROJ_GGUF!" ^
-        --policy "!POLICY_GGUF!" ^
         --task "!TASK!" ^
         --host "!HOST!" ^
         --port !PORT! ^

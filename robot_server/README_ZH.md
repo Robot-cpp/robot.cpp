@@ -27,17 +27,17 @@ git submodule update --init --recursive
 | CPU     | `robot_server/shell/launch_robot_server_mac_cpu.sh`   | `robot_server/shell/launch_robot_server_linux_cpu.sh`  | `robot_server/shell/launch_robot_server_windows_cpu.bat`  |
 | Metal   | `robot_server/shell/launch_robot_server_mac_metal.sh` | -                                                        | -                                                           |
 
-各模型的启动脚本接入情况（✅ 已接入参数传递）：
+各模型的启动脚本支持情况（✅ 已接入；— 尚未测试）：
 
 | 模型 | macOS CPU | macOS Metal | Linux CPU | Linux CUDA | Windows CPU | Windows CUDA |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| BitVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| StarVLA | ✅ | ✅ | — | ✅ | — | — |
+| BitVLA | ✅ | — | ✅ | ✅ | ✅ | ✅ |
 
-脚本接入不代表每个平台均已验证模型推理。新增的 Windows StarVLA/BitVLA 分支尚未在
-Windows 上实测。Mac 上的 BitVLA 仍推荐 CPU；Metal 启动路径为实验支持，性能可能更慢。
+注：BitVLA 在 Mac M4 Pro 上暂时推荐 CPU 后端。Metal 的 INT8 运算性能可能不如 CPU，
+仍需进一步研究和验证；完成后再推出 Mac Metal 支持。
 
 ### 设置变量
 
@@ -61,11 +61,6 @@ Windows 上实测。Mac 上的 BitVLA 仍推荐 CPU；Metal 启动路径为实�
 | `VERBOSITY`      | 模型日志级别                                              | `0`                                                           |
 | `SKIP_BUILD`     | 是否跳过 configure/build；设为 `1` 时直接启动已有 binary | `0`                                                           |
 | `CMAKE_BIN`      | CMake 可执行文件                                          | `cmake`                                                       |
-| `SERVER_BIN` | 指定已有 server 的完整路径，与 `SKIP_BUILD=1` 配合使用。 | `${BUILD_DIR}/bin/model-server`（Windows 还会查找配置子目录） |
-
-所有启动脚本也支持用第一个参数指定模型类型，优先于 `MODEL_TYPE`。
-Mac CPU 脚本运行 StarVLA 时默认设置 `MTMD_BACKEND_DEVICE=BLAS`，用于视觉计算；
-显式设置为 `CPU` 等值可覆盖默认值。Metal 脚本保持原有设备选择行为。
 
 SmolVLA 变量：
 
@@ -76,7 +71,7 @@ SmolVLA 变量：
 | `STATE_PROJ_GGUF`    | SmolVLA state projector GGUF 完整路径 | `${GGUF_DIR}/state-proj-smolvla-f32.gguf`    |
 | `ACTION_EXPERT_GGUF` | SmolVLA action expert GGUF 完整路径   | `${GGUF_DIR}/action-expert-smolvla-f32.gguf` |
 
-BitVLA 变量：
+BitVLA 变量（Mac CPU / Linux CPU / Linux CUDA）：
 
 | 变量 | 说明 | 默认值 |
 | --- | --- | --- |
@@ -97,7 +92,7 @@ pi0 变量：
 | `STATE_GGUF`          | pi0 state GGUF 完整路径          | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | pi0 action decoder GGUF 完整路径 | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
-StarVLA 变量：
+StarVLA 变量（Linux CUDA）：
 
 | 变量          | 说明                         | 默认值   |
 | ------------- | ---------------------------- | -------- |
@@ -130,8 +125,6 @@ export POLICY_GGUF="${GGUF_DIR}/starvla-oft-policy-fp32.gguf"
 bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
-StarVLA 始终参与编译，与启动时选择的模型无关。
-
 ### 手动构建
 
 不使用启动脚本时，可按以下方式构建支持 StarVLA 的 server：
@@ -143,8 +136,6 @@ cmake -S . -B build_cuda \
   -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build_cuda --target model-server -j
 ```
-
-配置前需应用仓库的 llama.cpp 补丁。
 
 ### 故障排查
 
@@ -160,17 +151,6 @@ export PATH=/usr/local/cuda-12.4/bin:$PATH
 ## 方法 2：直接下载预编译发布
 
 从 release page 下载后，运行以下命令。
-
-启动脚本也可以直接使用已有发布包。例如，设置好上面的模型变量后：
-
-```bash
-SKIP_BUILD=1 BUILD_DIR=/path/to/robotcpp-linux-x86_64-cuda12 \
-  bash robot_server/shell/launch_robot_server_linux_cuda.sh starvla
-```
-
-也可以使用 `SERVER_BIN` 指定可执行文件的完整路径。Windows 设置 `SKIP_BUILD=1` 后，
-会同时跳过编译工具检查和构建。上述选项使用二进制中已有的模型支持，不会为旧包新增
-模型能力。Checkpoint 需单独提供。
 
 ### 启动 SmolVLA
 
