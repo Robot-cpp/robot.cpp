@@ -61,7 +61,6 @@ Windows 上实测。Mac 上的 BitVLA 仍推荐 CPU；Metal 启动路径为实�
 | `VERBOSITY`      | 模型日志级别                                              | `0`                                                           |
 | `SKIP_BUILD`     | 是否跳过 configure/build；设为 `1` 时直接启动已有 binary | `0`                                                           |
 | `CMAKE_BIN`      | CMake 可执行文件                                          | `cmake`                                                       |
-| `ROBOT_CPP_BUILD_STARVLA` | 构建时是否包含 StarVLA；设为 `OFF` 可排除。`SKIP_BUILD=1` 时不生效。 | `ON` |
 | `SERVER_BIN` | 指定已有 server 的完整路径，与 `SKIP_BUILD=1` 配合使用。 | `${BUILD_DIR}/bin/model-server`（Windows 还会查找配置子目录） |
 
 所有启动脚本也支持用第一个参数指定模型类型，优先于 `MODEL_TYPE`。
@@ -131,8 +130,7 @@ export POLICY_GGUF="${GGUF_DIR}/starvla-oft-policy-fp32.gguf"
 bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
-所有启动脚本默认使用 `ROBOT_CPP_BUILD_STARVLA=ON` 配置 CMake，与当前选择的模型无关。
-仅在构建不包含 StarVLA 的版本时将其设为 `OFF`。
+StarVLA 始终参与编译，与启动时选择的模型无关。
 
 ### 手动构建
 
@@ -146,9 +144,7 @@ cmake -S . -B build_cuda \
 cmake --build build_cuda --target model-server -j
 ```
 
-`ROBOT_CPP_BUILD_STARVLA` 默认为 `ON`，需要排除 StarVLA 时使用
-`-DROBOT_CPP_BUILD_STARVLA=OFF`。已有 CMake 构建目录会保留缓存值；如果旧构建关闭了它，
-需要显式传入 `-DROBOT_CPP_BUILD_STARVLA=ON`。配置前仍需应用仓库的 llama.cpp 补丁。
+配置前需应用仓库的 llama.cpp 补丁。
 
 ### 故障排查
 

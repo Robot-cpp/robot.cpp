@@ -60,8 +60,7 @@ git submodule update --init --recursive
 ./tools/apply_patches.sh
 ```
 
-下文的启动脚本会自动配置并编译 `model-server`，默认包含 StarVLA；需要排除时可设置
-`ROBOT_CPP_BUILD_STARVLA=OFF`。详见
+下文的启动脚本会自动配置并编译 `model-server`，始终包含 StarVLA。详见
 [Robot Server 构建说明](robot_server/README_ZH.md#手动构建)。
 
 我们介绍三类使用案例来帮助你快速了解本仓库：
