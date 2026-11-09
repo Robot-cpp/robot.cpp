@@ -21,10 +21,6 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 CMAKE_BIN="${CMAKE_BIN:-cmake}"
 GGML_NATIVE="${GGML_NATIVE:-OFF}"
 GGML_OPENMP="${GGML_OPENMP:-OFF}"
-ROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA:-OFF}"
-if [ "${MODEL_TYPE}" = "starvla" ]; then
-    ROBOT_CPP_BUILD_STARVLA=ON
-fi
 
 SERVER_BIN="${BUILD_DIR}/bin/model-server"
 
@@ -36,8 +32,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_OPENMP="${GGML_OPENMP}" \
         -DGGML_CUDA=ON \
         -DGGML_METAL=OFF \
-        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-        -DROBOT_CPP_BUILD_STARVLA="${ROBOT_CPP_BUILD_STARVLA}"
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" --target model-server -j8
