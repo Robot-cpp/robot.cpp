@@ -52,6 +52,19 @@ case "${MODEL_TYPE}" in
             --action-expert "${ACTION_EXPERT_GGUF}"
         )
         ;;
+    bitvla)
+        LLM_GGUF="${LLM_GGUF:-${GGUF_DIR}/bitvla-llm-i2s.gguf}"
+        VISION_GGUF="${VISION_GGUF:-${GGUF_DIR}/bitvla-vision-i2s.gguf}"
+        STATE_PROJ_GGUF="${STATE_PROJ_GGUF:-${GGUF_DIR}/bitvla-proprio-i2s.gguf}"
+        ACTION_EXPERT_GGUF="${ACTION_EXPERT_GGUF:-${GGUF_DIR}/bitvla-action-i2s.gguf}"
+        MODEL_ARGS=(
+            --model-type bitvla
+            --llm "${LLM_GGUF}"
+            --mmproj "${VISION_GGUF}"
+            --state-proj "${STATE_PROJ_GGUF}"
+            --action-expert "${ACTION_EXPERT_GGUF}"
+        )
+        ;;
     pi0)
         MODEL_BASENAME="${MODEL_BASENAME:-robotcpp-pi0-libero-finetuned-v044}"
         VIT_GGUF="${VIT_GGUF:-${GGUF_DIR}/${MODEL_BASENAME}.vit.gguf}"
