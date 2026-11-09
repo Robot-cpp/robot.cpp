@@ -68,6 +68,10 @@ if /I "!MODEL_TYPE!"=="smolvla" (
 ) else if /I "!MODEL_TYPE!"=="pi0" (
     set "DEFAULT_IMAGE_NAMES=observation.images.image,observation.images.image2"
     set "DEFAULT_STATE_DIM=8"
+) else if /I "!MODEL_TYPE!"=="bitvla" (
+    set "DEFAULT_IMAGE_NAMES=full_image,wrist_image"
+    set "DEFAULT_STATE_DIM=8"
+    if not defined DTYPE set "DTYPE=i2s"
 ) else (
     set "DEFAULT_IMAGE_NAMES=image"
     set "DEFAULT_STATE_DIM=6"

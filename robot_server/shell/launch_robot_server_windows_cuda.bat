@@ -113,6 +113,8 @@ if not defined GGUF_DIR (
         set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\smolvla\gguf-!DTYPE!"
     ) else if /I "!MODEL_TYPE!"=="pi0" (
         set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\pi0-libero-finetuned-v044\robotcpp-split"
+    ) else if /I "!MODEL_TYPE!"=="bitvla" (
+        set "GGUF_DIR=!ROBOT_CPP_ROOT!\ckpts\bitvla"
     ) else (
         echo unsupported MODEL_TYPE=!MODEL_TYPE! >&2
         exit /b 1
@@ -199,6 +201,7 @@ if not "!SKIP_BUILD!"=="1" (
 set "SERVER_BIN=!BUILD_DIR!\bin\!CMAKE_CONFIG!\model-server.exe"
 if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\bin\model-server.exe"
 if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\!CMAKE_CONFIG!\bin\model-server.exe"
+if not exist "!SERVER_BIN!" set "SERVER_BIN=!BUILD_DIR!\model-server.exe"
 if not exist "!SERVER_BIN!" (
     echo error: model-server.exe not found under "!BUILD_DIR!" >&2
     exit /b 1
@@ -251,6 +254,29 @@ if /I "!MODEL_TYPE!"=="pi0" (
         --tokenizer "!TOKENIZER_GGUF!" ^
         --state-gguf "!STATE_GGUF!" ^
         --action-decoder "!ACTION_DECODER_GGUF!" ^
+        --task "!TASK!" ^
+        --host "!HOST!" ^
+        --port !PORT! ^
+        --threads !THREADS! ^
+        --n-batch !N_BATCH! ^
+        --n-ctx !N_CTX! ^
+        --noise-mode !NOISE_MODE! ^
+        --noise-seed !NOISE_SEED! ^
+        --verbosity !VERBOSITY!
+    exit /b !ERRORLEVEL!
+)
+
+if /I "!MODEL_TYPE!"=="bitvla" (
+    if not defined LLM_GGUF set "LLM_GGUF=!GGUF_DIR!\bitvla-llm-i2s.gguf"
+    if not defined VISION_GGUF set "VISION_GGUF=!GGUF_DIR!\bitvla-vision-i2s.gguf"
+    if not defined STATE_PROJ_GGUF set "STATE_PROJ_GGUF=!GGUF_DIR!\bitvla-proprio-i2s.gguf"
+    if not defined ACTION_EXPERT_GGUF set "ACTION_EXPERT_GGUF=!GGUF_DIR!\bitvla-action-i2s.gguf"
+    "!SERVER_BIN!" ^
+        --model-type bitvla ^
+        --llm "!LLM_GGUF!" ^
+        --mmproj "!VISION_GGUF!" ^
+        --state-proj "!STATE_PROJ_GGUF!" ^
+        --action-expert "!ACTION_EXPERT_GGUF!" ^
         --task "!TASK!" ^
         --host "!HOST!" ^
         --port !PORT! ^

@@ -4,13 +4,13 @@
 
 # Robot Client
 
-This directory provides client-side code for the vla.cpp `model-server`. The client is only responsible for encoding the current observation as a TCP request, sending it to the server, and parsing the returned action chunk and timing information. Robot observation collection and action execution are handled by the upper-level platform / policy code.
+This directory provides client-side code for the robot.cpp `model-server`. The client is only responsible for encoding the current observation as a TCP request, sending it to the server, and parsing the returned action chunk and timing information. Robot observation collection and action execution are handled by the upper-level platform / policy code.
 
 ## Usage
 
 ### step0: Start model-server first
 
-All clients require the vla.cpp server to be running. The most common address is:
+All clients require the robot.cpp server to be running. The most common address is:
 
 ```text
 127.0.0.1:5555
@@ -54,13 +54,13 @@ python robot_client/examples/python/minimal_example.py
 You can also run a benchmark smoke test through the wrapper script:
 
 ```bash
-export VLA_CPP_ROOT=/path/to/vla.cpp/robot.cpp
+export ROBOT_CPP_ROOT=/path/to/robot.cpp/robot.cpp
 bash robot_client/shell/client_example.sh
 ```
 
 Note:
 
-* `client_example.sh` depends on the `VLA_CPP_ROOT` environment variable.
+* `client_example.sh` depends on the `ROBOT_CPP_ROOT` environment variable.
 * `minimal_example.py` connects to `127.0.0.1:5555` by default.
 * An observation must contain at least `images`, `state`, and `prompt`.
 
@@ -93,7 +93,7 @@ Images can be passed directly through `image`, or through pre-packed raw RGB fie
 }
 ```
 
-`model_client.py` normalizes the input into contiguous `RGB / HWC / uint8` bytes and sends it to the server using the vla.cpp TCP protocol.
+`model_client.py` normalizes the input into contiguous `RGB / HWC / uint8` bytes and sends it to the server using the robot.cpp TCP protocol.
 
 ### step3: Read the response
 
@@ -155,7 +155,7 @@ robot_client/examples/cpp/minimal_example.cpp
 After starting the server, run:
 
 ```bash
-export VLA_CPP_ROOT=/path/to/vla.cpp/robot.cpp
+export ROBOT_CPP_ROOT=/path/to/robot.cpp/robot.cpp
 bash robot_client/shell/cpp_client_example.sh
 ```
 
@@ -163,7 +163,7 @@ Configurable variables:
 
 | Variable | Description |
 | --- | --- |
-| `VLA_CPP_ROOT` | Repository root, required by the script |
+| `ROBOT_CPP_ROOT` | Repository root, required by the script |
 | `BUILD_DIR` | CMake build directory |
 | `HOST` / `PORT` | model-server address |
 | `BUILD_CLIENT` | Set to `1` to force re-configuring / rebuilding the C++ example |

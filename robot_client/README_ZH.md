@@ -4,13 +4,13 @@
 
 # Robot Client
 
-这个目录提供 vla.cpp `model-server` 的客户端代码。client 只负责把当前 observation 编码为 TCP 请求，发送给 server，并解析返回的 action chunk 与 timing 信息；具体怎么采集机器人观测、怎么下发动作，由上层 platform / policy 完成。
+这个目录提供 robot.cpp `model-server` 的客户端代码。client 只负责把当前 observation 编码为 TCP 请求，发送给 server，并解析返回的 action chunk 与 timing 信息；具体怎么采集机器人观测、怎么下发动作，由上层 platform / policy 完成。
 
 ## 使用说明
 
 ### step0：先启动 model-server
 
-所有 client 都要求 vla.cpp server 已经在运行。最常见的地址是：
+所有 client 都要求 robot.cpp server 已经在运行。最常见的地址是：
 
 ```text
 127.0.0.1:5555
@@ -54,13 +54,13 @@ python robot_client/examples/python/minimal_example.py
 也可以用脚本跑一次 benchmark smoke test：
 
 ```bash
-export VLA_CPP_ROOT=/path/to/vla.cpp/robot.cpp
+export ROBOT_CPP_ROOT=/path/to/robot.cpp/robot.cpp
 bash robot_client/shell/client_example.sh
 ```
 
 ⚠️注意：
 
-* `client_example.sh` 依赖 `VLA_CPP_ROOT` 环境变量。
+* `client_example.sh` 依赖 `ROBOT_CPP_ROOT` 环境变量。
 * `minimal_example.py` 默认连接 `127.0.0.1:5555`。
 * observation 至少需要包含 `images`、`state`、`prompt` 三个字段。
 
@@ -93,7 +93,7 @@ Python client 接收的 observation 是一个 dict：
 }
 ```
 
-`model_client.py` 会统一转换为 `RGB / HWC / uint8` 连续 bytes，再按 vla.cpp TCP 协议发送给 server。
+`model_client.py` 会统一转换为 `RGB / HWC / uint8` 连续 bytes，再按 robot.cpp TCP 协议发送给 server。
 
 ### step3：读取返回结果
 
@@ -155,7 +155,7 @@ robot_client/examples/cpp/minimal_example.cpp
 启动 server 后运行：
 
 ```bash
-export VLA_CPP_ROOT=/path/to/vla.cpp/robot.cpp
+export ROBOT_CPP_ROOT=/path/to/robot.cpp/robot.cpp
 bash robot_client/shell/cpp_client_example.sh
 ```
 
@@ -163,7 +163,7 @@ bash robot_client/shell/cpp_client_example.sh
 
 | 变量 | 说明 |
 | --- | --- |
-| `VLA_CPP_ROOT` | 仓库根目录，脚本必需 |
+| `ROBOT_CPP_ROOT` | 仓库根目录，脚本必需 |
 | `BUILD_DIR` | CMake build 目录 |
 | `HOST` / `PORT` | model-server 地址 |
 | `BUILD_CLIENT` | 设为 `1` 时强制重新 configure / build C++ 示例 |
