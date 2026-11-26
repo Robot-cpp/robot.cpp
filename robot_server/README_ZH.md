@@ -33,7 +33,7 @@ git submodule update --init --recursive
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | ✅ | ✅ | — | ✅ | — | — |
+| StarVLA | ✅ | ✅ | ✅ | ✅ | — | — |
 | BitVLA | ✅ | — | ✅ | ✅ | ✅ | ✅ |
 
 注：BitVLA 在 Mac M4 Pro 上暂时推荐 CPU 后端。Metal 的 INT8 运算性能可能不如 CPU，
@@ -92,7 +92,7 @@ pi0 变量：
 | `STATE_GGUF`          | pi0 state GGUF 完整路径          | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | pi0 action decoder GGUF 完整路径 | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
-StarVLA 变量（Linux CUDA）：
+StarVLA 变量（Linux CPU / Linux CUDA）：
 
 | 变量          | 说明                         | 默认值   |
 | ------------- | ---------------------------- | -------- |
@@ -125,9 +125,6 @@ export POLICY_GGUF="${GGUF_DIR}/starvla-oft-policy-fp32.gguf"
 bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
-当 `MODEL_TYPE=starvla` 时，脚本会自动使用
-`ROBOT_CPP_BUILD_STARVLA=ON` 配置 CMake。
-
 ### 手动构建
 
 不使用启动脚本时，可按以下方式构建支持 StarVLA 的 server：
@@ -136,12 +133,9 @@ bash robot_server/shell/launch_robot_server_linux_cuda.sh
 cmake -S . -B build_cuda \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=ON \
-  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-  -DROBOT_CPP_BUILD_STARVLA=ON
+  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build_cuda --target model-server -j
 ```
-
-`ROBOT_CPP_BUILD_STARVLA` 默认为 `OFF`；构建 SmolVLA 和 pi0 时不需要开启。
 
 ### 故障排查
 

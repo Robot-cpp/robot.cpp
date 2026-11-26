@@ -31,8 +31,7 @@ if [ "${SKIP_BUILD}" != "1" ]; then
         -DGGML_BLAS_VENDOR=Apple \
         -DGGML_OPENMP=OFF \
         -DGGML_METAL=OFF \
-        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-        -DROBOT_CPP_BUILD_STARVLA="$([ "${MODEL_TYPE}" = starvla ] && echo ON || echo OFF)"
+        -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 
     echo "== build =="
     "${CMAKE_BIN}" --build "${BUILD_DIR}" \

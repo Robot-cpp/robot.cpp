@@ -38,7 +38,7 @@ Model support in the launch scripts (✅ integrated; — not yet tested):
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | SmolVLA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pi0 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| StarVLA | ✅ | ✅ | — | ✅ | — | — |
+| StarVLA | ✅ | ✅ | ✅ | ✅ | — | — |
 | BitVLA | ✅ | — | ✅ | ✅ | ✅ | ✅ |
 
 Note: For BitVLA on Mac M4 Pro, use the CPU backend for now. Metal INT8 operations may
@@ -98,7 +98,7 @@ pi0 variables:
 | `STATE_GGUF`          | Full path to the pi0 state GGUF.                 | `${GGUF_DIR}/${MODEL_BASENAME}.state.gguf`          |
 | `ACTION_DECODER_GGUF` | Full path to the pi0 action decoder GGUF.        | `${GGUF_DIR}/${MODEL_BASENAME}.action_decoder.gguf` |
 
-StarVLA variables (Linux CUDA):
+StarVLA variables (Linux CPU / Linux CUDA):
 
 | Variable      | Description                           | Default  |
 | ------------- | ------------------------------------- | -------- |
@@ -131,9 +131,6 @@ export POLICY_GGUF="${GGUF_DIR}/starvla-oft-policy-fp32.gguf"
 bash robot_server/shell/launch_robot_server_linux_cuda.sh
 ```
 
-The script automatically configures CMake with
-`ROBOT_CPP_BUILD_STARVLA=ON` when `MODEL_TYPE=starvla`.
-
 ### Manual Build
 
 To build a StarVLA-enabled server without a launch script:
@@ -142,13 +139,9 @@ To build a StarVLA-enabled server without a launch script:
 cmake -S . -B build_cuda \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=ON \
-  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON \
-  -DROBOT_CPP_BUILD_STARVLA=ON
+  -DROBOT_CPP_BUILD_ROBOT_SERVER=ON
 cmake --build build_cuda --target model-server -j
 ```
-
-`ROBOT_CPP_BUILD_STARVLA` defaults to `OFF`; SmolVLA and pi0 builds do not need
-it.
 
 ### Troubleshooting
 

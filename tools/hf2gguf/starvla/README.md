@@ -132,7 +132,6 @@ scope.
 cmake -S . -B build_cuda \
   -DGGML_CUDA=ON \
   -DBUILD_TESTING=ON \
-  -DROBOT_CPP_BUILD_STARVLA=ON \
   -DROBOT_CPP_BUILD_MODEL_CLI=ON
 cmake --build build_cuda -j
 ```

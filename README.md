@@ -61,7 +61,7 @@ git submodule update --init --recursive
 ```
 
 The launch scripts below configure and build `model-server` automatically. For
-a manual StarVLA build, enable `ROBOT_CPP_BUILD_STARVLA`; see the
+manual builds, see the
 [Robot Server build instructions](robot_server/README.md#manual-build).
 
 This section introduces three usage paths to help you quickly understand the repository:
